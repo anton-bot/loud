@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700&family=Noto+Sans+SC:wght@700&display=swap"
       rel="stylesheet"
     />
     <script type="module" crossorigin>//#region src/look/looks.ts
@@ -1421,7 +1421,7 @@ var gridW$2 = 0;
 var gridH$2 = 0;
 var density = /* @__PURE__ */ new Float32Array(0);
 var shape = { ...SHAPES[0] };
-var target$2 = SHAPES[0];
+var target$3 = SHAPES[0];
 var x = .1;
 var y = .1;
 var beats = 0;
@@ -1454,8 +1454,8 @@ var attractor = {
 	],
 	beat() {
 		if (++beats % 8 !== 0) return;
-		target$2 = pick(SHAPES, target$2);
-		if (target$2.map !== shape.map) shape = { ...target$2 };
+		target$3 = pick(SHAPES, target$3);
+		if (target$3.map !== shape.map) shape = { ...target$3 };
 	},
 	resize() {
 		gridW$2 = 0;
@@ -1466,10 +1466,10 @@ var attractor = {
 		const h = Math.max(48, Math.round(w * height / width));
 		if (w !== gridW$2 || h !== gridH$2) setUp$6(w, h);
 		const k = Math.min(1, dt * .8);
-		shape.a += (target$2.a - shape.a) * k;
-		shape.b += (target$2.b - shape.b) * k;
-		shape.c += (target$2.c - shape.c) * k;
-		shape.d += (target$2.d - shape.d) * k;
+		shape.a += (target$3.a - shape.a) * k;
+		shape.b += (target$3.b - shape.b) * k;
+		shape.c += (target$3.c - shape.c) * k;
+		shape.d += (target$3.d - shape.d) * k;
 		const a = shape.a + audio.bass * .12;
 		const b = shape.b - audio.mid * .1;
 		const c = shape.c + audio.high * .08;
@@ -1647,7 +1647,7 @@ function drawBody(b) {
 	ctx.fill();
 	ctx.restore();
 }
-var bounce = {
+var bounce$1 = {
 	name: "bounce",
 	fade: .5,
 	blend: "source-over",
@@ -1758,10 +1758,10 @@ var nextA = /* @__PURE__ */ new Float32Array(0);
 var nextB = /* @__PURE__ */ new Float32Array(0);
 var feed = PATTERNS$1[0].feed;
 var kill = PATTERNS$1[0].kill;
-var target$1 = 0;
+var target$2 = 0;
 var beatsInPattern = 0;
 /** Drops chemical B in a disc. */
-function drop(cx, cy, r) {
+function drop$1(cx, cy, r) {
 	for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
 		if (x * x + y * y > r * r) continue;
 		const ix = ((cx + x) % gridW$1 + gridW$1) % gridW$1;
@@ -1778,7 +1778,7 @@ function setUp$5(w, h) {
 	b = new Float32Array(w * h);
 	nextA = new Float32Array(w * h);
 	nextB = new Float32Array(w * h);
-	for (let i = 0; i < 12; i++) drop(rndInt(w), rndInt(h), 2 + rndInt(4));
+	for (let i = 0; i < 12; i++) drop$1(rndInt(w), rndInt(h), 2 + rndInt(4));
 }
 /** One step of the simulation on the wrapping grid (3×3 Laplacian: 0.2 sides, 0.05 corners). */
 function react(f, k) {
@@ -1822,10 +1822,10 @@ var coral = {
 	beat() {
 		if (!gridW$1) return;
 		const count = 1 + Math.floor(audio.bass * 2.5);
-		for (let i = 0; i < count; i++) drop(rndInt(gridW$1), rndInt(gridH$1), Math.round(rnd(2, 4 + audio.bass * 4)));
+		for (let i = 0; i < count; i++) drop$1(rndInt(gridW$1), rndInt(gridH$1), Math.round(rnd(2, 4 + audio.bass * 4)));
 		if (++beatsInPattern >= 16) {
 			beatsInPattern = 0;
-			target$1 = (target$1 + 1) % PATTERNS$1.length;
+			target$2 = (target$2 + 1) % PATTERNS$1.length;
 		}
 	},
 	resize() {
@@ -1837,7 +1837,7 @@ var coral = {
 		const w = Math.max(32, Math.min(170, Math.round(width / cell)));
 		const h = Math.max(24, Math.round(w * height / width));
 		if (w !== gridW$1 || h !== gridH$1) setUp$5(w, h);
-		const goal = PATTERNS$1[target$1];
+		const goal = PATTERNS$1[target$2];
 		feed += (goal.feed - feed) * Math.min(1, dt * .4);
 		kill += (goal.kill - kill) * Math.min(1, dt * .4);
 		const f = feed + audio.bass * .006;
@@ -1845,7 +1845,7 @@ var coral = {
 		for (let n = 0; n < iterations; n++) react(f, kill);
 		let total = 0;
 		for (let i = 0; i < b.length; i += 7) total += b[i];
-		if (total < b.length / 7 / 500) drop(rndInt(gridW$1), rndInt(gridH$1), 4);
+		if (total < b.length / 7 / 500) drop$1(rndInt(gridW$1), rndInt(gridH$1), 4);
 		const shift = clock.time * .04;
 		const ramp = colorRamp(256, (t) => colorRgb(t * 3 + shift, 6 + t * 88));
 		paintField(layer$3, b, ramp, (v) => v * 3.2);
@@ -2057,7 +2057,7 @@ function drawEyes(x, y) {
 		fillCircle(ctx, lookX, lookY, r * .3);
 	}
 }
-var cutout = {
+var cutout$1 = {
 	name: "cutout",
 	fade: 1,
 	bloom: .2,
@@ -3175,7 +3175,7 @@ var fireworks = {
 //#endregion
 //#region src/modes/flow.ts
 /** Particles follow a moving flow field and leave long trails. */
-var particles$1 = [];
+var particles$2 = [];
 /** Phase offset of the field; each beat moves it so the flow changes direction. */
 var fieldPhase = 0;
 var flow$1 = {
@@ -3185,11 +3185,11 @@ var flow$1 = {
 		fieldPhase += rnd(.5, 2);
 	},
 	resize() {
-		particles$1.length = 0;
+		particles$2.length = 0;
 	},
 	draw(dt) {
 		const { width, height } = view;
-		if (!particles$1.length) for (let i = 0; i < 450; i++) particles$1.push({
+		if (!particles$2.length) for (let i = 0; i < 450; i++) particles$2.push({
 			x: Math.random() * width,
 			y: Math.random() * height,
 			k: Math.random() * 4
@@ -3199,7 +3199,7 @@ var flow$1 = {
 		const t = clock.time * .4 + fieldPhase;
 		ctx.lineWidth = 1.2 + audio.bass * 2.5;
 		ctx.lineCap = "round";
-		for (const p of particles$1) {
+		for (const p of particles$2) {
 			const a = Math.sin(p.x * scale + t) * 2 + Math.cos(p.y * scale * 1.3 - t * .8) * 2 + Math.sin((p.x + p.y) * scale * .5 + t * .5);
 			const nx = p.x + Math.cos(a) * step;
 			const ny = p.y + Math.sin(a) * step;
@@ -3397,7 +3397,7 @@ var julia = {
 /** The waveform drawn in eight mirrored segments. */
 var SEGMENTS$1 = 8;
 var POINTS = 110;
-var kaleido = {
+var kaleido$1 = {
 	name: "kaleido",
 	fade: .12,
 	zoom: 1.006,
@@ -4133,12 +4133,12 @@ var murmur = {
 //#region src/modes/nebula.ts
 /** Particles burst out of a glowing core and swirl with the treble. */
 var MAX_PARTICLES = 420;
-var particles = [];
+var particles$1 = [];
 function spawn$1(count, speed, spread) {
 	for (let n = 0; n < count; n++) {
 		const angle = Math.random() * TAU;
 		const v = speed * (.4 + Math.random());
-		particles.push({
+		particles$1.push({
 			x: view.cx,
 			y: view.cy,
 			vx: Math.cos(angle) * v,
@@ -4149,7 +4149,7 @@ function spawn$1(count, speed, spread) {
 			r: 2 + Math.random() * 4
 		});
 	}
-	while (particles.length > MAX_PARTICLES) particles.shift();
+	while (particles$1.length > MAX_PARTICLES) particles$1.shift();
 }
 var nebula = {
 	name: "nebula",
@@ -4161,8 +4161,8 @@ var nebula = {
 		const { width, height, cx, cy } = view;
 		spawn$1(Math.floor(1 + audio.mid * 6), 60 + audio.mid * 200, 1.5);
 		const swirl = audio.high * 1.2;
-		for (let i = particles.length - 1; i >= 0; i--) {
-			const p = particles[i];
+		for (let i = particles$1.length - 1; i >= 0; i--) {
+			const p = particles$1[i];
 			const dx = p.x - cx;
 			const dy = p.y - cy;
 			p.vx += -dy * swirl * dt + (motion.enabled ? motion.tiltX * 500 * dt : 0);
@@ -4173,7 +4173,7 @@ var nebula = {
 			p.vy *= .995;
 			p.life -= p.decay * dt;
 			if (p.life <= 0 || p.x < -50 || p.x > width + 50 || p.y < -50 || p.y > height + 50) {
-				particles.splice(i, 1);
+				particles$1.splice(i, 1);
 				continue;
 			}
 			ctx.fillStyle = color(p.k, p.life * .9, 55 + audio.high * 20);
@@ -4669,7 +4669,7 @@ var MULTIPLIERS = [
 ];
 var GROUPS = 4;
 var k$1 = 2;
-var target = 2;
+var target$1 = 2;
 var turn = 0;
 function drawCircle(radius, multiplier, spin, points, alpha, shift) {
 	const { cx, cy } = view;
@@ -4700,12 +4700,12 @@ var neonStrings = {
 		"technicolor"
 	],
 	beat() {
-		if (Math.random() < .6) target = pick(MULTIPLIERS, target);
+		if (Math.random() < .6) target$1 = pick(MULTIPLIERS, target$1);
 	},
 	draw(dt) {
 		const { cx, cy, min } = view;
 		const points = quality.level === 2 ? 200 : 140;
-		k$1 += (target - k$1) * Math.min(1, dt * .9);
+		k$1 += (target$1 - k$1) * Math.min(1, dt * .9);
 		k$1 += dt * (.02 + audio.mid * .06);
 		turn += dt * (.08 + audio.mid * .3);
 		const radius = min * .43 * (1 + audio.bass * .06 + audio.beat * .03);
@@ -5893,7 +5893,7 @@ var slime = {
 /** Three spiral arms of dots; each dot grows with its part of the spectrum. */
 var ARMS = 3;
 var DOTS = 220;
-var spiral = {
+var spiral$1 = {
 	name: "spiral",
 	fade: .2,
 	zoom: 1.003,
@@ -6240,7 +6240,7 @@ var tree = {
 //#region src/modes/tunnel.ts
 /** Polygon rings fly toward the viewer; sparks stream along the spokes. */
 var rings$1 = [];
-var tunnel = {
+var tunnel$1 = {
 	name: "tunnel",
 	fade: .07,
 	zoom: 1.025,
@@ -6333,8 +6333,8 @@ document.fonts?.load?.("700 40px Unbounded").catch(() => {});
 var MODES = [
 	nebula,
 	halo,
-	tunnel,
-	kaleido,
+	tunnel$1,
+	kaleido$1,
 	grid,
 	flow$1,
 	fireworks,
@@ -6373,13 +6373,13 @@ var MODES = [
 	},
 	blocks,
 	rays,
-	spiral,
+	spiral$1,
 	strings,
-	bounce,
+	bounce$1,
 	halftone,
 	ripples,
 	ascii,
-	cutout,
+	cutout$1,
 	terrain,
 	ridges,
 	mandala,
@@ -7152,150 +7152,692 @@ function analyze(dt) {
 	trackSections(dt, rawBass, rawMid, rawHigh, rms, centroid);
 }
 //#endregion
-//#region src/render/heardWords.ts
+//#region src/render/words/show.ts
+/** Shared types and helpers for the heard-words styles. */
 /**
-* Words heard by the mic (audio/speech.ts), shown over any mode for a while, in two or
-* three freaky ways at once: slammed one word per beat with a stacked shadow, a tunnel
-* of copies flying out of the centre, scrolling bands with split colours, and letters
-* orbiting the centre.
+* Display font: Unbounded (Latin and Cyrillic), then Noto Sans SC for Chinese (and
+* the Japanese kanji it shares). Both come from Google Fonts in loud.html.
 */
-var SHOW_S = 14;
-var FONT = "Unbounded, sans-serif";
+var FONT = "Unbounded, \"Noto Sans SC\", sans-serif";
 var MONOSPACE = "ui-monospace,Menlo,Consolas,monospace";
-var phrase = "";
-var words = [];
-var shownAt = -Infinity;
-var styles = [];
-var wordIndex = 0;
-var lastBeats = 0;
-/** Pose of the slammed word: turn, offset (fractions of the screen), colour. */
-var slamPose = {
+/** Font size at which `text` takes `share` of the screen width, but at most `max` px. */
+function fitFont(text, share, max, family = FONT) {
+	ctx.font = `700 100px ${family}`;
+	const measured = Math.max(1, ctx.measureText(text).width);
+	return Math.min(max, 100 * view.width * share / measured);
+}
+/** Glowing blend on dark palettes; normal drawing on light ones. */
+function glowBlend() {
+	return scene.palette.light ? "source-over" : "lighter";
+}
+//#endregion
+//#region src/render/words/anagram.ts
+/**
+* Hero: the letters of the text change places on beats, hopping over each other in arcs;
+* every other beat they go back to the right order, so the text stays readable.
+*/
+/** Longest text that is shuffled; a longer text is cut after a word. */
+var MAX_LETTERS = 16;
+var HOP_S = .35;
+var letters = [];
+var order = [];
+var previous = [];
+var movedAt = 0;
+var scrambled = false;
+function shortText(phrase) {
+	let text = "";
+	for (const word of phrase.split(" ")) {
+		if ((text + " " + word).trim().length > MAX_LETTERS && text) break;
+		text = (text + " " + word).trim();
+	}
+	return [...text].slice(0, MAX_LETTERS).join("");
+}
+function shuffled(n) {
+	const result = Array.from({ length: n }, (_, i) => i);
+	for (let i = n - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[result[i], result[j]] = [result[j], result[i]];
+	}
+	return result;
+}
+var anagram = {
+	name: "anagram",
+	role: "hero",
+	weight: 1.5,
+	start(show) {
+		letters = [...shortText(show.phrase)];
+		order = letters.map((_, i) => i);
+		previous = [...order];
+		movedAt = show.age;
+		scrambled = false;
+	},
+	draw(show) {
+		if (show.beat) {
+			previous = order;
+			scrambled = !scrambled;
+			order = scrambled ? shuffled(letters.length) : letters.map((_, i) => i);
+			movedAt = show.age;
+		}
+		const { cx, cy, height } = view;
+		const size = fitFont(letters.join(""), .86, height * .24);
+		ctx.font = `700 ${size}px ${FONT}`;
+		const widths = letters.map((letter) => ctx.measureText(letter).width);
+		const slots = [];
+		let x = cx - widths.reduce((sum, w) => sum + w, 0) / 2;
+		for (const w of widths) {
+			slots.push(x + w / 2);
+			x += w;
+		}
+		const p = clamp((show.age - movedAt) / HOP_S, 0, 1);
+		const ease = p * p * (3 - 2 * p);
+		letters.forEach((letter, i) => {
+			const fromX = slots[previous[i]];
+			const toX = slots[order[i]];
+			const hop = Math.sin(p * Math.PI) * size * .6 * (i % 2 ? 1 : -1);
+			ctx.fillStyle = color(i * .35 + show.age * .3, show.alpha, 82);
+			ctx.fillText(letter, fromX + (toX - fromX) * ease, cy - hop);
+		});
+	}
+};
+//#endregion
+//#region src/render/words/bounce.ts
+/** Ambient: the current word bounces around the screen like the old DVD logo, and changes colour at each wall. */
+var box = {
+	x: 0,
+	y: 0,
+	vx: 1,
+	vy: 1,
+	k: 0,
+	flash: 0
+};
+var bounce = {
+	name: "bounce",
+	role: "ambient",
+	weight: 2,
+	start() {
+		box.x = rnd(.25, .75) * view.width;
+		box.y = rnd(.25, .75) * view.height;
+		box.vx = Math.random() < .5 ? 1 : -1;
+		box.vy = Math.random() < .5 ? 1 : -1;
+		box.k = Math.random() * 4;
+	},
+	draw(show, dt) {
+		const { width, height, min } = view;
+		const size = min * .075 * (1 + box.flash * .6);
+		ctx.font = `700 ${size}px ${FONT}`;
+		const halfW = ctx.measureText(show.word).width / 2;
+		const halfH = size / 2;
+		const speed = (140 + audio.mid * 220) * dt;
+		box.x += box.vx * speed;
+		box.y += box.vy * speed;
+		let walls = 0;
+		if (box.x - halfW < 0 || box.x + halfW > width) {
+			box.vx = box.x - halfW < 0 ? 1 : -1;
+			box.x = Math.min(width - halfW, Math.max(halfW, box.x));
+			walls++;
+		}
+		if (box.y - halfH < 0 || box.y + halfH > height) {
+			box.vy = box.y - halfH < 0 ? 1 : -1;
+			box.y = Math.min(height - halfH, Math.max(halfH, box.y));
+			walls++;
+		}
+		if (walls) box.k += 1.3;
+		if (walls === 2) box.flash = 1;
+		box.flash = Math.max(0, box.flash - dt * 1.5);
+		ctx.fillStyle = color(box.k, show.alpha, 80);
+		ctx.fillText(show.word, box.x, box.y);
+	}
+};
+//#endregion
+//#region src/render/words/cutout.ts
+/** Hero: giant letters that invert the picture inside them, slowly zooming in. */
+var shown$1 = "";
+var shownAt$2 = 0;
+var cutout = {
+	name: "cutout",
+	role: "hero",
+	weight: 1.6,
+	draw(show) {
+		if (show.word !== shown$1) {
+			shown$1 = show.word;
+			shownAt$2 = show.age;
+		}
+		const { cx, cy, height } = view;
+		const size = fitFont(shown$1, .96, height * .85) * (1 + (show.age - shownAt$2) * .18 + audio.beat * .04);
+		ctx.translate(cx, cy);
+		ctx.rotate(Math.sin(show.age * .7) * .08);
+		ctx.font = `700 ${size}px ${FONT}`;
+		ctx.globalCompositeOperation = "difference";
+		ctx.fillStyle = `rgba(255,255,255,${show.alpha})`;
+		ctx.fillText(shown$1, 0, 0);
+		ctx.globalCompositeOperation = glowBlend();
+		ctx.lineWidth = 2;
+		ctx.strokeStyle = color(show.age * .5, show.alpha, 80);
+		ctx.strokeText(shown$1, 0, 0);
+	}
+};
+//#endregion
+//#region src/render/words/decode.ts
+/**
+* Hero: each word scrambles through random glyphs and locks letter by letter, like
+* hacker text, with a blinking cursor. Under it, the whole text is typed out.
+*/
+var GLYPHS = "!<>-_\\/[]{}=+*^?#%&ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+/** Seconds between two letters locking. */
+var LOCK_STEP = .06;
+var LATIN = /^[\u0000-ɏ\s]*$/;
+var shown = "";
+var shownAt$1 = 0;
+var decode = {
+	name: "decode",
+	role: "hero",
+	weight: 1.8,
+	start(show) {
+		shown = show.word;
+		shownAt$1 = show.age;
+	},
+	draw(show) {
+		if (show.word !== shown) {
+			shown = show.word;
+			shownAt$1 = show.age;
+		}
+		const { cx, cy, height } = view;
+		const family = LATIN.test(show.phrase) ? MONOSPACE : FONT;
+		const size = fitFont(shown, .82, height * .3, family);
+		ctx.font = `700 ${size}px ${family}`;
+		ctx.textAlign = "left";
+		const letters = [...shown];
+		const widths = letters.map((letter) => ctx.measureText(letter).width);
+		let x = cx - widths.reduce((sum, w) => sum + w, 0) / 2;
+		const t = show.age - shownAt$1;
+		letters.forEach((letter, i) => {
+			const locked = t > .15 + i * LOCK_STEP;
+			ctx.fillStyle = locked ? color(i * .4, show.alpha, 90) : color(2 + i * .4, show.alpha * .8, 55);
+			ctx.fillText(locked ? letter : GLYPHS[rndInt(55)], x, cy);
+			x += widths[i];
+		});
+		if (Math.floor(show.age * 3) % 2 === 0) {
+			ctx.fillStyle = color(1, show.alpha, 85);
+			ctx.fillRect(x + size * .08, cy - size * .38, size * .45, size * .76);
+		}
+		const typed = [...show.phrase].slice(0, Math.floor(show.age * 14)).join("");
+		ctx.textAlign = "center";
+		ctx.font = `700 ${Math.max(12, size * .22)}px ${family}`;
+		ctx.fillStyle = color(3, show.alpha * .85, 75);
+		ctx.fillText(typed, cx, cy + size * .85);
+	}
+};
+//#endregion
+//#region src/render/words/kaleido.ts
+/** Hero: a mandala made of the word: two counter-turning rings of copies, every other one mirrored. */
+var COPIES = 8;
+var kaleido = {
+	name: "kaleido",
+	role: "hero",
+	weight: 1.6,
+	draw(show) {
+		const { cx, cy, min, width } = view;
+		const outer = min * .27 * (1 + audio.bass * .2 + audio.beat * .06);
+		for (const ring of [0, 1]) {
+			const radius = ring ? outer * .45 : outer;
+			ctx.font = `700 ${fitFont(show.word, radius * (ring ? 1.1 : .95) / width, min * .16)}px ${FONT}`;
+			const spin = show.age * (ring ? -.8 : .45) + audio.bass * .3;
+			for (let c = 0; c < COPIES; c++) {
+				const a = c / COPIES * TAU + spin;
+				ctx.save();
+				ctx.translate(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
+				ctx.rotate(a + Math.PI / 2);
+				if (c % 2) ctx.scale(-1, 1);
+				ctx.fillStyle = color(c * .5 + ring * 2 + show.age * .3, show.alpha * (ring ? .75 : 1), 75);
+				ctx.fillText(show.word, 0, 0);
+				ctx.restore();
+			}
+		}
+	}
+};
+//#endregion
+//#region src/render/words/marquee.ts
+/** Ambient (rare): three bands of the text scrolling left and right, with split colours. */
+var marquee = {
+	name: "marquee",
+	role: "ambient",
+	weight: .4,
+	draw(show) {
+		const { width, height } = view;
+		ctx.font = `700 ${Math.max(14, height * .065)}px ${MONOSPACE}`;
+		const unit = `${show.phrase}  ✦  `;
+		const text = unit.repeat(8);
+		const unitWidth = ctx.measureText(unit).width;
+		[
+			.18,
+			.5,
+			.82
+		].forEach((at, band) => {
+			const direction = band % 2 ? -1 : 1;
+			const shift = (show.age * (60 + audio.mid * 160) * direction % unitWidth + unitWidth) % unitWidth;
+			const x = width / 2 - shift - unitWidth;
+			const y = height * at;
+			const split = 2 + audio.bass * 6;
+			ctx.fillStyle = color(band, show.alpha * .55, 55);
+			ctx.fillText(text, x - split, y);
+			ctx.fillStyle = color(band + 2, show.alpha * .55, 55);
+			ctx.fillText(text, x + split, y);
+			ctx.fillStyle = color(band + 1, show.alpha, 92);
+			ctx.fillText(text, x, y);
+		});
+	}
+};
+//#endregion
+//#region src/render/words/orbit.ts
+/** Ambient: the letters of the text circle the centre. */
+var orbit = {
+	name: "orbit",
+	role: "ambient",
+	weight: 2,
+	draw(show) {
+		const { cx, cy, min } = view;
+		const letters = [...show.phrase.replace(/\s+/g, " ")].slice(0, 48);
+		const radius = min * .38 * (1 + audio.bass * .2);
+		ctx.font = `700 ${Math.max(14, Math.min(72, TAU * radius / letters.length * .9))}px ${FONT}`;
+		letters.forEach((letter, i) => {
+			const a = i / letters.length * TAU + show.age * .6;
+			ctx.save();
+			ctx.translate(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
+			ctx.rotate(a + Math.PI / 2);
+			ctx.fillStyle = color(i * .3 - show.age, show.alpha, 80);
+			ctx.fillText(letter, 0, 0);
+			ctx.restore();
+		});
+	}
+};
+//#endregion
+//#region src/render/words/particles.ts
+/**
+* Hero: each word is built from hundreds of glowing particles. On every beat they blow
+* apart and fly together into the next word.
+*/
+var MAX = 1100;
+var px = new Float32Array(MAX);
+var py = new Float32Array(MAX);
+var vx = new Float32Array(MAX);
+var vy = new Float32Array(MAX);
+var tx = new Float32Array(MAX);
+var ty = new Float32Array(MAX);
+var count = 0;
+var target = "";
+/** The word is drawn here once, and its pixels become the particle targets. */
+var sampler = createLayer();
+var SAMPLE_W = 360;
+var SAMPLE_H = 110;
+function aimAt(word) {
+	const { width, height, cx, cy } = view;
+	setCanvasSize(sampler.canvas, SAMPLE_W, SAMPLE_H);
+	const g = sampler.ctx;
+	g.clearRect(0, 0, SAMPLE_W, SAMPLE_H);
+	g.fillStyle = "#fff";
+	g.textAlign = "center";
+	g.textBaseline = "middle";
+	g.font = `700 90px ${FONT}`;
+	const measured = g.measureText(word).width;
+	if (measured > SAMPLE_W * .94) g.font = `700 ${90 * SAMPLE_W * .94 / measured}px ${FONT}`;
+	g.fillText(word, SAMPLE_W / 2, SAMPLE_H / 2);
+	const alpha = g.getImageData(0, 0, SAMPLE_W, SAMPLE_H).data;
+	const points = [];
+	for (let y = 0; y < SAMPLE_H; y += 2) for (let x = 0; x < SAMPLE_W; x += 2) if (alpha[(y * SAMPLE_W + x) * 4 + 3] > 128) points.push(x, y);
+	const available = points.length / 2;
+	const step = Math.max(1, available / MAX);
+	const scale = Math.min(width * .86 / SAMPLE_W, height * .5 / SAMPLE_H);
+	let n = 0;
+	for (let f = 0; f < available && n < MAX; f += step, n++) {
+		const p = Math.floor(f) * 2;
+		tx[n] = cx + (points[p] - SAMPLE_W / 2) * scale;
+		ty[n] = cy + (points[p + 1] - SAMPLE_H / 2) * scale;
+	}
+	for (let i = count; i < n; i++) {
+		const from = count ? rndInt(count) : -1;
+		px[i] = from >= 0 ? px[from] : Math.random() * width;
+		py[i] = from >= 0 ? py[from] : Math.random() * height;
+		vx[i] = 0;
+		vy[i] = 0;
+	}
+	count = n;
+	target = word;
+}
+var particles = {
+	name: "particles",
+	role: "hero",
+	weight: 2.2,
+	start(show) {
+		count = 0;
+		aimAt(show.word);
+	},
+	draw(show, dt) {
+		const { cx, cy, min } = view;
+		if (show.beat) for (let i = 0; i < count; i++) {
+			const a = Math.atan2(py[i] - cy, px[i] - cx) + rnd(-.6, .6);
+			const speed = rnd(250, 800) * (.6 + audio.bass);
+			vx[i] += Math.cos(a) * speed;
+			vy[i] += Math.sin(a) * speed;
+		}
+		if (show.word !== target) aimAt(show.word);
+		const step = Math.min(dt, 1 / 30);
+		for (let i = 0; i < count; i++) {
+			vx[i] += ((tx[i] - px[i]) * 55 - vx[i] * 8.5) * step;
+			vy[i] += ((ty[i] - py[i]) * 55 - vy[i] * 8.5) * step;
+			px[i] += vx[i] * step;
+			py[i] += vy[i] * step;
+		}
+		const size = Math.max(2.5, min / 160);
+		for (let g = 0; g < 3; g++) {
+			ctx.fillStyle = color(g * 1.2 + show.age * .4, show.alpha, 82);
+			ctx.beginPath();
+			for (let i = g; i < count; i += 3) ctx.rect(px[i] - size / 2, py[i] - size / 2, size, size);
+			ctx.fill();
+		}
+	}
+};
+//#endregion
+//#region src/render/words/rain.ts
+/** Ambient: letters fall from the top, bounce on the floor and tumble; each beat drops the whole word. */
+var drops = [];
+function drop(letter, x) {
+	drops.push({
+		letter,
+		x,
+		y: -20,
+		vx: rnd(-40, 40),
+		vy: rnd(0, 120),
+		turn: rnd(-.5, .5),
+		spin: rnd(-3, 3),
+		life: 3.5,
+		k: Math.random() * 4
+	});
+	if (drops.length > 160) drops.shift();
+}
+var rain = {
+	name: "rain",
+	role: "ambient",
+	weight: 2,
+	start() {
+		drops.length = 0;
+	},
+	draw(show, dt) {
+		const { width, height, min } = view;
+		const letters = [...show.phrase.replace(/\s+/g, "")];
+		if (show.beat) {
+			const word = [...show.word];
+			word.forEach((letter, i) => drop(letter, width * (.15 + .7 * (i + .5) / word.length)));
+		}
+		if (Math.random() < dt * (5 + audio.high * 20)) drop(letters[Math.floor(Math.random() * letters.length)], Math.random() * width);
+		const size = min * .06;
+		ctx.font = `700 ${size}px ${FONT}`;
+		for (let i = drops.length - 1; i >= 0; i--) {
+			const d = drops[i];
+			d.life -= dt;
+			if (d.life <= 0) {
+				drops.splice(i, 1);
+				continue;
+			}
+			d.vy += 900 * dt;
+			d.x += d.vx * dt;
+			d.y += d.vy * dt;
+			d.turn += d.spin * dt;
+			if (d.y > height - size / 2) {
+				d.y = height - size / 2;
+				d.vy *= -.45;
+				d.vx *= .8;
+				d.spin *= .6;
+			}
+			ctx.save();
+			ctx.translate(d.x, d.y);
+			ctx.rotate(d.turn);
+			ctx.fillStyle = color(d.k, show.alpha * Math.min(1, d.life), 80);
+			ctx.fillText(d.letter, 0, 0);
+			ctx.restore();
+		}
+	}
+};
+//#endregion
+//#region src/render/words/slam.ts
+/** Hero: one word per beat, slammed in with a stacked shadow and a split-colour echo. */
+var pose = {
 	turn: 0,
 	x: 0,
 	y: 0,
 	k: 0
 };
-function showHeardWords(text) {
-	phrase = text.toUpperCase();
-	words = phrase.split(/\s+/).filter(Boolean);
+function newPose() {
+	pose.turn = rnd(-.3, .3);
+	pose.x = rnd(-.1, .1);
+	pose.y = rnd(-.15, .15);
+	pose.k = Math.random() * 4;
+}
+var slam = {
+	name: "slam",
+	role: "hero",
+	weight: 2,
+	start: newPose,
+	draw(show) {
+		if (show.beat) newPose();
+		const { width, height, cx, cy } = view;
+		const size = fitFont(show.word, .82, height * .42) * (.9 + audio.bass * .25 + audio.beat * .15);
+		ctx.font = `700 ${size}px ${FONT}`;
+		ctx.translate(cx + pose.x * width, cy + pose.y * height);
+		ctx.rotate(pose.turn + Math.sin(clock.time * 3) * audio.high * .1);
+		for (let i = 5; i >= 0; i--) {
+			const o = i * size * .045 * (1 + audio.mid);
+			ctx.fillStyle = i ? color(pose.k + i, show.alpha * .9, 50) : color(pose.k, show.alpha, 90);
+			ctx.fillText(show.word, o, o);
+		}
+		if (audio.beat > .5) {
+			const split = size * .04 * audio.beat;
+			ctx.fillStyle = `rgba(255,0,80,${show.alpha * .5 * audio.beat})`;
+			ctx.fillText(show.word, -split, 0);
+			ctx.fillStyle = `rgba(0,230,255,${show.alpha * .5 * audio.beat})`;
+			ctx.fillText(show.word, split, 0);
+		}
+	}
+};
+//#endregion
+//#region src/render/words/spiral.ts
+/** Ambient: the text is pulled into a turning vortex, letters shrinking toward the centre. */
+var LETTERS = 72;
+var spiral = {
+	name: "spiral",
+	role: "ambient",
+	weight: 2,
+	draw(show) {
+		const { cx, cy, min } = view;
+		const text = [...`${show.phrase.replace(/\s+/g, " ")} · `];
+		const flow = show.age * (1.5 + audio.mid * 3);
+		const shift = Math.floor(flow);
+		const maxR = Math.hypot(cx, cy) * .95;
+		for (let n = 0; n < LETTERS; n++) {
+			const t = (n + (flow - shift)) / LETTERS;
+			const size = 6 + Math.pow(1 - t, 1.2) * min * .075;
+			if (size < 7) continue;
+			const a = t * TAU * 2.6 + show.age * .5;
+			const r = maxR * Math.pow(1 - t, 1.3);
+			const letter = text[((n - shift) % text.length + text.length) % text.length];
+			ctx.save();
+			ctx.translate(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+			ctx.rotate(a + Math.PI / 2);
+			ctx.font = `700 ${size}px ${FONT}`;
+			ctx.fillStyle = color(n * .12 + show.age, show.alpha * (1 - t * .6), 78);
+			ctx.fillText(letter, 0, 0);
+			ctx.restore();
+		}
+	}
+};
+//#endregion
+//#region src/render/words/tunnel.ts
+/** Ambient: copies of the text fly out of the centre, turning, and grow past the viewer. */
+var tunnel = {
+	name: "tunnel",
+	role: "ambient",
+	weight: 2,
+	draw(show) {
+		const { cx, cy } = view;
+		const copies = 7;
+		const base = fitFont(show.phrase, .5, view.height * .2);
+		for (let i = 0; i < copies; i++) {
+			const p = (show.age * (.25 + audio.mid * .3) + i / copies) % 1;
+			ctx.save();
+			ctx.translate(cx, cy);
+			ctx.rotate((i % 2 ? 1 : -1) * p * .7);
+			ctx.font = `700 ${base * (.12 + p * p * 2.8)}px ${FONT}`;
+			ctx.fillStyle = color(i * .6 + show.age * .5, show.alpha * Math.sin(p * Math.PI) * .75, 70);
+			ctx.fillText(show.phrase, 0, 0);
+			ctx.restore();
+		}
+	}
+};
+//#endregion
+//#region src/render/words/wave.ts
+/** Ambient: rainbow letters on a sine wave near the bottom, wobbling like jelly. */
+var wave = {
+	name: "wave",
+	role: "ambient",
+	weight: 2,
+	draw(show) {
+		const { cx, height } = view;
+		const size = fitFont(show.phrase, .9, height * .1);
+		ctx.font = `700 ${size}px ${FONT}`;
+		const letters = [...show.phrase];
+		const widths = letters.map((letter) => ctx.measureText(letter).width);
+		let x = cx - widths.reduce((sum, w) => sum + w, 0) / 2;
+		const baseY = height * .84;
+		letters.forEach((letter, i) => {
+			const y = baseY + Math.sin(i * .55 - show.age * 5) * size * .6 * (.4 + audio.bass);
+			const squash = 1 + .35 * Math.sin(show.age * 7 + i * .8) * (.3 + audio.mid);
+			ctx.save();
+			ctx.translate(x + widths[i] / 2, y);
+			ctx.scale(1 / Math.sqrt(squash), squash);
+			ctx.fillStyle = color(i * .25 + show.age, show.alpha, 80);
+			ctx.fillText(letter, 0, 0);
+			ctx.restore();
+			x += widths[i];
+		});
+	}
+};
+//#endregion
+//#region src/render/words/index.ts
+/**
+* Words heard by the mic (audio/speech.ts), shown over any mode for a while. Each text
+* gets one big "hero" style in the middle and one or two "ambient" styles around it;
+* the hero changes every 8 beats, so one text can go through several heroes.
+*/
+var SHOW_S = 16;
+var HERO_BEATS = 8;
+/** Without beats, the next word comes after this long anyway. */
+var WORD_MAX_S = 1.2;
+var HEROES = [
+	slam,
+	particles,
+	decode,
+	kaleido,
+	cutout,
+	anagram
+];
+var AMBIENTS = [
+	tunnel,
+	orbit,
+	wave,
+	bounce,
+	rain,
+	spiral,
+	marquee
+];
+var show = null;
+var shownAt = 0;
+var lastBeats = 0;
+var lastWordAt = 0;
+var heroStyle = slam;
+var ambients = [];
+var heroBeats = 0;
+/** A random style, by weight, that is not in `not`. */
+function pickStyle(styles, not) {
+	const options = styles.filter((s) => !not.includes(s));
+	let roll = Math.random() * options.reduce((sum, s) => sum + s.weight, 0);
+	for (const style of options) {
+		roll -= style.weight;
+		if (roll <= 0) return style;
+	}
+	return options[options.length - 1];
+}
+/** Chinese, Japanese and Korean characters. */
+var CJK = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff]/;
+/** The words of the text. Text without spaces (Chinese, Japanese) is cut into short chunks. */
+function splitWords(phrase) {
+	const words = [];
+	for (const token of phrase.split(/\s+/).filter(Boolean)) {
+		const characters = [...token];
+		if (!CJK.test(token) || characters.length <= 4) {
+			words.push(token);
+			continue;
+		}
+		for (let i = 0; i < characters.length; i += 3) words.push(characters.slice(i, i + 3).join(""));
+	}
+	return words;
+}
+/**
+* Shows `text`. Styles are picked at random, unless `hero` and `ambient` name them
+* (for trying them from the console).
+*/
+function showHeardWords(text, hero, ...ambient) {
+	const phrase = text.toUpperCase().trim();
+	const words = splitWords(phrase);
+	if (!words.length) return;
+	document.fonts?.load?.(`700 60px ${FONT}`, phrase).catch(() => {});
+	show = {
+		phrase,
+		words,
+		age: 0,
+		alpha: 0,
+		beats: 0,
+		beat: false,
+		word: words[0]
+	};
 	shownAt = clock.time;
-	wordIndex = 0;
 	lastBeats = audio.beats;
-	styles = [pick(["slam", "tunnel"])];
-	for (const extra of [
-		"marquee",
-		"orbit",
-		"tunnel"
-	]) if (!styles.includes(extra) && Math.random() < .55) styles.push(extra);
-	newSlamPose();
-}
-function newSlamPose() {
-	slamPose.turn = rnd(-.3, .3);
-	slamPose.x = rnd(-.1, .1);
-	slamPose.y = rnd(-.15, .15);
-	slamPose.k = Math.random() * 4;
-}
-/** Font size at which `text` is `share` of the screen width (at most `max` px). */
-function fitSize(text, share, max) {
-	ctx.font = `700 100px ${FONT}`;
-	const measured = Math.max(1, ctx.measureText(text).width);
-	return Math.min(max, 100 * view.width * share / measured);
-}
-function drawSlam(alpha) {
-	const { width, height, cx, cy } = view;
-	const word = words[wordIndex % words.length];
-	const size = fitSize(word, .82, height * .42) * (.9 + audio.bass * .25 + audio.beat * .15);
-	ctx.font = `700 ${size}px ${FONT}`;
-	ctx.save();
-	ctx.translate(cx + slamPose.x * width, cy + slamPose.y * height);
-	ctx.rotate(slamPose.turn + Math.sin(clock.time * 3) * audio.high * .1);
-	for (let i = 5; i >= 0; i--) {
-		const o = i * size * .045 * (1 + audio.mid);
-		ctx.fillStyle = i ? color(slamPose.k + i, alpha * .9, 50) : color(slamPose.k, alpha, 90);
-		ctx.fillText(word, o, o);
-	}
-	if (audio.beat > .5) {
-		const split = size * .04 * audio.beat;
-		ctx.fillStyle = `rgba(255,0,80,${alpha * .5 * audio.beat})`;
-		ctx.fillText(word, -split, 0);
-		ctx.fillStyle = `rgba(0,230,255,${alpha * .5 * audio.beat})`;
-		ctx.fillText(word, split, 0);
-	}
-	ctx.restore();
-}
-function drawTunnel(age, alpha) {
-	const { cx, cy } = view;
-	const copies = 7;
-	const base = fitSize(phrase, .5, view.height * .2);
-	for (let i = 0; i < copies; i++) {
-		const p = (age * (.25 + audio.mid * .3) + i / copies) % 1;
-		const scale = .12 + p * p * 2.8;
-		ctx.save();
-		ctx.translate(cx, cy);
-		ctx.rotate((i % 2 ? 1 : -1) * p * .7);
-		ctx.font = `700 ${base * scale}px ${FONT}`;
-		ctx.fillStyle = color(i * .6 + age * .5, alpha * Math.sin(p * Math.PI) * .75, 70);
-		ctx.fillText(phrase, 0, 0);
-		ctx.restore();
-	}
-}
-function drawMarquee(age, alpha) {
-	const { width, height } = view;
-	ctx.font = `700 ${Math.max(14, height * .065)}px ${MONOSPACE}`;
-	const text = `${phrase}  ✦  `.repeat(8);
-	const textWidth = ctx.measureText(`${phrase}  ✦  `).width;
-	[
-		.18,
-		.5,
-		.82
-	].forEach((at, band) => {
-		const direction = band % 2 ? -1 : 1;
-		const shift = (age * (60 + audio.mid * 160) * direction % textWidth + textWidth) % textWidth;
-		const x = width / 2 - shift - textWidth;
-		const y = height * at;
-		const split = 2 + audio.bass * 6;
-		ctx.fillStyle = color(band, alpha * .55, 55);
-		ctx.fillText(text, x - split, y);
-		ctx.fillStyle = color(band + 2, alpha * .55, 55);
-		ctx.fillText(text, x + split, y);
-		ctx.fillStyle = color(band + 1, alpha, 92);
-		ctx.fillText(text, x, y);
-	});
-}
-function drawOrbit(age, alpha) {
-	const { cx, cy, min } = view;
-	const letters = [...phrase.replace(/\s+/g, " ")].slice(0, 48);
-	const radius = min * .36 * (1 + audio.bass * .2);
-	ctx.font = `700 ${Math.max(14, Math.min(72, TAU * radius / letters.length * .9))}px ${FONT}`;
-	letters.forEach((letter, i) => {
-		const a = i / letters.length * TAU + age * .6;
-		ctx.save();
-		ctx.translate(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
-		ctx.rotate(a + Math.PI / 2);
-		ctx.fillStyle = color(i * .3 - age, alpha, 80);
-		ctx.fillText(letter, 0, 0);
-		ctx.restore();
-	});
+	lastWordAt = 0;
+	heroStyle = HEROES.find((s) => s.name === hero) ?? pickStyle(HEROES, []);
+	heroBeats = 0;
+	const named = AMBIENTS.filter((s) => ambient.includes(s.name));
+	ambients = named.length ? named : [pickStyle(AMBIENTS, [])];
+	if (!named.length && Math.random() < .45) ambients.push(pickStyle(AMBIENTS, ambients));
+	for (const style of [heroStyle, ...ambients]) style.start?.(show);
 }
 /** Draws the heard words, if there are any to show now. */
-function drawHeardWords() {
+function drawHeardWords(dt) {
+	if (!show) return;
 	const age = clock.time - shownAt;
-	if (!phrase || age > SHOW_S) return;
-	if (audio.beats !== lastBeats) {
-		lastBeats = audio.beats;
-		wordIndex++;
-		newSlamPose();
+	if (age > SHOW_S) {
+		show = null;
+		return;
 	}
-	const alpha = Math.max(0, Math.min(1, age / .4, (SHOW_S - age) / 1.5));
-	ctx.save();
-	ctx.globalCompositeOperation = scene.palette.light ? "source-over" : "lighter";
-	ctx.textAlign = "center";
-	ctx.textBaseline = "middle";
-	for (const style of styles) if (style === "slam") drawSlam(alpha);
-	else if (style === "tunnel") drawTunnel(age, alpha);
-	else if (style === "marquee") drawMarquee(age, alpha);
-	else drawOrbit(age, alpha);
-	ctx.restore();
+	show.age = age;
+	show.alpha = Math.max(0, Math.min(1, age / .4, (SHOW_S - age) / 1.5));
+	show.beat = audio.beats !== lastBeats || age - lastWordAt > WORD_MAX_S;
+	if (show.beat) {
+		lastBeats = audio.beats;
+		lastWordAt = age;
+		show.beats++;
+		show.word = show.words[show.beats % show.words.length];
+		if (++heroBeats >= HERO_BEATS) {
+			heroStyle = pickStyle(HEROES, [heroStyle]);
+			heroStyle.start?.(show);
+			heroBeats = 0;
+		}
+	}
+	for (const style of [...ambients, heroStyle]) {
+		ctx.save();
+		ctx.globalCompositeOperation = glowBlend();
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		style.draw(show, dt);
+		ctx.restore();
+	}
 }
 //#endregion
 //#region src/render/lookEffects.ts
@@ -7441,7 +7983,7 @@ function renderFrame(mode, dt) {
 	ctx.globalCompositeOperation = mode.blend || scene.palette.blend;
 	mode.draw(dt);
 	if (mode.beatRings !== false) drawBeatRings(dt);
-	drawHeardWords();
+	drawHeardWords(dt);
 	ctx.restore();
 	applyLookEffects();
 	composite(mode, dt);

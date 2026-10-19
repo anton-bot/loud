@@ -30,10 +30,15 @@ Keyboard: <kbd>M</kbd> mic, <kbd>←</kbd> <kbd>→</kbd> mode, <kbd>P</kbd> pal
 ### Words: show what the room says
 
 With **Words** on (it is off at first), every 45 s the page records 8 s of sound, sends it to
-ElevenLabs speech to text (`scribe_v2`), and shows the words over any mode for 14 s: slammed one
-word per beat, in a tunnel, in scrolling bands and around a circle. The Mic dot is red while it
-records. The choice is kept in the browser. Try the overlay without the mic in the console:
-`loudSay('hello there')`.
+ElevenLabs speech to text (`scribe_v2`), and shows the words over any mode for 16 s. Each text gets
+one big hero style in the middle, which changes every 8 beats: **slam** (one word per beat),
+**particles** (each word built from glowing particles that burst on beats), **decode** (hacker-text
+scramble), **kaleido** (a mandala of the word), **cutout** (giant letters that invert the picture)
+and **anagram** (letters hop to new places). Around it, one or two of: **tunnel**, **orbit**,
+**wave**, **bounce**, **rain**, **spiral** and, rarely, **marquee**. Chinese and Japanese text is
+cut into short chunks; Cyrillic uses the display font, Chinese uses Noto Sans SC. The Mic dot is
+red while it records. The choice is kept in the browser. Try it in the console:
+`loudSay('hello there')`, or with styles: `loudSay('hello there', 'particles', 'rain')`.
 
 The ElevenLabs API key is in the page on purpose: it is an experiment key with a small balance and
 no automatic top-up, so anyone who opens the page can read it and use it up.

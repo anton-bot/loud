@@ -3,7 +3,7 @@
 interface Window {
   webkitAudioContext?: typeof AudioContext;
   /** Shows text as if the mic heard it (for trying the overlay from the console). */
-  loudSay: (text: string) => void;
+  loudSay: (text: string, hero?: string, ...ambient: string[]) => void;
   /** Section changes, for tuning the detector from the console. */
   loudEvents: { t: number; why: string }[];
 }

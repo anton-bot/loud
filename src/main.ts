@@ -7,7 +7,7 @@ import { startLoop } from './loop';
 import { MODES } from './modes';
 import { onResize, resize } from './render/canvases';
 import { enableTransitions } from './render/compositor';
-import { showHeardWords } from './render/heardWords';
+import { showHeardWords } from './render/words';
 import { shuffle } from './scene';
 import { initControls } from './ui/controls';
 import { keepAwake } from './ui/wakeLock';
@@ -26,7 +26,8 @@ document.addEventListener('visibilitychange', () => {
 addEventListener('pagehide', releaseMic);
 
 onHeard(showHeardWords);
-// For trying the heard-words overlay from the console: loudSay('hello there').
+// For trying the heard-words overlay from the console: loudSay('hello there'), or with
+// styles: loudSay('hello there', 'particles', 'rain', 'spiral').
 window.loudSay = showHeardWords;
 
 initControls();
