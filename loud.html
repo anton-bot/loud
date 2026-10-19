@@ -4976,6 +4976,9 @@ async function keepAwake() {
 /** The on-screen controls, the style menu, keyboard shortcuts and fullscreen. */
 var HIDE_AFTER_MS = 5e3;
 var LONG_PRESS_MS = 450;
+/** Two taps on the picture closer than this (ms and px) are a double tap. */
+var DOUBLE_TAP_MS = 280;
+var DOUBLE_TAP_PX = 40;
 var ui = byId("ui");
 var gateSlider = byId("gateSlider");
 var menu = byId("menu");
@@ -5170,12 +5173,44 @@ function initFullscreen() {
 		} catch {}
 	});
 }
+/**
+* Taps on the picture. A tap hides or shows the controls. A double tap changes the
+* mode: on the right half to the next one, on the left half to the previous one.
+* The single tap waits a moment, so that a double tap does not also toggle the controls.
+*/
+function initPictureTaps() {
+	let lastTap = {
+		time: -Infinity,
+		x: 0,
+		y: 0
+	};
+	let singleTap;
+	display.addEventListener("pointerdown", (e) => {
+		const isDouble = e.timeStamp - lastTap.time < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX;
+		clearTimeout(singleTap);
+		if (isDouble) {
+			lastTap = {
+				time: -Infinity,
+				x: 0,
+				y: 0
+			};
+			setMode(scene.modeIndex + (e.clientX >= innerWidth / 2 ? 1 : -1));
+			return;
+		}
+		lastTap = {
+			time: e.timeStamp,
+			x: e.clientX,
+			y: e.clientY
+		};
+		singleTap = setTimeout(() => {
+			if (controlsHidden()) showControls();
+			else hideControls();
+		}, DOUBLE_TAP_MS);
+	});
+}
 function initControls() {
 	ui.addEventListener("pointerdown", showControls);
-	display.addEventListener("pointerdown", () => {
-		if (controlsHidden()) showControls();
-		else hideControls();
-	});
+	initPictureTaps();
 	initMicButton();
 	initSceneButtons();
 	initKeyboard();
@@ -5862,7 +5897,7 @@ svg {
         </div>
 
         <div class="status" id="status" aria-live="polite">
-          Tap Mic and play some music. Hold a chip for the full list.
+          Tap Mic and play some music. Double-tap right or left to change the mode.
         </div>
       </div>
     </div>

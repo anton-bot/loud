@@ -15,6 +15,7 @@ mirror, glitch and others).
 | ----------------------- | --------------------------------------------------------------------------- |
 | Mic                     | Listen to the music around you. Tap again to stop                           |
 | Tap the picture         | Hide or show the controls                                                   |
+| Double-tap the picture  | On the right half: next mode. On the left half: previous mode               |
 | ‹ mode ›, palette, look | Tap for the next one. Hold for the full list                                |
 | Shuffle                 | A new random mode, palette and look                                         |
 | Auto-switch             | A new scene every 30 s and on some beats                                    |

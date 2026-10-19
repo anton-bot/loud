@@ -18,6 +18,9 @@ import { keepAwake } from './wakeLock';
 
 const HIDE_AFTER_MS = 5000;
 const LONG_PRESS_MS = 450;
+/** Two taps on the picture closer than this (ms and px) are a double tap. */
+const DOUBLE_TAP_MS = 280;
+const DOUBLE_TAP_PX = 40;
 
 const ui = byId('ui');
 const gateSlider = byId('gateSlider');
@@ -252,13 +255,36 @@ function initFullscreen(): void {
   });
 }
 
-export function initControls(): void {
-  // Tap the picture to hide or show the controls; any tap on the controls keeps them up.
-  ui.addEventListener('pointerdown', showControls);
-  display.addEventListener('pointerdown', () => {
-    if (controlsHidden()) showControls();
-    else hideControls();
+/**
+ * Taps on the picture. A tap hides or shows the controls. A double tap changes the
+ * mode: on the right half to the next one, on the left half to the previous one.
+ * The single tap waits a moment, so that a double tap does not also toggle the controls.
+ */
+function initPictureTaps(): void {
+  let lastTap = { time: -Infinity, x: 0, y: 0 };
+  let singleTap: ReturnType<typeof setTimeout> | undefined;
+  display.addEventListener('pointerdown', (e) => {
+    const isDouble =
+      e.timeStamp - lastTap.time < DOUBLE_TAP_MS &&
+      Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX;
+    clearTimeout(singleTap);
+    if (isDouble) {
+      lastTap = { time: -Infinity, x: 0, y: 0 };
+      setMode(scene.modeIndex + (e.clientX >= innerWidth / 2 ? 1 : -1));
+      return;
+    }
+    lastTap = { time: e.timeStamp, x: e.clientX, y: e.clientY };
+    singleTap = setTimeout(() => {
+      if (controlsHidden()) showControls();
+      else hideControls();
+    }, DOUBLE_TAP_MS);
   });
+}
+
+export function initControls(): void {
+  // Any tap on the controls keeps them up.
+  ui.addEventListener('pointerdown', showControls);
+  initPictureTaps();
   initMicButton();
   initSceneButtons();
   initKeyboard();
