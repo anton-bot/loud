@@ -17,6 +17,11 @@ export function isListening(): boolean {
   return micStream !== null;
 }
 
+/** The live mic stream, or null when the mic is off. */
+export function currentMicStream(): MediaStream | null {
+  return micStream;
+}
+
 function stopMic(): void {
   if (micStream) {
     for (const track of micStream.getTracks()) track.stop();

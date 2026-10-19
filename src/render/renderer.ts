@@ -3,6 +3,7 @@ import { audio, motion, scene, view } from '../core/state';
 import { motionIsActive } from '../input/motion';
 import type { Mode } from '../modes';
 import { drawBeatRings } from './beatRings';
+import { drawHeardWords } from './heardWords';
 import { ctx, sceneCanvas } from './canvases';
 import { backgroundGradient } from './color';
 import { composite } from './compositor';
@@ -83,6 +84,7 @@ export function renderFrame(mode: Mode, dt: number): void {
   ctx.globalCompositeOperation = mode.blend || scene.palette.blend;
   mode.draw(dt);
   if (mode.beatRings !== false) drawBeatRings(dt);
+  drawHeardWords();
   ctx.restore();
 
   applyLookEffects();

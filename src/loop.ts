@@ -1,5 +1,6 @@
 /** The frame loop: analyse the audio, update the scene, render. */
 import { analyze } from './audio/analysis';
+import { tickSpeech } from './audio/speech';
 import { clamp } from './core/math';
 import { clock, scene } from './core/state';
 import { updateMotion } from './input/motion';
@@ -24,6 +25,7 @@ function frame(now: number): void {
 
   analyze(dt);
   updateMotion(dt);
+  tickSpeech();
   updateMeter();
   scene.hue = (scene.hue + dt * 10) % 360;
   if (scene.autoSwitch && clock.time - scene.lastSwitch > AUTO_SWITCH_S) shuffle();

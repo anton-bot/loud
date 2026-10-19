@@ -22,9 +22,21 @@ mirror, glitch, LED wall and others).
 | Sections                | A new scene when the music changes (a drop, a breakdown)                    |
 | Motion                  | Phone tilt, shake and twist move the picture                                |
 | Gate (with the mic on)  | The red mark is the sound level. Put the gate just above it when it's quiet |
+| Words (with the mic on) | Every 45 s, send 8 s of sound to ElevenLabs and show the words it hears     |
 
 Keyboard: <kbd>M</kbd> mic, <kbd>←</kbd> <kbd>→</kbd> mode, <kbd>P</kbd> palette, <kbd>L</kbd> look,
 <kbd>Space</kbd> shuffle, <kbd>H</kbd> hide the controls.
+
+### Words: show what the room says
+
+With **Words** on (it is off at first), every 45 s the page records 8 s of sound, sends it to
+ElevenLabs speech to text (`scribe_v2`), and shows the words over any mode for 14 s: slammed one
+word per beat, in a tunnel, in scrolling bands and around a circle. The Mic dot is red while it
+records. The choice is kept in the browser. Try the overlay without the mic in the console:
+`loudSay('hello there')`.
+
+The ElevenLabs API key is in the page on purpose: it is an experiment key with a small balance and
+no automatic top-up, so anyone who opens the page can read it and use it up.
 
 ### The mic on Android
 

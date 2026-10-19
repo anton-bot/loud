@@ -3,6 +3,7 @@ import { levels } from '../audio/analysis';
 import { resumeAudio } from '../audio/engine';
 import { sections } from '../audio/sections';
 import { isListening, toggleMic } from '../audio/mic';
+import { setSpeechEnabled, speech } from '../audio/speech';
 import { byId } from '../core/dom';
 import { clamp } from '../core/math';
 import { motion, scene } from '../core/state';
@@ -202,6 +203,17 @@ function initSceneButtons(): void {
     );
   });
   byId('motionBtn').addEventListener('click', () => void toggleMotion());
+  setToggle('wordsBtn', speech.enabled);
+  byId('wordsBtn').addEventListener('click', () => {
+    setSpeechEnabled(!speech.enabled);
+    setToggle(
+      'wordsBtn',
+      speech.enabled,
+      speech.enabled
+        ? 'Words on: every 45 s, 8 s of sound go to ElevenLabs to find words.'
+        : 'Words off.',
+    );
+  });
   onMotionChange(() => setToggle('motionBtn', motion.enabled));
   onSceneChange(updateSceneLabels);
   byId('menuBack').addEventListener('click', closeMenu);

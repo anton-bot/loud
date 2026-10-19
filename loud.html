@@ -612,6 +612,10 @@ var gateRow = byId("gateRow");
 function setStatus(text) {
 	statusLine.textContent = text;
 }
+/** Turns the Mic button's dot red while a speech sample is being recorded. */
+function setRecordingLight(on) {
+	micButton.classList.toggle("rec", on);
+}
 /** Lights the Mic button and shows the noise gate while the mic is on. */
 function showMicState(on) {
 	micButton.classList.toggle("on", on);
@@ -682,6 +686,10 @@ var request = 0;
 var micWanted = false;
 function isListening() {
 	return micStream !== null;
+}
+/** The live mic stream, or null when the mic is off. */
+function currentMicStream() {
+	return micStream;
 }
 function stopMic() {
 	if (micStream) {
@@ -849,6 +857,145 @@ async function onPageVisibility(visible) {
 function releaseMic() {
 	request++;
 	stopMic();
+}
+//#endregion
+//#region src/audio/speech.ts
+/**
+* Heard words: every 45 s while the mic is on, 8 s of sound go to ElevenLabs speech to
+* text, and the words it hears are shown over the picture (render/heardWords.ts).
+*
+* Off by default, because it sends recordings of the room to a third party; the choice
+* is kept in this browser. The API key is in the page on purpose: an experiment key
+* with a small balance and no automatic top-up, so anyone who opens the page can read
+* and use it.
+*/
+var ELEVENLABS_URL = "https://api.elevenlabs.io/v1/speech-to-text";
+var ELEVENLABS_KEY = "sk_2c12406b220bee699afe376e1ccefef432eb06f8c6a69e0b";
+var MODEL = "scribe_v2";
+/** The first recording starts this long after the mic is on; then one every PERIOD_MS. */
+var FIRST_AFTER_MS = 5e3;
+var PERIOD_MS = 45e3;
+var RECORD_MS = 8e3;
+/** Longest text that is shown. */
+var MAX_WORDS = 10;
+var SETTING = "loud.heardWords";
+var speech = { enabled: readSetting() };
+var listeners$2 = [];
+var listeningSince = 0;
+var lastCapture = 0;
+var busy = false;
+/** Calls `listener` with each text that ElevenLabs hears. */
+function onHeard(listener) {
+	listeners$2.push(listener);
+}
+function readSetting() {
+	try {
+		return localStorage.getItem(SETTING) === "on";
+	} catch {
+		return false;
+	}
+}
+function setSpeechEnabled(on) {
+	speech.enabled = on;
+	try {
+		localStorage.setItem(SETTING, on ? "on" : "off");
+	} catch {}
+}
+/** Starts a recording when one is due. Call once per frame. */
+function tickSpeech() {
+	const stream = currentMicStream();
+	if (!speech.enabled || !stream) {
+		listeningSince = 0;
+		return;
+	}
+	const now = Date.now();
+	if (!listeningSince) {
+		listeningSince = now;
+		lastCapture = 0;
+	}
+	if (busy) return;
+	if (!(lastCapture ? now - lastCapture >= PERIOD_MS : now - listeningSince >= FIRST_AFTER_MS)) return;
+	lastCapture = now;
+	capture(stream);
+}
+async function capture(stream) {
+	busy = true;
+	try {
+		const recording = await record(stream, RECORD_MS);
+		if (!recording) return;
+		const text = await transcribe(recording.blob, recording.extension);
+		if (text) for (const listener of listeners$2) listener(text);
+	} catch (error) {
+		console.warn("loud: speech to text failed", error);
+		setStatus(`Words: ${error instanceof Error ? error.message : String(error)}`);
+	} finally {
+		busy = false;
+	}
+}
+/** A container that this browser can record, and the file extension for it. */
+function recordingFormat() {
+	const formats = [
+		{
+			mimeType: "audio/webm;codecs=opus",
+			extension: "webm"
+		},
+		{
+			mimeType: "audio/webm",
+			extension: "webm"
+		},
+		{
+			mimeType: "audio/mp4",
+			extension: "m4a"
+		},
+		{
+			mimeType: "audio/ogg;codecs=opus",
+			extension: "ogg"
+		}
+	];
+	if (typeof MediaRecorder === "undefined") return null;
+	return formats.find((f) => MediaRecorder.isTypeSupported(f.mimeType)) ?? null;
+}
+/** Records `ms` of the mic. Null when the browser cannot record or the mic stops. */
+function record(stream, ms) {
+	const format = recordingFormat();
+	if (!format) return Promise.resolve(null);
+	return new Promise((resolve) => {
+		const chunks = [];
+		const recorder = new MediaRecorder(stream, {
+			mimeType: format.mimeType,
+			audioBitsPerSecond: 64e3
+		});
+		recorder.addEventListener("dataavailable", (e) => chunks.push(e.data));
+		recorder.addEventListener("stop", () => {
+			setRecordingLight(false);
+			resolve(currentMicStream() === stream && chunks.length ? {
+				blob: new Blob(chunks, { type: format.mimeType }),
+				extension: format.extension
+			} : null);
+		});
+		recorder.start();
+		setRecordingLight(true);
+		setTimeout(() => {
+			if (recorder.state !== "inactive") recorder.stop();
+		}, ms);
+	});
+}
+async function transcribe(audio, extension) {
+	const form = new FormData();
+	form.append("model_id", MODEL);
+	form.append("tag_audio_events", "false");
+	form.append("file", audio, `room.${extension}`);
+	const response = await fetch(ELEVENLABS_URL, {
+		method: "POST",
+		headers: { "xi-api-key": ELEVENLABS_KEY },
+		body: form
+	});
+	if (!response.ok) throw new Error(`ElevenLabs answered ${response.status}`);
+	return cleanText((await response.json()).text ?? "");
+}
+/** The heard text without bracketed sound tags, at most MAX_WORDS words. */
+function cleanText(text) {
+	return text.replace(/[([][^)\]]*[)\]]/g, " ").split(/\s+/).filter(Boolean).slice(0, MAX_WORDS).join(" ");
 }
 //#endregion
 //#region src/core/math.ts
@@ -1070,7 +1217,7 @@ function resize() {
 //#endregion
 //#region src/modes/fonts.ts
 /** Monospace font stack for the text modes. */
-var MONOSPACE = "ui-monospace,Menlo,Consolas,monospace";
+var MONOSPACE$1 = "ui-monospace,Menlo,Consolas,monospace";
 //#endregion
 //#region src/modes/ascii.ts
 /** ASCII art: a character ramp from dark to bright, rings of frequencies from the centre. */
@@ -1092,7 +1239,7 @@ var ascii = {
 		const lineHeight = cell * .9;
 		const cols = Math.ceil(width / cell);
 		const rows = Math.ceil(height / lineHeight);
-		ctx.font = `${cell * 1.1}px ${MONOSPACE}`;
+		ctx.font = `${cell * 1.1}px ${MONOSPACE$1}`;
 		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
 		for (let j = 0; j < rows; j++) {
@@ -1808,7 +1955,7 @@ var corrupt = {
 		const block = Math.max(6, min / 60);
 		ctx.fillStyle = color(Math.random() * 4, .8, 70);
 		for (let i = 0; i < stuck; i++) ctx.fillRect(Math.floor(Math.random() * width / block) * block, Math.floor(Math.random() * height / block) * block, block, block);
-		ctx.font = `${Math.max(11, min * .028)}px ${MONOSPACE}`;
+		ctx.font = `${Math.max(11, min * .028)}px ${MONOSPACE$1}`;
 		ctx.textAlign = "left";
 		ctx.textBaseline = "top";
 		ctx.fillStyle = color(3, .9, 80);
@@ -2135,7 +2282,7 @@ function drawBinary(band, y, h) {
 		const byte = freq[(base + Math.floor(n / 8) + freq.length * 64) % freq.length];
 		text += byte >> 7 - (n % 8 + 8) % 8 & 1;
 	}
-	ctx.font = `${size}px ${MONOSPACE}`;
+	ctx.font = `${size}px ${MONOSPACE$1}`;
 	ctx.textBaseline = "middle";
 	ctx.textAlign = "left";
 	ctx.fillText(text, -(band.offset - first * charWidth), y + h / 2);
@@ -2209,7 +2356,7 @@ var datamatics = {
 			else if (band.kind === "bitmap") drawBitmap(band, y, bandHeight);
 			else if (band.kind === "wave") drawWave(y, bandHeight);
 			ctx.fillStyle = color(0, .9, 60);
-			ctx.font = `${Math.max(9, Math.round(bandHeight * .28))}px ${MONOSPACE}`;
+			ctx.font = `${Math.max(9, Math.round(bandHeight * .28))}px ${MONOSPACE$1}`;
 			ctx.textBaseline = "top";
 			ctx.textAlign = "right";
 			const hex = Math.round(level * 255).toString(16).padStart(2, "0");
@@ -3171,7 +3318,7 @@ var glyphs = "0123456789";
 var hasKatakana = null;
 function setUp$2() {
 	cell = Math.max(14, Math.round(view.min / 26));
-	ctx.font = `${cell}px ${MONOSPACE}`;
+	ctx.font = `${cell}px ${MONOSPACE$1}`;
 	if (hasKatakana === null) hasKatakana = Math.abs(ctx.measureText("ｱｲｳｴｵ").width - ctx.measureText("").width) > 1;
 	glyphs = "0123456789:・\"=*+<>¦|Z";
 	if (hasKatakana) for (let c = 65393; c <= 65437; c++) glyphs += String.fromCharCode(c);
@@ -3234,7 +3381,7 @@ var matrix = {
 		if (!columns.length) setUp$2();
 		const rows = Math.ceil(view.height / cell) + 1;
 		const speed = .45 + audio.mid * 1.4 + audio.beat * .5;
-		ctx.font = `${cell}px ${MONOSPACE}`;
+		ctx.font = `${cell}px ${MONOSPACE$1}`;
 		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
 		for (let i = 0; i < columns.length; i++) {
@@ -5480,7 +5627,7 @@ var WORDS = [
 	"BEAT",
 	"AGAIN"
 ];
-var FONT = "Unbounded, sans-serif";
+var FONT$1 = "Unbounded, sans-serif";
 var word = "LOUD";
 var rotation = 0;
 var offsetX = 0;
@@ -5514,10 +5661,10 @@ var MODES = [
 		},
 		draw() {
 			const { width, height, cx, cy } = view;
-			ctx.font = `700 100px ${FONT}`;
+			ctx.font = `700 100px ${FONT$1}`;
 			const measured = Math.max(1, ctx.measureText(word).width);
 			const size = Math.min(height * .45, 100 * (width * .86 / measured) * (.75 + audio.bass * .35 + audio.beat * .15));
-			ctx.font = `700 ${size}px ${FONT}`;
+			ctx.font = `700 ${size}px ${FONT$1}`;
 			ctx.textAlign = "center";
 			ctx.textBaseline = "middle";
 			ctx.save();
@@ -6308,6 +6455,152 @@ function analyze(dt) {
 	trackSections(dt, rawBass, rawMid, rawHigh, rms, centroid);
 }
 //#endregion
+//#region src/render/heardWords.ts
+/**
+* Words heard by the mic (audio/speech.ts), shown over any mode for a while, in two or
+* three freaky ways at once: slammed one word per beat with a stacked shadow, a tunnel
+* of copies flying out of the centre, scrolling bands with split colours, and letters
+* orbiting the centre.
+*/
+var SHOW_S = 14;
+var FONT = "Unbounded, sans-serif";
+var MONOSPACE = "ui-monospace,Menlo,Consolas,monospace";
+var phrase = "";
+var words = [];
+var shownAt = -Infinity;
+var styles = [];
+var wordIndex = 0;
+var lastBeats = 0;
+/** Pose of the slammed word: turn, offset (fractions of the screen), colour. */
+var slamPose = {
+	turn: 0,
+	x: 0,
+	y: 0,
+	k: 0
+};
+function showHeardWords(text) {
+	phrase = text.toUpperCase();
+	words = phrase.split(/\s+/).filter(Boolean);
+	shownAt = clock.time;
+	wordIndex = 0;
+	lastBeats = audio.beats;
+	styles = [pick(["slam", "tunnel"])];
+	for (const extra of [
+		"marquee",
+		"orbit",
+		"tunnel"
+	]) if (!styles.includes(extra) && Math.random() < .55) styles.push(extra);
+	newSlamPose();
+}
+function newSlamPose() {
+	slamPose.turn = rnd(-.3, .3);
+	slamPose.x = rnd(-.1, .1);
+	slamPose.y = rnd(-.15, .15);
+	slamPose.k = Math.random() * 4;
+}
+/** Font size at which `text` is `share` of the screen width (at most `max` px). */
+function fitSize(text, share, max) {
+	ctx.font = `700 100px ${FONT}`;
+	const measured = Math.max(1, ctx.measureText(text).width);
+	return Math.min(max, 100 * view.width * share / measured);
+}
+function drawSlam(alpha) {
+	const { width, height, cx, cy } = view;
+	const word = words[wordIndex % words.length];
+	const size = fitSize(word, .82, height * .42) * (.9 + audio.bass * .25 + audio.beat * .15);
+	ctx.font = `700 ${size}px ${FONT}`;
+	ctx.save();
+	ctx.translate(cx + slamPose.x * width, cy + slamPose.y * height);
+	ctx.rotate(slamPose.turn + Math.sin(clock.time * 3) * audio.high * .1);
+	for (let i = 5; i >= 0; i--) {
+		const o = i * size * .045 * (1 + audio.mid);
+		ctx.fillStyle = i ? color(slamPose.k + i, alpha * .9, 50) : color(slamPose.k, alpha, 90);
+		ctx.fillText(word, o, o);
+	}
+	if (audio.beat > .5) {
+		const split = size * .04 * audio.beat;
+		ctx.fillStyle = `rgba(255,0,80,${alpha * .5 * audio.beat})`;
+		ctx.fillText(word, -split, 0);
+		ctx.fillStyle = `rgba(0,230,255,${alpha * .5 * audio.beat})`;
+		ctx.fillText(word, split, 0);
+	}
+	ctx.restore();
+}
+function drawTunnel(age, alpha) {
+	const { cx, cy } = view;
+	const copies = 7;
+	const base = fitSize(phrase, .5, view.height * .2);
+	for (let i = 0; i < copies; i++) {
+		const p = (age * (.25 + audio.mid * .3) + i / copies) % 1;
+		const scale = .12 + p * p * 2.8;
+		ctx.save();
+		ctx.translate(cx, cy);
+		ctx.rotate((i % 2 ? 1 : -1) * p * .7);
+		ctx.font = `700 ${base * scale}px ${FONT}`;
+		ctx.fillStyle = color(i * .6 + age * .5, alpha * Math.sin(p * Math.PI) * .75, 70);
+		ctx.fillText(phrase, 0, 0);
+		ctx.restore();
+	}
+}
+function drawMarquee(age, alpha) {
+	const { width, height } = view;
+	ctx.font = `700 ${Math.max(14, height * .065)}px ${MONOSPACE}`;
+	const text = `${phrase}  ✦  `.repeat(8);
+	const textWidth = ctx.measureText(`${phrase}  ✦  `).width;
+	[
+		.18,
+		.5,
+		.82
+	].forEach((at, band) => {
+		const direction = band % 2 ? -1 : 1;
+		const shift = (age * (60 + audio.mid * 160) * direction % textWidth + textWidth) % textWidth;
+		const x = width / 2 - shift - textWidth;
+		const y = height * at;
+		const split = 2 + audio.bass * 6;
+		ctx.fillStyle = color(band, alpha * .55, 55);
+		ctx.fillText(text, x - split, y);
+		ctx.fillStyle = color(band + 2, alpha * .55, 55);
+		ctx.fillText(text, x + split, y);
+		ctx.fillStyle = color(band + 1, alpha, 92);
+		ctx.fillText(text, x, y);
+	});
+}
+function drawOrbit(age, alpha) {
+	const { cx, cy, min } = view;
+	const letters = [...phrase.replace(/\s+/g, " ")].slice(0, 48);
+	const radius = min * .36 * (1 + audio.bass * .2);
+	ctx.font = `700 ${Math.max(14, Math.min(72, TAU * radius / letters.length * .9))}px ${FONT}`;
+	letters.forEach((letter, i) => {
+		const a = i / letters.length * TAU + age * .6;
+		ctx.save();
+		ctx.translate(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
+		ctx.rotate(a + Math.PI / 2);
+		ctx.fillStyle = color(i * .3 - age, alpha, 80);
+		ctx.fillText(letter, 0, 0);
+		ctx.restore();
+	});
+}
+/** Draws the heard words, if there are any to show now. */
+function drawHeardWords() {
+	const age = clock.time - shownAt;
+	if (!phrase || age > SHOW_S) return;
+	if (audio.beats !== lastBeats) {
+		lastBeats = audio.beats;
+		wordIndex++;
+		newSlamPose();
+	}
+	const alpha = Math.max(0, Math.min(1, age / .4, (SHOW_S - age) / 1.5));
+	ctx.save();
+	ctx.globalCompositeOperation = scene.palette.light ? "source-over" : "lighter";
+	ctx.textAlign = "center";
+	ctx.textBaseline = "middle";
+	for (const style of styles) if (style === "slam") drawSlam(alpha);
+	else if (style === "tunnel") drawTunnel(age, alpha);
+	else if (style === "marquee") drawMarquee(age, alpha);
+	else drawOrbit(age, alpha);
+	ctx.restore();
+}
+//#endregion
 //#region src/render/lookEffects.ts
 /** The effects of the current look (and of phone motion), applied to the scene after the mode draws. */
 var pixelLayer = createLayer();
@@ -6451,6 +6744,7 @@ function renderFrame(mode, dt) {
 	ctx.globalCompositeOperation = mode.blend || scene.palette.blend;
 	mode.draw(dt);
 	if (mode.beatRings !== false) drawBeatRings(dt);
+	drawHeardWords();
 	ctx.restore();
 	applyLookEffects();
 	composite(mode, dt);
@@ -6627,6 +6921,11 @@ function initSceneButtons() {
 		setToggle("secBtn", sections.enabled, sections.enabled ? "Sections on: a new scene when the music changes." : "Sections off.");
 	});
 	byId("motionBtn").addEventListener("click", () => void toggleMotion());
+	setToggle("wordsBtn", speech.enabled);
+	byId("wordsBtn").addEventListener("click", () => {
+		setSpeechEnabled(!speech.enabled);
+		setToggle("wordsBtn", speech.enabled, speech.enabled ? "Words on: every 45 s, 8 s of sound go to ElevenLabs to find words." : "Words off.");
+	});
 	onMotionChange(() => setToggle("motionBtn", motion.enabled));
 	onSceneChange(updateSceneLabels);
 	byId("menuBack").addEventListener("click", closeMenu);
@@ -6729,6 +7028,7 @@ function frame(now) {
 	clock.time += dt;
 	analyze(dt);
 	updateMotion(dt);
+	tickSpeech();
 	updateMeter();
 	scene.hue = (scene.hue + dt * 10) % 360;
 	if (scene.autoSwitch && clock.time - scene.lastSwitch > AUTO_SWITCH_S) shuffle();
@@ -6757,6 +7057,8 @@ document.addEventListener("visibilitychange", () => {
 	});
 });
 addEventListener("pagehide", releaseMic);
+onHeard(showHeardWords);
+window.loudSay = showHeardWords;
 initControls();
 initMotion();
 resize();
@@ -6978,7 +7280,7 @@ svg {
   box-shadow: 0 0 24px rgba(255, 255, 255, 0.45);
 }
 
-/* State light: gray when the mic is off, green when it listens. */
+/* State light: gray when the mic is off, green when it listens, red while it records words. */
 .mic .dot {
   width: 10px;
   height: 10px;
@@ -6992,6 +7294,18 @@ svg {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.15),
     0 0 8px #22d65f;
+}
+
+.mic.rec .dot {
+  background: #ff3b3b;
+  box-shadow: 0 0 8px #ff3b3b;
+  animation: recording 1s ease-in-out infinite;
+}
+
+@keyframes recording {
+  50% {
+    opacity: 0.35;
+  }
 }
 
 /* One row of small chips. On a very narrow screen it scrolls sideways. */
@@ -7347,6 +7661,14 @@ svg {
             <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" />
             <div class="noise-mark" aria-hidden="true"></div>
           </div>
+          <button
+            class="chip"
+            id="wordsBtn"
+            aria-pressed="false"
+            title="Words: every 45 s, send 8 s of sound to ElevenLabs and show the words it hears"
+          >
+            Words
+          </button>
         </div>
 
         <!-- Tap a name chip for the next one; hold it for the full list. -->

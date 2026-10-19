@@ -9,6 +9,11 @@ export function setStatus(text: string): void {
   statusLine.textContent = text;
 }
 
+/** Turns the Mic button's dot red while a speech sample is being recorded. */
+export function setRecordingLight(on: boolean): void {
+  micButton.classList.toggle('rec', on);
+}
+
 /** Lights the Mic button and shows the noise gate while the mic is on. */
 export function showMicState(on: boolean): void {
   micButton.classList.toggle('on', on);

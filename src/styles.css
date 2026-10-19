@@ -212,7 +212,7 @@ svg {
   box-shadow: 0 0 24px rgba(255, 255, 255, 0.45);
 }
 
-/* State light: gray when the mic is off, green when it listens. */
+/* State light: gray when the mic is off, green when it listens, red while it records words. */
 .mic .dot {
   width: 10px;
   height: 10px;
@@ -226,6 +226,18 @@ svg {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.15),
     0 0 8px #22d65f;
+}
+
+.mic.rec .dot {
+  background: #ff3b3b;
+  box-shadow: 0 0 8px #ff3b3b;
+  animation: recording 1s ease-in-out infinite;
+}
+
+@keyframes recording {
+  50% {
+    opacity: 0.35;
+  }
 }
 
 /* One row of small chips. On a very narrow screen it scrolls sideways. */
