@@ -168,8 +168,21 @@ svg {
   padding: 0;
   display: grid;
   place-items: center;
-  font-size: 18px;
   border-radius: 999px;
+}
+
+.ic svg {
+  width: 20px;
+  height: 20px;
+}
+
+#fsBtn .exit,
+#fsBtn.full .enter {
+  display: none;
+}
+
+#fsBtn.full .exit {
+  display: inline;
 }
 
 /* The big Mic button */
@@ -275,7 +288,8 @@ svg {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
 }
 
-/* Noise gate: shown while the mic is on */
+/* Noise gate: shown while the mic is on. The slider thumb is the gate, the red mark the
+   live sound level, and the light part of the track fills up to it. */
 .gate {
   align-items: center;
   gap: 10px;
@@ -284,9 +298,80 @@ svg {
   text-shadow: var(--text-shadow);
 }
 
-.gate input {
-  flex: 0 1 130px;
-  accent-color: #fff;
+.gate-slider {
+  --level: 0;
+  --thumb: 18px;
+  --level-x: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--level));
+  position: relative;
+  flex: 0 1 220px;
+  display: flex;
+  align-items: center;
+}
+
+.gate-slider input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.gate-slider input::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.5) var(--level-x),
+    rgba(255, 255, 255, 0.18) var(--level-x)
+  );
+}
+
+.gate-slider input::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.5) var(--level-x),
+    rgba(255, 255, 255, 0.18) var(--level-x)
+  );
+}
+
+.gate-slider input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.gate-slider input::-moz-range-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.noise-mark {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: var(--level-x);
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: #ff3d6e;
+  box-shadow: 0 0 6px #ff3d6e;
+  pointer-events: none;
 }
 
 .link {

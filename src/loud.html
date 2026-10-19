@@ -19,7 +19,18 @@
     <div id="ui">
       <div class="bar top">
         <div class="brand">loud <span id="modeName">nebula</span></div>
-        <button class="ic" id="fsBtn" title="Fullscreen" aria-label="Fullscreen">⤢</button>
+        <button class="ic" id="fsBtn" title="Fullscreen" aria-label="Fullscreen">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              class="enter"
+              d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"
+            />
+            <path
+              class="exit"
+              d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"
+            />
+          </svg>
+        </button>
       </div>
 
       <div class="bar bottom">
@@ -38,13 +49,12 @@
           <button class="chip" id="tabBtn">New tab</button>
         </div>
 
-        <!-- Shown while the mic is on. -->
+        <!-- Shown while the mic is on. The red mark is the live sound level. -->
         <div class="row gate" id="gateRow" hidden>
-          <label for="gate" title="Sounds below the red mark are ignored">Gate</label>
-          <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" />
-          <div class="meter" aria-hidden="true">
-            <div id="meterFill"></div>
-            <div id="meterGate"></div>
+          <label for="gate" title="Sounds below the gate are ignored">Gate</label>
+          <div class="gate-slider" id="gateSlider">
+            <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" />
+            <div class="noise-mark" aria-hidden="true"></div>
           </div>
         </div>
 

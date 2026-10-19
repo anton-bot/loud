@@ -816,7 +816,7 @@ async function startMic() {
 	});
 	micWanted = true;
 	showMicState(true);
-	setStatus("Listening. Set the gate just above the room noise.");
+	setStatus("Listening. Put the gate just above the red mark when it's quiet.");
 }
 /** The Mic button: turns the mic on, or off when it is on. */
 async function toggleMic() {
@@ -4977,8 +4977,7 @@ async function keepAwake() {
 var HIDE_AFTER_MS = 5e3;
 var LONG_PRESS_MS = 450;
 var ui = byId("ui");
-var meterFill = byId("meterFill");
-var meterGate = byId("meterGate");
+var gateSlider = byId("gateSlider");
 var menu = byId("menu");
 var menuList = byId("menuList");
 var menuTitle = byId("menuTitle");
@@ -4994,12 +4993,11 @@ function showControls() {
 	clearTimeout(hideTimer);
 	if (isListening()) hideTimer = setTimeout(() => ui.classList.add("hide"), HIDE_AFTER_MS);
 }
-/** Moves the level meter. Call once per frame. */
+/** Moves the red sound-level mark on the gate slider. Call once per frame. */
 function updateMeter() {
-	if (controlsHidden()) return;
-	const level = isListening() ? clamp((levels.inputDb + 80) / 60, 0, 1) : 0;
-	meterFill.style.width = (level * 100).toFixed(1) + "%";
-	meterGate.style.left = (clamp((levels.gateDb + 80) / 60, 0, 1) * 100).toFixed(1) + "%";
+	if (controlsHidden() || !isListening()) return;
+	const level = clamp((levels.inputDb + 80) / 60, 0, 1);
+	gateSlider.style.setProperty("--level", level.toFixed(3));
 }
 /** Lights a toggle chip when it is on. `status` says what changed. */
 function setToggle(id, on, status) {
@@ -5156,6 +5154,14 @@ function initFullscreen() {
 		button.hidden = true;
 		return;
 	}
+	const showState = () => {
+		const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
+		button.classList.toggle("full", full);
+		button.setAttribute("aria-label", full ? "Exit fullscreen" : "Fullscreen");
+		button.title = full ? "Exit fullscreen" : "Fullscreen";
+	};
+	document.addEventListener("fullscreenchange", showState);
+	document.addEventListener("webkitfullscreenchange", showState);
 	button.addEventListener("click", () => {
 		const root = document.documentElement;
 		try {
@@ -5396,8 +5402,21 @@ svg {
   padding: 0;
   display: grid;
   place-items: center;
-  font-size: 18px;
   border-radius: 999px;
+}
+
+.ic svg {
+  width: 20px;
+  height: 20px;
+}
+
+#fsBtn .exit,
+#fsBtn.full .enter {
+  display: none;
+}
+
+#fsBtn.full .exit {
+  display: inline;
 }
 
 /* The big Mic button */
@@ -5503,7 +5522,8 @@ svg {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
 }
 
-/* Noise gate: shown while the mic is on */
+/* Noise gate: shown while the mic is on. The slider thumb is the gate, the red mark the
+   live sound level, and the light part of the track fills up to it. */
 .gate {
   align-items: center;
   gap: 10px;
@@ -5512,9 +5532,80 @@ svg {
   text-shadow: var(--text-shadow);
 }
 
-.gate input {
-  flex: 0 1 130px;
-  accent-color: #fff;
+.gate-slider {
+  --level: 0;
+  --thumb: 18px;
+  --level-x: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--level));
+  position: relative;
+  flex: 0 1 220px;
+  display: flex;
+  align-items: center;
+}
+
+.gate-slider input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.gate-slider input::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.5) var(--level-x),
+    rgba(255, 255, 255, 0.18) var(--level-x)
+  );
+}
+
+.gate-slider input::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.5) var(--level-x),
+    rgba(255, 255, 255, 0.18) var(--level-x)
+  );
+}
+
+.gate-slider input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.gate-slider input::-moz-range-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.noise-mark {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: var(--level-x);
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: #ff3d6e;
+  box-shadow: 0 0 6px #ff3d6e;
+  pointer-events: none;
 }
 
 .link {
@@ -5670,7 +5761,18 @@ svg {
     <div id="ui">
       <div class="bar top">
         <div class="brand">loud <span id="modeName">nebula</span></div>
-        <button class="ic" id="fsBtn" title="Fullscreen" aria-label="Fullscreen">⤢</button>
+        <button class="ic" id="fsBtn" title="Fullscreen" aria-label="Fullscreen">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              class="enter"
+              d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"
+            />
+            <path
+              class="exit"
+              d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"
+            />
+          </svg>
+        </button>
       </div>
 
       <div class="bar bottom">
@@ -5689,13 +5791,12 @@ svg {
           <button class="chip" id="tabBtn">New tab</button>
         </div>
 
-        <!-- Shown while the mic is on. -->
+        <!-- Shown while the mic is on. The red mark is the live sound level. -->
         <div class="row gate" id="gateRow" hidden>
-          <label for="gate" title="Sounds below the red mark are ignored">Gate</label>
-          <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" />
-          <div class="meter" aria-hidden="true">
-            <div id="meterFill"></div>
-            <div id="meterGate"></div>
+          <label for="gate" title="Sounds below the gate are ignored">Gate</label>
+          <div class="gate-slider" id="gateSlider">
+            <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" />
+            <div class="noise-mark" aria-hidden="true"></div>
           </div>
         </div>
 

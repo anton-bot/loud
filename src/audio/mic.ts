@@ -181,7 +181,7 @@ async function startMic(): Promise<void> {
   }
   micWanted = true;
   showMicState(true);
-  setStatus('Listening. Set the gate just above the room noise.');
+  setStatus("Listening. Put the gate just above the red mark when it's quiet.");
 }
 
 /** The Mic button: turns the mic on, or off when it is on. */

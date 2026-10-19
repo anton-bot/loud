@@ -11,16 +11,16 @@ mirror, glitch and others).
 
 ## Controls
 
-| Control                 | What it does                                             |
-| ----------------------- | -------------------------------------------------------- |
-| Mic                     | Listen to the music around you. Tap again to stop        |
-| Tap the picture         | Hide or show the controls                                |
-| ‹ mode ›, palette, look | Tap for the next one. Hold for the full list             |
-| Shuffle                 | A new random mode, palette and look                      |
-| Auto-switch             | A new scene every 30 s and on some beats                 |
-| Sections                | A new scene when the music changes (a drop, a breakdown) |
-| Motion                  | Phone tilt, shake and twist move the picture             |
-| Gate (with the mic on)  | Put the red mark just above the room noise               |
+| Control                 | What it does                                                                |
+| ----------------------- | --------------------------------------------------------------------------- |
+| Mic                     | Listen to the music around you. Tap again to stop                           |
+| Tap the picture         | Hide or show the controls                                                   |
+| ‹ mode ›, palette, look | Tap for the next one. Hold for the full list                                |
+| Shuffle                 | A new random mode, palette and look                                         |
+| Auto-switch             | A new scene every 30 s and on some beats                                    |
+| Sections                | A new scene when the music changes (a drop, a breakdown)                    |
+| Motion                  | Phone tilt, shake and twist move the picture                                |
+| Gate (with the mic on)  | The red mark is the sound level. Put the gate just above it when it's quiet |
 
 Keyboard: <kbd>M</kbd> mic, <kbd>←</kbd> <kbd>→</kbd> mode, <kbd>P</kbd> palette, <kbd>L</kbd> look,
 <kbd>Space</kbd> shuffle, <kbd>H</kbd> hide the controls.

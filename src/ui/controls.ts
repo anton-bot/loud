@@ -20,8 +20,7 @@ const HIDE_AFTER_MS = 5000;
 const LONG_PRESS_MS = 450;
 
 const ui = byId('ui');
-const meterFill = byId('meterFill');
-const meterGate = byId('meterGate');
+const gateSlider = byId('gateSlider');
 const menu = byId('menu');
 const menuList = byId('menuList');
 const menuTitle = byId('menuTitle');
@@ -41,12 +40,11 @@ export function showControls(): void {
   if (isListening()) hideTimer = setTimeout(() => ui.classList.add('hide'), HIDE_AFTER_MS);
 }
 
-/** Moves the level meter. Call once per frame. */
+/** Moves the red sound-level mark on the gate slider. Call once per frame. */
 export function updateMeter(): void {
-  if (controlsHidden()) return;
-  const level = isListening() ? clamp((levels.inputDb + 80) / 60, 0, 1) : 0;
-  meterFill.style.width = (level * 100).toFixed(1) + '%';
-  meterGate.style.left = (clamp((levels.gateDb + 80) / 60, 0, 1) * 100).toFixed(1) + '%';
+  if (controlsHidden() || !isListening()) return;
+  const level = clamp((levels.inputDb + 80) / 60, 0, 1);
+  gateSlider.style.setProperty('--level', level.toFixed(3));
 }
 
 /** Lights a toggle chip when it is on. `status` says what changed. */
@@ -232,6 +230,14 @@ function initFullscreen(): void {
     button.hidden = true;
     return;
   }
+  const showState = (): void => {
+    const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    button.classList.toggle('full', full);
+    button.setAttribute('aria-label', full ? 'Exit fullscreen' : 'Fullscreen');
+    button.title = full ? 'Exit fullscreen' : 'Fullscreen';
+  };
+  document.addEventListener('fullscreenchange', showState);
+  document.addEventListener('webkitfullscreenchange', showState);
   button.addEventListener('click', () => {
     const root = document.documentElement;
     try {
