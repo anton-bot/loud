@@ -5481,6 +5481,22 @@ svg {
   box-shadow: 0 0 24px rgba(255, 255, 255, 0.45);
 }
 
+/* State light: gray when the mic is off, green when it listens. */
+.mic .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #8a8a8a;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.mic.on .dot {
+  background: #22d65f;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.15),
+    0 0 8px #22d65f;
+}
+
 /* One row of small chips. On a very narrow screen it scrolls sideways. */
 
 .chips {
@@ -5817,6 +5833,7 @@ svg {
             <path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8" />
           </svg>
           <span>Mic</span>
+          <span class="dot" aria-hidden="true"></span>
         </button>
 
         <!-- Shown when a frame around the page blocks the mic. -->
