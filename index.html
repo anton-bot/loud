@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- The site root opens the app: GitHub Pages serves loud.html, which `pnpm build` writes. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="0; url=loud.html" />
+    <title>loud — music visualizer</title>
+    <script>
+      location.replace('loud.html' + location.search + location.hash);
+    </script>
+  </head>
+  <body style="background: #000; color: #ccc; font-family: sans-serif">
+    <a href="loud.html" style="color: #fff">Open loud</a>
+  </body>
+</html>
