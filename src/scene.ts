@@ -4,6 +4,7 @@ import { audio, clock, scene } from './core/state';
 import { LOOKS } from './look/looks';
 import { PALETTES } from './look/palettes';
 import { MODES, type Mode } from './modes';
+import { camera } from './input/camera';
 import { addBeatRing } from './render/beatRings';
 import { startTransition } from './render/compositor';
 
@@ -63,7 +64,9 @@ export function randomLook(): void {
 
 /** A new random mode with a fitting palette and a random look. */
 export function shuffle(): void {
-  scene.modeIndex = MODES.indexOf(pick(MODES, currentMode()));
+  // Never ask for the camera on its own: camera modes only once it was allowed.
+  const modes = MODES.filter((m) => !m.camera || camera.allowed);
+  scene.modeIndex = MODES.indexOf(pick(modes, currentMode()));
   randomPalette();
   randomLook();
   setMode(scene.modeIndex);

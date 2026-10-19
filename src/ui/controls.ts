@@ -44,7 +44,7 @@ export function showControls(): void {
   if (isListening()) hideTimer = setTimeout(() => ui.classList.add('hide'), HIDE_AFTER_MS);
 }
 
-/** Moves the red sound-level mark on the gate slider. Call once per frame. */
+/** Moves the red sound-level mark on the cutoff slider. Call once per frame. */
 export function updateMeter(): void {
   if (controlsHidden() || !isListening()) return;
   const level = clamp((levels.inputDb + 80) / 60, 0, 1);

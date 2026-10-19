@@ -1,5 +1,6 @@
 /** Colours from the current palette. */
 import { cssRgb, cssRgba, hslToRgb, type Rgb } from '../core/rgb';
+import { harmonyColors } from '../audio/harmony';
 import { audio, scene, view } from '../core/state';
 
 /**
@@ -12,14 +13,15 @@ import { audio, scene, view } from '../core/state';
  */
 export function colorRgb(k: number, lightness?: number): Rgb {
   const { palette, hue } = scene;
-  if (!palette.rgb) return hslToRgb(hue + k * 40, lightness == null ? 60 : lightness);
+  const rgb = palette.key ? harmonyColors() : palette.rgb;
+  if (!rgb) return hslToRgb(hue + k * 40, lightness == null ? 60 : lightness);
 
-  const n = palette.rgb.length;
+  const n = rgb.length;
   const f = (((k + hue / 90) % n) + n) % n;
   const i = Math.floor(f);
   const t = f - i;
-  const c1 = palette.rgb[i];
-  const c2 = palette.rgb[(i + 1) % n];
+  const c1 = rgb[i];
+  const c2 = rgb[(i + 1) % n];
   let r = c1[0] + (c2[0] - c1[0]) * t;
   let g = c1[1] + (c2[1] - c1[1]) * t;
   let b = c1[2] + (c2[2] - c1[2]) * t;

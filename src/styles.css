@@ -277,6 +277,12 @@ svg {
   place-items: center;
 }
 
+.chip.icon.text {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+
 /* ‹ mode › as one segmented pill */
 .group {
   display: flex;

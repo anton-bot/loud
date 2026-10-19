@@ -7,6 +7,7 @@ import { clamp, follow } from '../core/math';
 import { audio, clock } from '../core/state';
 import { onBeat } from '../scene';
 import { engine } from './engine';
+import { trackHarmony, updateHarmonyColors } from './harmony';
 import { trackSections } from './sections';
 import { isListening } from './mic';
 
@@ -177,4 +178,6 @@ export function analyze(dt: number): void {
   audio.beat = Math.max(0, audio.beat - dt * 3.2);
 
   trackSections(dt, rawBass, rawMid, rawHigh, rms, centroid);
+  if (analyser) trackHarmony(dt);
+  updateHarmonyColors(dt);
 }

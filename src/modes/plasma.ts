@@ -27,7 +27,7 @@ export const plasma: Mode = {
   bloom: 0.35,
   blend: 'source-over',
   beatRings: false,
-  palettes: ['acid', 'lava', 'ultraviolet', 'vapor', 'toxic', 'technicolor', 'candy'],
+  palettes: ['scriabin', 'acid', 'lava', 'ultraviolet', 'vapor', 'toxic', 'technicolor', 'candy'],
 
   beat() {
     jolt = 1;

@@ -202,7 +202,7 @@ async function startMic(): Promise<void> {
   clearTimeout(deadlineTimer);
   deadlineTimer = window.setTimeout(checkDeadline, Math.max(0, deadline - Date.now()) + 50);
   showMicState(true);
-  setStatus("Listening. Put the gate just above the red mark when it's quiet.");
+  setStatus("Listening. Put the cutoff just above the red mark when it's quiet.");
 }
 
 /** The Mic button: turns the mic on, or off when it is on. */

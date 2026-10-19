@@ -1,7 +1,7 @@
 # loud
 
-A music visualizer that runs in the browser. 50 visual modes react to the bass, the mids, the
-treble and the beats of the music. There are 28 palettes and 14 looks (film, CRT, stop-motion,
+A music visualizer that runs in the browser. 55 visual modes react to the bass, the mids, the
+treble and the beats of the music. There are 29 palettes and 14 looks (film, CRT, stop-motion,
 mirror, glitch, LED wall and others).
 
 **Open <https://anton-bot.github.io/loud/loud.html>, tap Mic and play some music.**
@@ -11,37 +11,76 @@ mirror, glitch, LED wall and others).
 
 ## Controls
 
-| Control                 | What it does                                                                |
-| ----------------------- | --------------------------------------------------------------------------- |
-| Mic                     | Listen to the music around you. Tap again to stop                           |
-| Tap the picture         | Hide or show the controls                                                   |
-| Double-tap the picture  | On the right half: next mode. On the left half: previous mode               |
-| ‹ mode ›, palette, look | Tap for the next one. Hold for the full list                                |
-| Shuffle                 | A new random mode, palette and look                                         |
-| Auto-switch             | A new scene every 30 s and on some beats                                    |
-| Sections                | A new scene when the music changes (a drop, a breakdown)                    |
-| Motion                  | Phone tilt, shake and twist move the picture                                |
-| Gate (with the mic on)  | The red mark is the sound level. Put the gate just above it when it's quiet |
-| Words (with the mic on) | Every 45 s, send 8 s of sound to ElevenLabs and show the words it hears     |
+| Control                  | What it does                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| Mic                      | Listen to the music around you. Tap again to stop                                        |
+| Tap the picture          | Hide or show the controls                                                                |
+| Double-tap the picture   | On the right half: next mode. On the left half: previous mode                            |
+| ‹ mode ›, palette, look  | Tap for the next one. Hold for the full list                                             |
+| Shuffle                  | A new random mode, palette and look                                                      |
+| Auto-switch              | A new scene every 30 s and on some beats                                                 |
+| Sections                 | A new scene when the music changes (a drop, a breakdown)                                 |
+| Motion                   | Phone tilt, shake and twist move the picture                                             |
+| Cutoff (with the mic on) | The red mark is the sound level. Put the cutoff just above it when it's quiet            |
+| Aa (words)               | With the mic on: every 45 s, send 8 s of sound to ElevenLabs and show the words it hears |
 
 Keyboard: <kbd>M</kbd> mic, <kbd>←</kbd> <kbd>→</kbd> mode, <kbd>P</kbd> palette, <kbd>L</kbd> look,
 <kbd>Space</kbd> shuffle, <kbd>H</kbd> hide the controls.
 
 ### Words: show what the room says
 
-With **Words** on (it is off at first), every 45 s the page records 8 s of sound, sends it to
+With **Aa** (words) on (it is off at first), every 45 s the page records 8 s of sound, sends it to
 ElevenLabs speech to text (`scribe_v2`), and shows the words over any mode for 16 s. Each text gets
 one big hero style in the middle, which changes every 8 beats: **slam** (one word per beat),
 **particles** (each word built from glowing particles that burst on beats), **decode** (hacker-text
-scramble), **kaleido** (a mandala of the word), **cutout** (giant letters that invert the picture)
-and **anagram** (letters hop to new places). Around it, one or two of: **tunnel**, **orbit**,
-**wave**, **bounce**, **rain**, **spiral** and, rarely, **marquee**. Chinese and Japanese text is
-cut into short chunks; Cyrillic uses the display font, Chinese uses Noto Sans SC. The Mic dot is
-red while it records. The choice is kept in the browser. Try it in the console:
-`loudSay('hello there')`, or with styles: `loudSay('hello there', 'particles', 'rain')`.
+scramble), **kaleido** (a mandala of the word), **cutout** (giant letters that invert the picture),
+**anagram** (letters hop to new places), **slide** (diagonal slides corner to corner), **blinds**
+(slices shoot in as a staircase or a comb), **flap** (a split-flap board) and **stretch** (a rubber
+word). Around it, one or two of: **tunnel**, **orbit**, **wave**, **bounce**, **rain**, **spiral**,
+**tape** (diagonal caution tapes), **stickers**, **crawl** (lines on a floor in perspective) and,
+rarely, **marquee**. Two round styles (orbit, spiral, kaleido) never show at the same time.
+
+Each text gets a typeface for the ambient styles and one for the hero: Unbounded, Press Start 2P
+(pixel), Rubik Glitch, Creepster (horror), Rubik Wet Paint (drip), Rubik Beastly or Monoton (neon),
+all from Google Fonts. Faces without Cyrillic fall back to one with it; Chinese uses Noto Sans SC
+and is cut into short chunks. The Mic dot is red while it records. The choice is kept in the
+browser. Try it in the console: `loudSay('hello there')`, or with styles and a face:
+`loudSay('hello there', 'flap', 'tape', 'face:pixel')`.
 
 The ElevenLabs API key is in the page on purpose: it is an experiment key with a small balance and
 no automatic top-up, so anyone who opens the page can read it and use it up.
+
+The mic (and speech recognition with it) turns off 1 hour after the tap on Mic, in case it was
+forgotten. A tap on Mic turns it on again.
+
+### Say it, see it
+
+Heard words also steer the show: "fire" or "огонь" starts flames, "ocean", "космос", "龙", "love",
+"laser", "mushroom", "dance" and about 20 other topics in English, Russian and Chinese each have a
+mode and a palette (`src/keywords.ts`).
+
+### Build-up and drop
+
+The section detector (`src/audio/sections.ts`) also measures the build-up before a drop: the bass
+is gone and the rest of the music rises. The colour drains, the frame closes in and streaks rush to
+the middle. At the drop the scene changes with shock rings. Try it without music: `loudDrop()`.
+
+### Key colour
+
+The **scriabin** palette follows the harmony: a 12-note chroma of the spectrum gives the chord and
+the key (`src/audio/harmony.ts`), and the colours are those that Scriabin gave the notes (A green, C
+red, D yellow, ...). With this palette on, the status line shows the key when it changes.
+
+### Camera and dream frames
+
+The **time-smear** mode uses the back camera: each row of the picture comes from a different moment
+(slit-scan). It asks for the camera only when you go to it yourself; auto-switch picks it only after
+the camera was allowed. The camera turns off when you leave the mode, and after 1 hour. Without a
+camera it smears its own dancers.
+
+Dream frames turn heard phrases into pictures (Pollinations) that melt away over the mode. They are
+off: Pollinations now needs a token (`TOKEN` in `src/render/dream.ts`). Try the melt with any
+picture: `loudDream('https://.../picture.jpg')`.
 
 ### The mic on Android
 
@@ -56,7 +95,7 @@ until the browser was closed.
 `loud` now asks for the built-in microphone ("Speakerphone" in Chrome's Android device list) by
 its device ID, so headsets and Bluetooth devices are not touched. The first time, before the mic is
 allowed, Chrome does not show device names, so `loud` opens the default mic and then switches to
-the built-in one at once. See `src/audio/sources.ts`.
+the built-in one at once. See `src/audio/mic.ts`.
 
 ## Development
 

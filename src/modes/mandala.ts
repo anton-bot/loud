@@ -14,7 +14,7 @@ export const mandala: Mode = {
   fade: 0.35,
   zoom: 1.004,
   rotate: 0.004,
-  palettes: ['acid', 'ultraviolet', 'vapor', 'toxic', 'void'],
+  palettes: ['scriabin', 'acid', 'ultraviolet', 'vapor', 'toxic', 'void'],
 
   draw() {
     const { cx, cy, min } = view;

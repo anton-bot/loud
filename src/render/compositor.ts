@@ -4,6 +4,7 @@
  * exposure kick, scene transitions, a vignette and dither.
  */
 import { createLayer, setCanvasSize } from '../core/dom';
+import { hash01, TAU } from '../core/math';
 import { cssRgba } from '../core/rgb';
 import { audio, clock, scene, view } from '../core/state';
 import type { Mode } from '../modes';
@@ -190,6 +191,54 @@ function drawTransition(dt: number, light: boolean): void {
   transition.t = Math.max(0, transition.t - dt / transition.duration);
 }
 
+/** Build-up: the colour drains, the frame closes in, and streaks rush to the middle. */
+function drawBuildUp(d: CanvasRenderingContext2D, dw: number, dh: number, light: boolean): void {
+  const build = audio.build;
+  d.globalCompositeOperation = 'saturation';
+  d.globalAlpha = build * 0.8;
+  d.fillStyle = '#808080';
+  d.fillRect(0, 0, dw, dh);
+  d.globalAlpha = 1;
+  const cx = dw / 2;
+  const cy = dh / 2;
+  const R = Math.hypot(dw, dh) / 2;
+  d.globalCompositeOperation = light ? 'multiply' : 'screen';
+  d.strokeStyle = light
+    ? `rgba(0,0,0,${0.1 + build * 0.25})`
+    : `rgba(255,255,255,${0.1 + build * 0.3})`;
+  d.lineWidth = view.dpr * (1 + build * 2);
+  d.beginPath();
+  const lines = Math.round(20 + build * 70);
+  for (let i = 0; i < lines; i++) {
+    const a = hash01(i * 1.7) * TAU;
+    const z = (hash01(i * 3.1) + clock.time * (0.3 + build * 1.6)) % 1;
+    const r1 = R * (1 - z);
+    const r0 = r1 * (0.8 - build * 0.15);
+    d.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+    d.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+  }
+  d.stroke();
+  d.globalCompositeOperation = 'source-over';
+  const edge = light ? `rgba(60,35,15,${build * 0.6})` : `rgba(0,0,0,${build * 0.85})`;
+  vignette(d, cx, cy, R * (0.7 - build * 0.4), R * (1.02 - build * 0.25), edge, dw, dh);
+}
+
+/** The drop: shock rings rush out from the middle. No white flash (photosensitivity). */
+function drawDrop(d: CanvasRenderingContext2D, dw: number, dh: number, light: boolean): void {
+  const drop = audio.drop;
+  const R = Math.hypot(dw, dh) / 2;
+  d.globalCompositeOperation = light ? 'multiply' : 'screen';
+  for (let i = 0; i < 3; i++) {
+    const r = R * 1.25 * Math.pow(Math.min(1, (1 - drop) * (1 + i * 0.25)), 0.6);
+    d.strokeStyle = cssRgba(colorRgb(i * 1.4, light ? 40 : 70), drop);
+    d.lineWidth = view.dpr * (4 + drop * 26) * (1 - i * 0.25);
+    d.beginPath();
+    d.arc(dw / 2, dh / 2, r, 0, TAU);
+    d.stroke();
+  }
+  d.globalCompositeOperation = 'source-over';
+}
+
 export function composite(mode: Mode, dt: number): void {
   frameNumber++;
   const d = displayCtx;
@@ -203,7 +252,9 @@ export function composite(mode: Mode, dt: number): void {
   d.imageSmoothingEnabled = true;
 
   // Camera: a smooth punch-in on the beat and a slow drift.
-  const zoom = 1 + beat * beat * 0.035 + audio.bass * 0.008;
+  // The build-up before a drop pushes in slowly; the drop kicks.
+  const zoom =
+    1 + beat * beat * 0.035 + audio.bass * 0.008 + audio.build * 0.05 + audio.drop ** 2 * 0.06;
   const roll = Math.sin(time * 0.23) * 0.004;
   const driftX = Math.sin(time * 0.17) * view.width * 0.004;
   const driftY = Math.cos(time * 0.13) * view.height * 0.004;
@@ -213,7 +264,10 @@ export function composite(mode: Mode, dt: number): void {
   const y = (dh - dh * zoom) / 2 + driftY * dpr;
 
   // Chromatic aberration on hits: red and cyan copies, offset and added back together.
-  const split = quality.level >= 2 && beat > 0.3 ? ((beat - 0.3) * 7 + audio.high * 1.2) * dpr : 0;
+  const split =
+    quality.level >= 2 && beat > 0.3 && !mode.plain
+      ? ((beat - 0.3) * 7 + audio.high * 1.2) * dpr
+      : 0;
   d.save();
   d.translate(dw / 2, dh / 2);
   d.rotate(roll);
@@ -248,7 +302,9 @@ export function composite(mode: Mode, dt: number): void {
     d.fillRect(0, 0, dw, dh);
   }
 
-  if (scene.look.ledWall) drawLedWall();
+  if (audio.build > 0.02) drawBuildUp(d, dw, dh, light);
+  if (audio.drop > 0.02) drawDrop(d, dw, dh, light);
+  if (scene.look.ledWall && !mode.plain) drawLedWall();
   if (transition.t > 0) drawTransition(dt, light);
 
   // Grade: a soft vignette and fine dither, so gradients never band.

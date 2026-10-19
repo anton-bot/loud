@@ -10,6 +10,8 @@ interface PaletteSpec {
   readonly colors?: readonly string[];
   /** Light background with dark ink. Turns off bloom and flips some effects. */
   readonly light?: boolean;
+  /** The colours follow the chord and key that are playing (audio/harmony.ts). */
+  readonly key?: boolean;
 }
 
 export interface Palette extends PaletteSpec {
@@ -48,6 +50,7 @@ const SPECS = [
   { name: 'peach', bg: '#ffe5d0', blend: 'multiply', colors: ['#d72638', '#3f88c5', '#f49d37', '#140f2d'], light: true },
   { name: 'sepia', bg: '#1a120a', blend: 'lighter', colors: ['#e8c39e', '#c47a3a', '#fff1dc', '#8a4b1f'] },
   { name: 'technicolor', bg: '#0d0810', blend: 'lighter', colors: ['#ff3b3b', '#2dd4bf', '#ffd400', '#7b5cff'] },
+  { name: 'scriabin', bg: '#08060c', blend: 'lighter', key: true },
 ] as const satisfies readonly PaletteSpec[];
 
 export type PaletteName = (typeof SPECS)[number]['name'];

@@ -32,6 +32,10 @@ export const audio = {
   freq: new Uint8Array(1024),
   /** Waveform bytes. 128 is silence. */
   wave: new Uint8Array(2048),
+  /** Build-up before a drop, 0..1: the bass is gone and the rest of the music rises. */
+  build: 0,
+  /** 1 at a drop, then decays to 0. */
+  drop: 0,
 };
 
 /** Animation time in seconds. Written by loop.ts. */

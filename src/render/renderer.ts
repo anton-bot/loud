@@ -3,6 +3,7 @@ import { audio, motion, scene, view } from '../core/state';
 import { motionIsActive } from '../input/motion';
 import type { Mode } from '../modes';
 import { drawBeatRings } from './beatRings';
+import { drawDream } from './dream';
 import { drawHeardWords } from './words';
 import { ctx, sceneCanvas } from './canvases';
 import { backgroundGradient } from './color';
@@ -65,7 +66,7 @@ export function renderFrame(mode: Mode, dt: number): void {
     shakeX += (Math.random() - 0.5) * k;
     shakeY += (Math.random() - 0.5) * k;
   }
-  const jitter = scene.look.jitter;
+  const jitter = mode.plain ? 0 : scene.look.jitter;
   if (jitter) {
     ctx.translate(cx, cy);
     ctx.rotate((Math.random() - 0.5) * 0.02 * jitter);
@@ -74,7 +75,7 @@ export function renderFrame(mode: Mode, dt: number): void {
     shakeY += (Math.random() - 0.5) * 5 * jitter;
   }
   ctx.translate(shakeX, shakeY);
-  if (moving) {
+  if (moving && !mode.plain) {
     ctx.translate(cx, cy);
     ctx.rotate(motion.tiltX * 0.12 + motion.spin * 0.3);
     const z = 1 + motion.shake * 0.2;
@@ -84,9 +85,10 @@ export function renderFrame(mode: Mode, dt: number): void {
   ctx.globalCompositeOperation = mode.blend || scene.palette.blend;
   mode.draw(dt);
   if (mode.beatRings !== false) drawBeatRings(dt);
+  drawDream();
   drawHeardWords(dt);
   ctx.restore();
 
-  applyLookEffects();
+  if (!mode.plain) applyLookEffects();
   composite(mode, dt);
 }

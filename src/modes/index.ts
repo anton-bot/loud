@@ -17,6 +17,7 @@ import { flow } from './flow';
 import { grid } from './grid';
 import { halftone } from './halftone';
 import { halo } from './halo';
+import { inkMode } from './ink';
 import { julia } from './julia';
 import { kaleido } from './kaleido';
 import { lasers } from './lasers';
@@ -33,6 +34,7 @@ import { neonKnot } from './neonKnot';
 import { neonStrings } from './neonStrings';
 import { neonTesla } from './neonTesla';
 import { orb } from './orb';
+import { parallax } from './parallax';
 import { pixels } from './pixels';
 import { plasma } from './plasma';
 import { rays } from './rays';
@@ -41,9 +43,11 @@ import { ripples } from './ripples';
 import { scope } from './scope';
 import { shroom } from './shroom';
 import { slime } from './slime';
+import { smear } from './smear';
 import { solids } from './solids';
 import { spiral } from './spiral';
 import { spiro } from './spiro';
+import { stereo } from './stereo';
 import { splats } from './splats';
 import { sprites } from './sprites';
 import { strings } from './strings';
@@ -106,4 +110,8 @@ export const MODES: readonly Mode[] = [
   neonTesla,
   neonKnot,
   solids,
+  inkMode,
+  stereo,
+  parallax,
+  smear,
 ];

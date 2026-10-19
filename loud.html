@@ -438,6 +438,12 @@ var PALETTES = [
 			"#ffd400",
 			"#7b5cff"
 		]
+	},
+	{
+		name: "scriabin",
+		bg: "#08060c",
+		blend: "lighter",
+		key: true
 	}
 ].map((spec) => ({
 	...spec,
@@ -475,7 +481,11 @@ var audio = {
 	/** Spectrum, one byte (0..255) per frequency bin, after automatic gain. */
 	freq: /* @__PURE__ */ new Uint8Array(1024),
 	/** Waveform bytes. 128 is silence. */
-	wave: /* @__PURE__ */ new Uint8Array(2048)
+	wave: /* @__PURE__ */ new Uint8Array(2048),
+	/** Build-up before a drop, 0..1: the bass is gone and the rest of the music rises. */
+	build: 0,
+	/** 1 at a drop, then decays to 0. */
+	drop: 0
 };
 /** Animation time in seconds. Written by loop.ts. */
 var clock = { time: 0 };
@@ -616,7 +626,7 @@ function setStatus(text) {
 function setRecordingLight(on) {
 	micButton.classList.toggle("rec", on);
 }
-/** Lights the Mic button and shows the noise gate while the mic is on. */
+/** Lights the Mic button and shows the cutoff slider while the mic is on. */
 function showMicState(on) {
 	micButton.classList.toggle("on", on);
 	micButton.setAttribute("aria-pressed", String(on));
@@ -843,7 +853,7 @@ async function startMic() {
 	clearTimeout(deadlineTimer);
 	deadlineTimer = window.setTimeout(checkDeadline, Math.max(0, deadline - Date.now()) + 50);
 	showMicState(true);
-	setStatus("Listening. Put the gate just above the red mark when it's quiet.");
+	setStatus("Listening. Put the cutoff just above the red mark when it's quiet.");
 }
 /** The Mic button: turns the mic on, or off when it is on. */
 async function toggleMic() {
@@ -879,145 +889,6 @@ async function onPageVisibility(visible) {
 function releaseMic() {
 	request++;
 	stopMic();
-}
-//#endregion
-//#region src/audio/speech.ts
-/**
-* Heard words: every 45 s while the mic is on, 8 s of sound go to ElevenLabs speech to
-* text, and the words it hears are shown over the picture (render/heardWords.ts).
-*
-* Off by default, because it sends recordings of the room to a third party; the choice
-* is kept in this browser. The API key is in the page on purpose: an experiment key
-* with a small balance and no automatic top-up, so anyone who opens the page can read
-* and use it.
-*/
-var ELEVENLABS_URL = "https://api.elevenlabs.io/v1/speech-to-text";
-var ELEVENLABS_KEY = "sk_2c12406b220bee699afe376e1ccefef432eb06f8c6a69e0b";
-var MODEL = "scribe_v2";
-/** The first recording starts this long after the mic is on; then one every PERIOD_MS. */
-var FIRST_AFTER_MS = 5e3;
-var PERIOD_MS = 45e3;
-var RECORD_MS = 8e3;
-/** Longest text that is shown. */
-var MAX_WORDS = 10;
-var SETTING = "loud.heardWords";
-var speech = { enabled: readSetting() };
-var listeners$2 = [];
-var listeningSince = 0;
-var lastCapture = 0;
-var busy = false;
-/** Calls `listener` with each text that ElevenLabs hears. */
-function onHeard(listener) {
-	listeners$2.push(listener);
-}
-function readSetting() {
-	try {
-		return localStorage.getItem(SETTING) === "on";
-	} catch {
-		return false;
-	}
-}
-function setSpeechEnabled(on) {
-	speech.enabled = on;
-	try {
-		localStorage.setItem(SETTING, on ? "on" : "off");
-	} catch {}
-}
-/** Starts a recording when one is due. Call once per frame. */
-function tickSpeech() {
-	const stream = currentMicStream();
-	if (!speech.enabled || !stream) {
-		listeningSince = 0;
-		return;
-	}
-	const now = Date.now();
-	if (!listeningSince) {
-		listeningSince = now;
-		lastCapture = 0;
-	}
-	if (busy) return;
-	if (!(lastCapture ? now - lastCapture >= PERIOD_MS : now - listeningSince >= FIRST_AFTER_MS)) return;
-	lastCapture = now;
-	capture(stream);
-}
-async function capture(stream) {
-	busy = true;
-	try {
-		const recording = await record(stream, RECORD_MS);
-		if (!recording) return;
-		const text = await transcribe(recording.blob, recording.extension);
-		if (text) for (const listener of listeners$2) listener(text);
-	} catch (error) {
-		console.warn("loud: speech to text failed", error);
-		setStatus(`Words: ${error instanceof Error ? error.message : String(error)}`);
-	} finally {
-		busy = false;
-	}
-}
-/** A container that this browser can record, and the file extension for it. */
-function recordingFormat() {
-	const formats = [
-		{
-			mimeType: "audio/webm;codecs=opus",
-			extension: "webm"
-		},
-		{
-			mimeType: "audio/webm",
-			extension: "webm"
-		},
-		{
-			mimeType: "audio/mp4",
-			extension: "m4a"
-		},
-		{
-			mimeType: "audio/ogg;codecs=opus",
-			extension: "ogg"
-		}
-	];
-	if (typeof MediaRecorder === "undefined") return null;
-	return formats.find((f) => MediaRecorder.isTypeSupported(f.mimeType)) ?? null;
-}
-/** Records `ms` of the mic. Null when the browser cannot record or the mic stops. */
-function record(stream, ms) {
-	const format = recordingFormat();
-	if (!format) return Promise.resolve(null);
-	return new Promise((resolve) => {
-		const chunks = [];
-		const recorder = new MediaRecorder(stream, {
-			mimeType: format.mimeType,
-			audioBitsPerSecond: 64e3
-		});
-		recorder.addEventListener("dataavailable", (e) => chunks.push(e.data));
-		recorder.addEventListener("stop", () => {
-			setRecordingLight(false);
-			resolve(currentMicStream() === stream && chunks.length ? {
-				blob: new Blob(chunks, { type: format.mimeType }),
-				extension: format.extension
-			} : null);
-		});
-		recorder.start();
-		setRecordingLight(true);
-		setTimeout(() => {
-			if (recorder.state !== "inactive") recorder.stop();
-		}, ms);
-	});
-}
-async function transcribe(audio, extension) {
-	const form = new FormData();
-	form.append("model_id", MODEL);
-	form.append("tag_audio_events", "false");
-	form.append("file", audio, `room.${extension}`);
-	const response = await fetch(ELEVENLABS_URL, {
-		method: "POST",
-		headers: { "xi-api-key": ELEVENLABS_KEY },
-		body: form
-	});
-	if (!response.ok) throw new Error(`ElevenLabs answered ${response.status}`);
-	return cleanText((await response.json()).text ?? "");
-}
-/** The heard text without bracketed sound tags, at most MAX_WORDS words. */
-function cleanText(text) {
-	return text.replace(/[([][^)\]]*[)\]]/g, " ").split(/\s+/).filter(Boolean).slice(0, MAX_WORDS).join(" ");
 }
 //#endregion
 //#region src/core/math.ts
@@ -1080,6 +951,193 @@ function bandLevel(band) {
 	return band === 0 ? audio.bass : band === 1 ? audio.mid : audio.high;
 }
 //#endregion
+//#region src/audio/harmony.ts
+/**
+* Harmony: which notes are playing, the chord and the key. Each frame the spectrum
+* from 400 to 4000 Hz is folded into 12 pitch classes (a "chroma"). The chord is the
+* major or minor triad that best fits the last half second; the key is the best fit of
+* the Krumhansl key profiles to the last 8 seconds.
+*
+* The "scriabin" palette takes its colours from here: the chord's root, third and
+* fifth and the key's tonic, in the colours that Scriabin gave the keys.
+*/
+var NOTES = [
+	"C",
+	"C♯",
+	"D",
+	"E♭",
+	"E",
+	"F",
+	"F♯",
+	"G",
+	"A♭",
+	"A",
+	"B♭",
+	"B"
+];
+/** Scriabin's colours for C, C♯ ... B: C red, G orange, D yellow, A green, E pale blue... */
+var SCRIABIN = [
+	"#ff2a1a",
+	"#8f3df2",
+	"#ffe11a",
+	"#8a9bb8",
+	"#bfe9ff",
+	"#b3112e",
+	"#2f6bff",
+	"#ff8a1a",
+	"#b44de0",
+	"#27d35a",
+	"#9aa6bd",
+	"#9fd3ff"
+].map(hexToRgb);
+var MAJOR_PROFILE = [
+	6.35,
+	2.23,
+	3.48,
+	2.33,
+	4.38,
+	4.09,
+	2.52,
+	5.19,
+	2.39,
+	3.66,
+	2.29,
+	2.88
+];
+var MINOR_PROFILE = [
+	6.33,
+	2.68,
+	3.52,
+	5.38,
+	2.6,
+	3.53,
+	2.54,
+	4.75,
+	3.98,
+	2.69,
+	3.34,
+	3.17
+];
+var harmony = {
+	/** Chord root (pitch class 0..11) and whether the chord is minor. */
+	root: 9,
+	minorChord: true,
+	/** Key tonic (pitch class) and mode. */
+	key: 9,
+	minorKey: true
+};
+/** The key last shown in the status line, and when. */
+var shownKey = "";
+var shownAt$4 = -1e9;
+var shortChroma = /* @__PURE__ */ new Float32Array(12);
+var longChroma = /* @__PURE__ */ new Float32Array(12);
+var frame$1 = /* @__PURE__ */ new Float32Array(12);
+/** The palette colours now; they ease toward the target colours. */
+var colors = [
+	0,
+	4,
+	7,
+	0
+].map((n) => [...SCRIABIN[(n + 9) % 12]]);
+/** The four colours of the "scriabin" palette. */
+function harmonyColors() {
+	return colors;
+}
+function correlation(chroma, profile, tonic) {
+	let meanC = 0;
+	let meanP = 0;
+	for (let i = 0; i < 12; i++) {
+		meanC += chroma[i] / 12;
+		meanP += profile[i] / 12;
+	}
+	let top = 0;
+	let c2 = 0;
+	let p2 = 0;
+	for (let i = 0; i < 12; i++) {
+		const c = chroma[(tonic + i) % 12] - meanC;
+		const p = profile[i] - meanP;
+		top += c * p;
+		c2 += c * c;
+		p2 += p * p;
+	}
+	return top / (Math.sqrt(c2 * p2) || 1);
+}
+/** Called every frame while the mic is on. */
+function trackHarmony(dt) {
+	const freq = audio.freq;
+	const binHz = engine.binHz;
+	frame$1.fill(0);
+	const from = Math.ceil(400 / binHz);
+	const to = Math.min(freq.length - 1, Math.floor(4e3 / binHz));
+	for (let i = from; i <= to; i++) {
+		const level = freq[i] / 255;
+		if (level < .05) continue;
+		const midi = 69 + 12 * Math.log2(i * binHz / 440);
+		frame$1[(Math.round(midi) % 12 + 12) % 12] += level * level;
+	}
+	let max = 0;
+	for (let i = 0; i < 12; i++) max = Math.max(max, frame$1[i]);
+	if (max < .5) return;
+	const fast = Math.min(1, dt * 2);
+	const slow = Math.min(1, dt / 8);
+	for (let i = 0; i < 12; i++) {
+		shortChroma[i] += (frame$1[i] / max - shortChroma[i]) * fast;
+		longChroma[i] += (frame$1[i] / max - longChroma[i]) * slow;
+	}
+	let best = -Infinity;
+	for (let root = 0; root < 12; root++) for (const minor of [false, true]) {
+		const notes = [
+			root,
+			(root + (minor ? 3 : 4)) % 12,
+			(root + 7) % 12
+		];
+		let inside = 0;
+		let outside = 0;
+		for (let i = 0; i < 12; i++) if (notes.includes(i)) inside += shortChroma[i];
+		else outside += shortChroma[i];
+		const score = inside - outside * .33;
+		if (score > best) {
+			best = score;
+			harmony.root = root;
+			harmony.minorChord = minor;
+		}
+	}
+	let bestKey = -Infinity;
+	for (let tonic = 0; tonic < 12; tonic++) for (const minor of [false, true]) {
+		const r = correlation(longChroma, minor ? MINOR_PROFILE : MAJOR_PROFILE, tonic);
+		if (r > bestKey) {
+			bestKey = r;
+			harmony.key = tonic;
+			harmony.minorKey = minor;
+		}
+	}
+	const name = keyName();
+	if (scene.palette.key && name !== shownKey && clock.time - shownAt$4 > 10) {
+		shownKey = name;
+		shownAt$4 = clock.time;
+		setStatus(`Key: ${name}`);
+	}
+}
+/** Eases the palette colours toward the chord and key. Called every frame. */
+function updateHarmonyColors(dt) {
+	const { root, minorChord, key } = harmony;
+	const targets = [
+		root,
+		(root + (minorChord ? 3 : 4)) % 12,
+		(root + 7) % 12,
+		key
+	];
+	const k = Math.min(1, dt * 4);
+	targets.forEach((note, i) => {
+		const target = SCRIABIN[note];
+		for (let c = 0; c < 3; c++) colors[i][c] += (target[c] - colors[i][c]) * k;
+	});
+}
+/** The key as text, for example "A minor". */
+function keyName() {
+	return `${NOTES[harmony.key]} ${harmony.minorKey ? "minor" : "major"}`;
+}
+//#endregion
 //#region src/render/color.ts
 /** Colours from the current palette. */
 /**
@@ -1092,13 +1150,14 @@ function bandLevel(band) {
 */
 function colorRgb(k, lightness) {
 	const { palette, hue } = scene;
-	if (!palette.rgb) return hslToRgb(hue + k * 40, lightness == null ? 60 : lightness);
-	const n = palette.rgb.length;
+	const rgb = palette.key ? harmonyColors() : palette.rgb;
+	if (!rgb) return hslToRgb(hue + k * 40, lightness == null ? 60 : lightness);
+	const n = rgb.length;
 	const f = ((k + hue / 90) % n + n) % n;
 	const i = Math.floor(f);
 	const t = f - i;
-	const c1 = palette.rgb[i];
-	const c2 = palette.rgb[(i + 1) % n];
+	const c1 = rgb[i];
+	const c2 = rgb[(i + 1) % n];
 	let r = c1[0] + (c2[0] - c1[0]) * t;
 	let g = c1[1] + (c2[1] - c1[1]) * t;
 	let b = c1[2] + (c2[2] - c1[2]) * t;
@@ -1352,7 +1411,7 @@ function paintField(layer, values, ramp, toRamp) {
 *   Clifford:  x' = sin(a·y) + c·cos(a·x)    y' = sin(b·x) + d·cos(b·y)
 */
 /** Parameter sets that give interesting shapes. */
-var SHAPES$1 = [
+var SHAPES$2 = [
 	{
 		map: "dejong",
 		a: 1.641,
@@ -1438,19 +1497,19 @@ var SHAPES$1 = [
 		d: -.9
 	}
 ];
-var layer$4 = new PixelLayer();
+var layer$8 = new PixelLayer();
 var gridW$2 = 0;
 var gridH$2 = 0;
 var density = /* @__PURE__ */ new Float32Array(0);
-var shape$1 = { ...SHAPES$1[0] };
-var target$3 = SHAPES$1[0];
+var shape$2 = { ...SHAPES$2[0] };
+var target$3 = SHAPES$2[0];
 var x = .1;
 var y = .1;
-var beats$2 = 0;
+var beats$5 = 0;
 /** Rotation of the whole shape (radians). */
 var turn$1 = 0;
 /** Smoothed centre and half-size of the shape, after rotation, in attractor units. */
-var fit = {
+var fit$1 = {
 	x: 0,
 	y: 0,
 	half: 2
@@ -1459,10 +1518,10 @@ var fit = {
 var collapsed = 0;
 /** Recent highest density, for the tone curve. */
 var peak$1 = 1;
-function setUp$5(w, h) {
+function setUp$7(w, h) {
 	gridW$2 = w;
 	gridH$2 = h;
-	layer$4.setSize(w, h);
+	layer$8.setSize(w, h);
 	density = new Float32Array(w * h);
 }
 var attractor = {
@@ -1481,9 +1540,9 @@ var attractor = {
 		"ice"
 	],
 	beat() {
-		if (++beats$2 % 4 !== 0) return;
-		target$3 = pick(SHAPES$1, target$3);
-		if (target$3.map !== shape$1.map) shape$1 = { ...target$3 };
+		if (++beats$5 % 4 !== 0) return;
+		target$3 = pick(SHAPES$2, target$3);
+		if (target$3.map !== shape$2.map) shape$2 = { ...target$3 };
 	},
 	resize() {
 		gridW$2 = 0;
@@ -1492,26 +1551,26 @@ var attractor = {
 		const { width, height } = view;
 		const w = Math.max(64, Math.min(480, Math.round(width / 2)));
 		const h = Math.max(48, Math.round(w * height / width));
-		if (w !== gridW$2 || h !== gridH$2) setUp$5(w, h);
+		if (w !== gridW$2 || h !== gridH$2) setUp$7(w, h);
 		const k = Math.min(1, dt * 1.5);
-		shape$1.a += (target$3.a - shape$1.a) * k;
-		shape$1.b += (target$3.b - shape$1.b) * k;
-		shape$1.c += (target$3.c - shape$1.c) * k;
-		shape$1.d += (target$3.d - shape$1.d) * k;
+		shape$2.a += (target$3.a - shape$2.a) * k;
+		shape$2.b += (target$3.b - shape$2.b) * k;
+		shape$2.c += (target$3.c - shape$2.c) * k;
+		shape$2.d += (target$3.d - shape$2.d) * k;
 		const time = clock.time;
-		const a = shape$1.a + Math.sin(time * .23) * .12 + audio.bass * .25;
-		const b = shape$1.b + Math.sin(time * .31 + 1) * .1 - audio.mid * .2;
-		const c = shape$1.c + Math.sin(time * .19 + 2) * .1 + audio.high * .15;
-		const d = shape$1.d + Math.sin(time * .27 + 3) * .1;
+		const a = shape$2.a + Math.sin(time * .23) * .12 + audio.bass * .25;
+		const b = shape$2.b + Math.sin(time * .31 + 1) * .1 - audio.mid * .2;
+		const c = shape$2.c + Math.sin(time * .19 + 2) * .1 + audio.high * .15;
+		const d = shape$2.d + Math.sin(time * .27 + 3) * .1;
 		const steps = Math.min(3, dt * 60);
 		const keep = Math.pow(.86, steps);
 		for (let i = 0; i < density.length; i++) density[i] *= keep;
-		const scale = Math.min(w, h) / 2 / fit.half * (.86 + audio.beat * .1 + Math.sin(time * .5) * .04);
+		const scale = Math.min(w, h) / 2 / fit$1.half * (.86 + audio.beat * .1 + Math.sin(time * .5) * .04);
 		turn$1 += dt * (.12 + audio.mid * .4);
 		const cos = Math.cos(turn$1);
 		const sin = Math.sin(turn$1);
 		const points = (quality.level === 2 ? 5e4 : 24e3) * Math.min(2, steps);
-		const dejong = shape$1.map === "dejong";
+		const dejong = shape$2.map === "dejong";
 		let left = Infinity;
 		let right = -Infinity;
 		let top = Infinity;
@@ -1527,15 +1586,15 @@ var attractor = {
 			if (rx > right) right = rx;
 			if (ry < top) top = ry;
 			if (ry > bottom) bottom = ry;
-			const px = Math.floor(w / 2 + (rx - fit.x) * scale);
-			const py = Math.floor(h / 2 + (ry - fit.y) * scale);
+			const px = Math.floor(w / 2 + (rx - fit$1.x) * scale);
+			const py = Math.floor(h / 2 + (ry - fit$1.y) * scale);
 			if (px >= 0 && px < w && py >= 0 && py < h) density[py * w + px] += 1;
 		}
 		const follow = Math.min(1, dt * 8);
-		fit.x += ((left + right) / 2 - fit.x) * follow;
-		fit.y += ((top + bottom) / 2 - fit.y) * follow;
+		fit$1.x += ((left + right) / 2 - fit$1.x) * follow;
+		fit$1.y += ((top + bottom) / 2 - fit$1.y) * follow;
 		const half = Math.max(.2, Math.max(right - left, bottom - top) / 2);
-		fit.half = half > fit.half ? half : fit.half + (half - fit.half) * Math.min(1, dt * 2);
+		fit$1.half = half > fit$1.half ? half : fit$1.half + (half - fit$1.half) * Math.min(1, dt * 2);
 		let max = 1;
 		let lit = 0;
 		for (let i = 0; i < density.length; i += 11) {
@@ -1544,17 +1603,17 @@ var attractor = {
 		}
 		collapsed = lit < 40 ? collapsed + 1 : 0;
 		if (collapsed > 20) {
-			target$3 = pick(SHAPES$1, target$3);
-			shape$1 = { ...target$3 };
+			target$3 = pick(SHAPES$2, target$3);
+			shape$2 = { ...target$3 };
 			collapsed = 0;
 		}
 		peak$1 += (max - peak$1) * Math.min(1, dt * 2);
 		const logPeak = Math.log1p(peak$1 * 1.5);
 		const shift = clock.time * .04;
 		const ramp = colorRamp(256, (t) => colorRgb(t * 2.2 + shift, 3 + t * 97));
-		paintField(layer$4, density, ramp, (v) => Math.log1p(v) / logPeak);
+		paintField(layer$8, density, ramp, (v) => Math.log1p(v) / logPeak);
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer$4.canvas, 0, 0, width, height);
+		ctx.drawImage(layer$8.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -1680,89 +1739,302 @@ var blocks = {
 	}
 };
 //#endregion
-//#region src/modes/bounce.ts
-/** Shapes jump up on the beat and bounce on the floor. With motion on, gravity follows the phone. */
-var LIFETIME = 6;
-var bodies = [];
-function drawBody(b) {
-	ctx.save();
-	ctx.translate(b.x, b.y);
-	ctx.rotate(b.rot);
-	ctx.fillStyle = color(b.k, Math.min(1, LIFETIME - b.age), 55);
+//#region src/render/neon.ts
+/** The neon tube look, shared by the neon modes. */
+/**
+* Strokes the current path of `ctx` as a neon tube: a wide faint glow, a softer
+* glow, and a thin bright core. `k` is the palette colour, `width` the tube width.
+*/
+function neonStroke(ctx, k, width, alpha) {
+	ctx.strokeStyle = color(k, alpha * .09, 55);
+	ctx.lineWidth = width * 4;
+	ctx.stroke();
+	ctx.strokeStyle = color(k, alpha * .4, 65);
+	ctx.lineWidth = width * 1.8;
+	ctx.stroke();
+	ctx.strokeStyle = color(k, alpha, 92);
+	ctx.lineWidth = width * .6;
+	ctx.stroke();
+}
+//#endregion
+//#region src/render/shapes.ts
+/** Path and drawing helpers shared by the modes and effects. */
+/** Adds point number `i` of a line: point 0 starts the line, the others extend it. */
+function pathPoint(ctx, i, x, y) {
+	if (i === 0) ctx.moveTo(x, y);
+	else ctx.lineTo(x, y);
+}
+function fillCircle(ctx, x, y, r) {
 	ctx.beginPath();
-	if (b.shape === 0) ctx.arc(0, 0, b.r, 0, TAU);
-	else if (b.shape === 1) ctx.rect(-b.r, -b.r, 2 * b.r, 2 * b.r);
-	else {
-		ctx.moveTo(0, -b.r);
-		ctx.lineTo(b.r, b.r);
-		ctx.lineTo(-b.r, b.r);
-		ctx.closePath();
-	}
+	ctx.arc(x, y, r, 0, TAU);
 	ctx.fill();
-	ctx.restore();
+}
+function strokeCircle(ctx, x, y, r) {
+	ctx.beginPath();
+	ctx.arc(x, y, r, 0, TAU);
+	ctx.stroke();
+}
+/** Starts a closed regular polygon around the origin, first corner on the +x axis. */
+function polygonPath(ctx, sides, r) {
+	ctx.beginPath();
+	for (let i = 0; i < sides; i++) {
+		const a = i / sides * TAU;
+		pathPoint(ctx, i, Math.cos(a) * r, Math.sin(a) * r);
+	}
+	ctx.closePath();
+}
+/** Starts a closed 5-point star around the origin. `inner` is the inner radius as a fraction of `r`. */
+function starPath(ctx, r, inner) {
+	ctx.beginPath();
+	for (let i = 0; i < 10; i++) {
+		const rr = i % 2 ? r * inner : r;
+		const a = i / 10 * TAU;
+		pathPoint(ctx, i, Math.cos(a) * rr, Math.sin(a) * rr);
+	}
+	ctx.closePath();
+}
+/**
+* Starts a closed wobbly blob. `wobble` 0 is a circle; `seed` sets the shape; more
+* `points` give a smoother edge.
+*/
+function blobPath(ctx, x, y, r, wobble, seed, points = 20) {
+	ctx.beginPath();
+	const n = points;
+	for (let i = 0; i <= n; i++) {
+		const a = i / n * TAU;
+		const rr = r * (1 + wobble * (Math.sin(a * 3 + seed) * .35 + Math.sin(a * 7 + seed * 2) * .2 + Math.sin(a * 11 + seed * 3) * .1));
+		pathPoint(ctx, i, x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+	}
+	ctx.closePath();
+}
+/** Fills the area with `count` random square specks of side `size` (film grain, dust, dither). */
+function speckle(ctx, count, width, height, size) {
+	ctx.beginPath();
+	for (let i = 0; i < count; i++) ctx.rect(Math.random() * width, Math.random() * height, size, size);
+	ctx.fill();
+}
+/** Darkens (or tints) the edges: clear inside `inner`, `edge` colour at `outer`. */
+function vignette(ctx, x, y, inner, outer, edge, width, height) {
+	const gradient = ctx.createRadialGradient(x, y, inner, x, y, outer);
+	gradient.addColorStop(0, "rgba(0,0,0,0)");
+	gradient.addColorStop(1, edge);
+	ctx.fillStyle = gradient;
+	ctx.fillRect(0, 0, width, height);
+}
+//#endregion
+//#region src/modes/bounce.ts
+/**
+* Escape the rings: glowing balls bounce inside nested neon rings. Each ring has a
+* gap and turns, every other ring the other way, faster with the mids. A wall lights
+* up where a ball hits it, with sparks. When a ball slips through the gap of the inner
+* ring, that ring shatters into flying pieces and a new ball is born; when the last
+* ring is gone, a new set of rings grows in. Beats kick the balls; gravity pulls them
+* down (or follows the phone when motion is on).
+*/
+var RINGS$1 = 6;
+var MAX_BALLS = 14;
+var SUBSTEPS = 4;
+var rings$2 = [];
+var balls = [];
+var pieces = [];
+var generation = 0;
+function newRings() {
+	generation++;
+	rings$2 = Array.from({ length: RINGS$1 }, (_, i) => ({
+		radius: .12 + i * .065,
+		angle: Math.random() * TAU,
+		gap: .55 - i * .04,
+		speed: (.7 + i * .12) * (i % 2 ? -1 : 1),
+		k: generation * .7 + i * .55,
+		hits: [],
+		grow: -i * .12
+	}));
+}
+function newBall() {
+	const a = Math.random() * TAU;
+	const speed = view.min * rnd(.5, .9);
+	return {
+		x: view.cx,
+		y: view.cy,
+		vx: Math.cos(a) * speed,
+		vy: Math.sin(a) * speed,
+		k: Math.random() * 6
+	};
+}
+/** Breaks the ring into arc pieces that fly outward, turning. */
+function shatter(ring) {
+	const r = ring.radius * view.min;
+	const count = 18;
+	for (let i = 0; i < count; i++) {
+		const a = ring.angle + ring.gap + i / count * (TAU - ring.gap);
+		const out = view.min * rnd(.4, 1.1);
+		pieces.push({
+			x: view.cx + Math.cos(a) * r,
+			y: view.cy + Math.sin(a) * r,
+			vx: Math.cos(a) * out + rnd(-1, 1) * view.min * .15,
+			vy: Math.sin(a) * out + rnd(-1, 1) * view.min * .15,
+			angle: a,
+			spin: rnd(-6, 6),
+			arc: (TAU - ring.gap) / count,
+			radius: r,
+			k: ring.k,
+			life: 1
+		});
+	}
+}
+function sparks$2(x, y, k, count) {
+	for (let i = 0; i < count; i++) {
+		const a = Math.random() * TAU;
+		const speed = view.min * rnd(.2, .7);
+		pieces.push({
+			x,
+			y,
+			vx: Math.cos(a) * speed,
+			vy: Math.sin(a) * speed,
+			angle: 0,
+			spin: 0,
+			arc: 0,
+			radius: 0,
+			k,
+			life: rnd(.4, .8)
+		});
+	}
+}
+/** Is `angle` inside the gap of `ring`? */
+function inGap(ring, angle) {
+	return ((angle - ring.angle) % TAU + TAU) % TAU < ring.gap;
+}
+function step(dt, ballRadius) {
+	const { cx, cy, min } = view;
+	const gravityX = motion.enabled ? motion.gravityX : 0;
+	const gravityY = motion.enabled ? motion.gravityY : 1;
+	const gravity = min * 1.1;
+	const maxSpeed = min * 2.2;
+	for (const ball of balls) {
+		ball.vx += gravity * gravityX * dt;
+		ball.vy += gravity * gravityY * dt;
+		const speed = Math.hypot(ball.vx, ball.vy);
+		if (speed > maxSpeed) {
+			ball.vx *= maxSpeed / speed;
+			ball.vy *= maxSpeed / speed;
+		}
+		ball.x += ball.vx * dt;
+		ball.y += ball.vy * dt;
+		const wall = rings$2[0];
+		if (!wall) continue;
+		const dx = ball.x - cx;
+		const dy = ball.y - cy;
+		const distance = Math.hypot(dx, dy) || 1;
+		const limit = Math.max(ballRadius * 2, wall.radius * min * clamp(wall.grow, 0, 1) - ballRadius);
+		if (distance <= limit) continue;
+		const angle = Math.atan2(dy, dx);
+		if (wall.grow >= 1 && inGap(wall, angle)) {
+			shatter(wall);
+			rings$2.shift();
+			if (balls.length < MAX_BALLS) balls.push(newBall());
+			return;
+		}
+		const nx = dx / distance;
+		const ny = dy / distance;
+		const along = ball.vx * nx + ball.vy * ny;
+		if (along > 0) {
+			ball.vx -= 2 * along * nx;
+			ball.vy -= 2 * along * ny;
+			ball.vx += -ny * wall.speed * min * .05;
+			ball.vy += nx * wall.speed * min * .05;
+			wall.hits.push({
+				angle,
+				at: clock.time
+			});
+			if (along > min * .3) sparks$2(ball.x, ball.y, ball.k, 3);
+		}
+		ball.x = cx + nx * limit;
+		ball.y = cy + ny * limit;
+	}
 }
 var bounce$1 = {
 	name: "bounce",
-	fade: .5,
-	blend: "source-over",
+	fade: .28,
+	beatRings: false,
+	palettes: [
+		"neon",
+		"vapor",
+		"ultraviolet",
+		"technicolor",
+		"acid",
+		"void",
+		"lava"
+	],
 	beat() {
-		const { width, height, cx, cy } = view;
-		const count = 6 + Math.floor(audio.bass * 16);
-		for (let i = 0; i < count; i++) bodies.push({
-			x: cx + rnd(-width * .2, width * .2),
-			y: cy,
-			vx: rnd(-1, 1) * width * .8,
-			vy: -rnd(.4, 1.2) * height * 1.2,
-			r: rnd(8, 26) * (1 + audio.bass),
-			k: Math.random() * 4,
-			rot: Math.random() * TAU,
-			spin: rnd(-6, 6),
-			shape: rndInt(3),
-			age: 0
+		for (const ball of balls) {
+			const a = Math.random() * TAU;
+			const kick = view.min * (.25 + audio.bass * .45);
+			ball.vx += Math.cos(a) * kick;
+			ball.vy += Math.sin(a) * kick - view.min * .2;
+		}
+		for (const ring of rings$2) ring.hits.push({
+			angle: ring.angle + Math.PI,
+			at: clock.time
 		});
 	},
+	resize() {
+		rings$2 = [];
+		balls = [];
+		pieces = [];
+	},
 	draw(dt) {
-		const { width, height } = view;
-		const gravity = height * 2.2;
-		const gravityX = motion.enabled ? motion.gravityX : 0;
-		const gravityY = motion.enabled ? Math.max(.15, motion.gravityY) : 1;
-		if (Math.random() < audio.high * .35) bodies.push({
-			x: Math.random() * width,
-			y: -20,
-			vx: rnd(-80, 80),
-			vy: 0,
-			r: rnd(5, 12),
-			k: Math.random() * 4,
-			rot: 0,
-			spin: rnd(-8, 8),
-			shape: rndInt(3),
-			age: 0
-		});
-		for (let i = bodies.length - 1; i >= 0; i--) {
-			const b = bodies[i];
-			b.vy += gravity * gravityY * dt;
-			b.vx += gravity * gravityX * dt + Math.sin(clock.time) * audio.high * 400 * dt;
-			b.x += b.vx * dt;
-			b.y += b.vy * dt;
-			b.rot += b.spin * dt;
-			b.age += dt;
-			if (b.y > height - b.r) {
-				b.y = height - b.r;
-				b.vy *= -.65;
-				b.vx *= .9;
-				if (Math.abs(b.vy) < 40) b.vy = 0;
-			}
-			if (b.x < b.r || b.x > width - b.r) {
-				b.vx *= -.8;
-				b.x = clamp(b.x, b.r, width - b.r);
-			}
-			if (b.age > LIFETIME) {
-				bodies.splice(i, 1);
-				continue;
-			}
-			drawBody(b);
+		const { cx, cy, min } = view;
+		if (!rings$2.length) {
+			newRings();
+			balls = balls.length ? balls.slice(0, 2) : [newBall()];
+			for (const ball of balls) Object.assign(ball, newBall(), { k: ball.k });
 		}
-		while (bodies.length > 220) bodies.shift();
+		const ballRadius = min * .018;
+		const sub = Math.min(dt, 1 / 30) / SUBSTEPS;
+		for (let s = 0; s < SUBSTEPS; s++) step(sub, ballRadius);
+		ctx.lineCap = "round";
+		rings$2.forEach((ring, i) => {
+			ring.grow = Math.min(1, ring.grow + dt * 1.5);
+			ring.angle += ring.speed * dt * (.6 + audio.mid * 1.4);
+			if (ring.grow <= 0) return;
+			const wobble = 1 + Math.sin(clock.time * 9 + i) * audio.high * .01;
+			const r = ring.radius * min * ring.grow * wobble;
+			const width = min * (.006 + (i === 0 ? .004 : 0)) * (1 + audio.beat * .6);
+			ctx.beginPath();
+			ctx.arc(cx, cy, r, ring.angle + ring.gap, ring.angle + TAU);
+			neonStroke(ctx, ring.k + clock.time * .15, width, i === 0 ? 1 : .55);
+			ring.hits = ring.hits.filter((hit) => clock.time - hit.at < .35);
+			for (const hit of ring.hits) {
+				const glow = 1 - (clock.time - hit.at) / .35;
+				ctx.beginPath();
+				ctx.arc(cx, cy, r, hit.angle - .25, hit.angle + .25);
+				neonStroke(ctx, ring.k + 2, width * (1 + glow * 2), glow);
+			}
+		});
+		pieces = pieces.filter((p) => (p.life -= dt * .9) > 0);
+		for (const p of pieces) {
+			p.vy += min * .8 * dt;
+			p.x += p.vx * dt;
+			p.y += p.vy * dt;
+			p.angle += p.spin * dt;
+			ctx.beginPath();
+			if (p.arc) {
+				const ox = Math.cos(p.angle) * p.radius;
+				const oy = Math.sin(p.angle) * p.radius;
+				ctx.arc(p.x - ox, p.y - oy, p.radius, p.angle - p.arc / 2, p.angle + p.arc / 2);
+				neonStroke(ctx, p.k, min * .006, p.life);
+			} else {
+				ctx.fillStyle = color(p.k, p.life, 85);
+				fillCircle(ctx, p.x, p.y, min * .004 * (1 + p.life));
+			}
+		}
+		for (const ball of balls) {
+			const k = ball.k + clock.time * .3;
+			ctx.fillStyle = color(k, .25, 60);
+			fillCircle(ctx, ball.x, ball.y, ballRadius * (2 + audio.beat));
+			ctx.fillStyle = color(k, 1, 88);
+			fillCircle(ctx, ball.x, ball.y, ballRadius);
+		}
 	}
 };
 //#endregion
@@ -1804,7 +2076,7 @@ var PATTERNS$1 = [
 ];
 var DIFFUSION_A = 1;
 var DIFFUSION_B = .5;
-var layer$3 = new PixelLayer();
+var layer$7 = new PixelLayer();
 var gridW$1 = 0;
 var gridH$1 = 0;
 var a = /* @__PURE__ */ new Float32Array(0);
@@ -1827,10 +2099,10 @@ function drop$1(cx, cy, r) {
 		a[iy * gridW$1 + ix] = .5;
 	}
 }
-function setUp$4(w, h) {
+function setUp$6(w, h) {
 	gridW$1 = w;
 	gridH$1 = h;
-	layer$3.setSize(w, h);
+	layer$7.setSize(w, h);
 	a = new Float32Array(w * h).fill(1);
 	b = new Float32Array(w * h);
 	nextA = new Float32Array(w * h);
@@ -1842,7 +2114,7 @@ function setUp$4(w, h) {
 * Moves both chemicals along a swirling current (semi-Lagrangian advection: each cell
 * takes the value from where the current comes from, with bilinear sampling).
 */
-function advect(strength) {
+function advect$1(strength) {
 	const w = gridW$1;
 	const h = gridH$1;
 	const drift = Math.sin(currentPhase) * .6;
@@ -1925,7 +2197,7 @@ var coral = {
 		const cell = quality.level === 2 ? 5 : 6;
 		const w = Math.max(32, Math.min(170, Math.round(width / cell)));
 		const h = Math.max(24, Math.round(w * height / width));
-		if (w !== gridW$1 || h !== gridH$1) setUp$4(w, h);
+		if (w !== gridW$1 || h !== gridH$1) setUp$6(w, h);
 		const goal = PATTERNS$1[target$2];
 		feed += (goal.feed - feed) * Math.min(1, dt * .4);
 		kill += (goal.kill - kill) * Math.min(1, dt * .4);
@@ -1933,82 +2205,17 @@ var coral = {
 		const iterations = Math.round((quality.level === 2 ? 12 : 7) * Math.min(2, dt * 60));
 		for (let n = 0; n < iterations; n++) react(f, kill);
 		currentPhase += dt * .15;
-		advect((.5 + audio.mid * 1.2 + audio.beat * .6) * Math.min(2, dt * 60));
+		advect$1((.5 + audio.mid * 1.2 + audio.beat * .6) * Math.min(2, dt * 60));
 		let total = 0;
 		for (let i = 0; i < b.length; i += 7) total += b[i];
 		if (total < b.length / 7 / 500) drop$1(rndInt(gridW$1), rndInt(gridH$1), 4);
 		const shift = clock.time * .04;
 		const ramp = colorRamp(256, (t) => colorRgb(t * 3 + shift, 6 + t * 88));
-		paintField(layer$3, b, ramp, (v) => v * 3.2);
+		paintField(layer$7, b, ramp, (v) => v * 3.2);
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer$3.canvas, 0, 0, width, height);
+		ctx.drawImage(layer$7.canvas, 0, 0, width, height);
 	}
 };
-//#endregion
-//#region src/render/shapes.ts
-/** Path and drawing helpers shared by the modes and effects. */
-/** Adds point number `i` of a line: point 0 starts the line, the others extend it. */
-function pathPoint(ctx, i, x, y) {
-	if (i === 0) ctx.moveTo(x, y);
-	else ctx.lineTo(x, y);
-}
-function fillCircle(ctx, x, y, r) {
-	ctx.beginPath();
-	ctx.arc(x, y, r, 0, TAU);
-	ctx.fill();
-}
-function strokeCircle(ctx, x, y, r) {
-	ctx.beginPath();
-	ctx.arc(x, y, r, 0, TAU);
-	ctx.stroke();
-}
-/** Starts a closed regular polygon around the origin, first corner on the +x axis. */
-function polygonPath(ctx, sides, r) {
-	ctx.beginPath();
-	for (let i = 0; i < sides; i++) {
-		const a = i / sides * TAU;
-		pathPoint(ctx, i, Math.cos(a) * r, Math.sin(a) * r);
-	}
-	ctx.closePath();
-}
-/** Starts a closed 5-point star around the origin. `inner` is the inner radius as a fraction of `r`. */
-function starPath(ctx, r, inner) {
-	ctx.beginPath();
-	for (let i = 0; i < 10; i++) {
-		const rr = i % 2 ? r * inner : r;
-		const a = i / 10 * TAU;
-		pathPoint(ctx, i, Math.cos(a) * rr, Math.sin(a) * rr);
-	}
-	ctx.closePath();
-}
-/**
-* Starts a closed wobbly blob. `wobble` 0 is a circle; `seed` sets the shape; more
-* `points` give a smoother edge.
-*/
-function blobPath(ctx, x, y, r, wobble, seed, points = 20) {
-	ctx.beginPath();
-	const n = points;
-	for (let i = 0; i <= n; i++) {
-		const a = i / n * TAU;
-		const rr = r * (1 + wobble * (Math.sin(a * 3 + seed) * .35 + Math.sin(a * 7 + seed * 2) * .2 + Math.sin(a * 11 + seed * 3) * .1));
-		pathPoint(ctx, i, x + Math.cos(a) * rr, y + Math.sin(a) * rr);
-	}
-	ctx.closePath();
-}
-/** Fills the area with `count` random square specks of side `size` (film grain, dust, dither). */
-function speckle(ctx, count, width, height, size) {
-	ctx.beginPath();
-	for (let i = 0; i < count; i++) ctx.rect(Math.random() * width, Math.random() * height, size, size);
-	ctx.fill();
-}
-/** Darkens (or tints) the edges: clear inside `inner`, `edge` colour at `outer`. */
-function vignette(ctx, x, y, inner, outer, edge, width, height) {
-	const gradient = ctx.createRadialGradient(x, y, inner, x, y, outer);
-	gradient.addColorStop(0, "rgba(0,0,0,0)");
-	gradient.addColorStop(1, edge);
-	ctx.fillStyle = gradient;
-	ctx.fillRect(0, 0, width, height);
-}
 //#endregion
 //#region src/modes/corrupt.ts
 /** A broken signal: torn strips, stuck blocks, a hex dump of the spectrum and a jumpy trace. */
@@ -2077,7 +2284,7 @@ var corrupt = {
 * printed with stripes, a ring of paper petals pulses with the spectrum, and one to
 * five eyes blink on beats.
 */
-var LAYERS$1 = 9;
+var LAYERS$2 = 9;
 var PETALS = 12;
 /** Tile for the printed stripes. */
 var print = createLayer();
@@ -2178,8 +2385,8 @@ var cutout$1 = {
 		drawPetals(baseR);
 		let topX = cx;
 		let topY = cy;
-		for (let i = 0; i < LAYERS$1; i++) {
-			const f = i / LAYERS$1;
+		for (let i = 0; i < LAYERS$2; i++) {
+			const f = i / LAYERS$2;
 			const breathe = 1 + .07 * Math.sin(time * 1.7 + i * .9);
 			const r = baseR * (1 - f * .86) * (.85 + bandLevel(i % 3) * .3 + audio.beat * .1) * breathe;
 			const x = cx + Math.sin(time * .7 + i) * min * .07 * (1 + audio.mid);
@@ -2351,10 +2558,10 @@ var LAYOUTS = [
 /** Seconds between two inversions: flashes stay slow (photosensitivity). */
 var INVERT_GAP_S = .9;
 var MELT_COLUMNS = 96;
-var MELT_S = 3.2;
+var MELT_S$1 = 3.2;
 var panels = [];
 var layout = "rows";
-var beats$1 = 0;
+var beats$4 = 0;
 var lastInvert = -1;
 /** 1 after a beat, then falls: how wild the glitches are. */
 var glitch$1 = 0;
@@ -2526,7 +2733,7 @@ function startMelt() {
 function drawMelt(dt) {
 	if (meltAge < 0) return;
 	meltAge += dt;
-	const alpha = clamp((MELT_S - meltAge) / .8, 0, 1);
+	const alpha = clamp((MELT_S$1 - meltAge) / .8, 0, 1);
 	if (alpha <= 0 || frozen.width !== sceneCanvas.width) {
 		meltAge = -1;
 		return;
@@ -2620,8 +2827,8 @@ var datamatics = {
 	beat() {
 		if (!panels.length) return;
 		glitch$1 = 1;
-		beats$1++;
-		if (beats$1 % 8 === 0 && Math.random() < .7) {
+		beats$4++;
+		if (beats$4 % 8 === 0 && Math.random() < .7) {
 			layout = pick(LAYOUTS, layout);
 			panels = makePanels(layout);
 		} else for (const panel of panels) {
@@ -3605,6 +3812,197 @@ var halo = {
 	}
 };
 //#endregion
+//#region src/modes/ink.ts
+/**
+* Fluid ink: real fluid physics (Jos Stam's "stable fluids"). Each kick fires a jet of
+* ink in the palette's colours from an edge; the jets crash into each other and curl
+* into vortices, and the ink stays and mixes. The mids stir the whole tank; the bass
+* gives the jets force.
+*
+* Each frame: add forces, make the flow incompressible (projection), move the flow
+* along itself (advection), project again, then move the ink along the flow.
+*/
+var PRESSURE_STEPS = 20;
+var layer$6 = new PixelLayer();
+var nx = 0;
+var ny = 0;
+var u = /* @__PURE__ */ new Float32Array(0);
+var v = /* @__PURE__ */ new Float32Array(0);
+var u0 = /* @__PURE__ */ new Float32Array(0);
+var v0 = /* @__PURE__ */ new Float32Array(0);
+var pressure = /* @__PURE__ */ new Float32Array(0);
+var divergence = /* @__PURE__ */ new Float32Array(0);
+var ink = [];
+var scratch = /* @__PURE__ */ new Float32Array(0);
+var jets = [];
+var beats$3 = 0;
+var lastJet = -1e9;
+function setUp$5(width, height) {
+	nx = width;
+	ny = height;
+	const n = nx * ny;
+	u = new Float32Array(n);
+	v = new Float32Array(n);
+	u0 = new Float32Array(n);
+	v0 = new Float32Array(n);
+	pressure = new Float32Array(n);
+	divergence = new Float32Array(n);
+	ink = [
+		new Float32Array(n),
+		new Float32Array(n),
+		new Float32Array(n)
+	];
+	scratch = new Float32Array(n);
+	layer$6.setSize(nx, ny);
+}
+/** Moves `src` along the flow (u0, v0) into `dst`: each cell takes what was `k` steps upstream. */
+function advect(dst, src, k) {
+	for (let y = 1; y < ny - 1; y++) for (let x = 1; x < nx - 1; x++) {
+		const i = x + y * nx;
+		const px = Math.max(.5, Math.min(nx - 1.5, x - k * u0[i]));
+		const py = Math.max(.5, Math.min(ny - 1.5, y - k * v0[i]));
+		const x0 = Math.floor(px);
+		const y0 = Math.floor(py);
+		const fx = px - x0;
+		const fy = py - y0;
+		const a = x0 + y0 * nx;
+		dst[i] = (src[a] * (1 - fx) + src[a + 1] * fx) * (1 - fy) + (src[a + nx] * (1 - fx) + src[a + nx + 1] * fx) * fy;
+	}
+}
+/** Removes the part of the flow that would squeeze or stretch the fluid. */
+function project$1() {
+	for (let y = 1; y < ny - 1; y++) for (let x = 1; x < nx - 1; x++) {
+		const i = x + y * nx;
+		divergence[i] = -.5 * (u[i + 1] - u[i - 1] + v[i + nx] - v[i - nx]);
+		pressure[i] = 0;
+	}
+	for (let k = 0; k < PRESSURE_STEPS; k++) for (let y = 1; y < ny - 1; y++) for (let x = 1; x < nx - 1; x++) {
+		const i = x + y * nx;
+		pressure[i] = (divergence[i] + pressure[i - 1] + pressure[i + 1] + pressure[i - nx] + pressure[i + nx]) / 4;
+	}
+	for (let y = 1; y < ny - 1; y++) for (let x = 1; x < nx - 1; x++) {
+		const i = x + y * nx;
+		u[i] -= .5 * (pressure[i + 1] - pressure[i - 1]);
+		v[i] -= .5 * (pressure[i + nx] - pressure[i - nx]);
+	}
+}
+/** Fires a jet of ink from the next edge. */
+function fireJet() {
+	if (!nx) return;
+	lastJet = clock.time;
+	const side = beats$3++ % 4;
+	const along = rnd(.25, .75);
+	const tilt = rnd(-.35, .35);
+	const jet = side === 0 ? {
+		x: 3,
+		y: ny * along,
+		dx: 1,
+		dy: tilt,
+		rgb: [],
+		life: 0
+	} : side === 1 ? {
+		x: nx - 4,
+		y: ny * along,
+		dx: -1,
+		dy: tilt,
+		rgb: [],
+		life: 0
+	} : side === 2 ? {
+		x: nx * along,
+		y: 3,
+		dx: tilt,
+		dy: 1,
+		rgb: [],
+		life: 0
+	} : {
+		x: nx * along,
+		y: ny - 4,
+		dx: tilt,
+		dy: -1,
+		rgb: [],
+		life: 0
+	};
+	jet.rgb = colorRgb(beats$3 * .9, 60).map((c) => c / 255);
+	jet.life = .25 + audio.bass * .15;
+	jets.push(jet);
+}
+var inkMode = {
+	name: "ink",
+	fade: 1,
+	bloom: .5,
+	blend: "source-over",
+	beatRings: false,
+	palettes: [
+		"scriabin",
+		"technicolor",
+		"vapor",
+		"lava",
+		"deep sea",
+		"candy",
+		"acid",
+		"sunset"
+	],
+	beat() {
+		fireJet();
+	},
+	resize() {
+		nx = 0;
+	},
+	draw(dt) {
+		const { width, height } = view;
+		const w = quality.level === 2 ? 128 : 96;
+		const h = Math.max(24, Math.round(w * height / width));
+		if (w !== nx || h !== ny) setUp$5(w, h);
+		if (clock.time - lastJet > 1.6) fireJet();
+		const k = Math.min(dt, 1 / 30) * 60;
+		const force = 1.6 * (.7 + audio.bass * .7);
+		for (const jet of jets) {
+			for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) {
+				if (ox * ox + oy * oy > 5) continue;
+				const x = Math.round(jet.x + ox);
+				const y = Math.round(jet.y + oy);
+				if (x < 1 || y < 1 || x > nx - 2 || y > ny - 2) continue;
+				const i = x + y * nx;
+				u[i] = jet.dx * force;
+				v[i] = jet.dy * force;
+				for (let c = 0; c < 3; c++) ink[c][i] = Math.max(ink[c][i], jet.rgb[c] * 1.3);
+			}
+			jet.life -= dt;
+		}
+		jets = jets.filter((jet) => jet.life > 0);
+		const stir = 15e-5 * audio.mid;
+		for (let y = 1; y < ny - 1; y++) for (let x = 1; x < nx - 1; x++) {
+			const i = x + y * nx;
+			u[i] = (u[i] - (y - ny / 2) * stir) * .997;
+			v[i] = (v[i] + (x - nx / 2) * stir) * .997;
+		}
+		project$1();
+		u0.set(u);
+		v0.set(v);
+		advect(u, u0, k);
+		advect(v, v0, k);
+		project$1();
+		u0.set(u);
+		v0.set(v);
+		const keep = Math.pow(.997, k);
+		for (const channel of ink) {
+			scratch.set(channel);
+			advect(channel, scratch, k);
+			for (let i = 0; i < channel.length; i++) channel[i] *= keep;
+		}
+		const out = layer$6.pixels;
+		for (let i = 0, p = 0; i < nx * ny; i++, p += 4) {
+			out[p] = ink[0][i] * 255;
+			out[p + 1] = ink[1][i] * 255;
+			out[p + 2] = ink[2][i] * 255;
+			out[p + 3] = 255;
+		}
+		layer$6.flush();
+		ctx.imageSmoothingEnabled = true;
+		ctx.drawImage(layer$6.canvas, 1, 1, nx - 2, ny - 2, 0, 0, width, height);
+	}
+};
+//#endregion
 //#region src/modes/julia.ts
 /** A Julia set fractal that morphs: its seed walks along the edge of the Mandelbrot set. */
 var MAX_ITERATIONS = 42;
@@ -3732,7 +4130,7 @@ var layerWidth = 0;
 var layerHeight = 0;
 var puffs = [];
 var emitters = [];
-function setUp$3(w, h) {
+function setUp$4(w, h) {
 	for (const layer of [fog, beams]) {
 		layer.canvas.width = w;
 		layer.canvas.height = h;
@@ -3877,7 +4275,7 @@ var lasers = {
 		const light = scene.palette.light;
 		const w = Math.max(64, Math.round(width / 2));
 		const h = Math.max(64, Math.round(height / 2));
-		if (layerWidth !== w || layerHeight !== h) setUp$3(w, h);
+		if (layerWidth !== w || layerHeight !== h) setUp$4(w, h);
 		const fanWidth = .06 + audio.high * .12;
 		drawFog(dt);
 		drawBeams(fanWidth);
@@ -3914,13 +4312,14 @@ var lasers = {
 //#endregion
 //#region src/modes/mandala.ts
 /** Layered petal rings with beads; the symmetry changes every 8 beats. */
-var LAYERS = 6;
+var LAYERS$1 = 6;
 var mandala = {
 	name: "mandala",
 	fade: .35,
 	zoom: 1.004,
 	rotate: .004,
 	palettes: [
+		"scriabin",
 		"acid",
 		"ultraviolet",
 		"vapor",
@@ -3934,8 +4333,8 @@ var mandala = {
 		const baseR = min * .46;
 		ctx.lineWidth = 1.5 + audio.bass * 2;
 		ctx.lineJoin = "round";
-		for (let layer = 0; layer < LAYERS; layer++) {
-			const t = layer / LAYERS;
+		for (let layer = 0; layer < LAYERS$1; layer++) {
+			const t = layer / LAYERS$1;
 			const r0 = baseR * (1 - t * .85) * (.9 + bandLevel(layer % 3) * .35 + audio.beat * .1);
 			const turn = time * (.15 + t * .5) * (layer % 2 ? 1 : -1);
 			const points = symmetry * 24;
@@ -3966,7 +4365,7 @@ var cell = 14;
 var glyphs = "0123456789";
 /** Whether the font has the half-width katakana; checked once. */
 var hasKatakana = null;
-function setUp$2() {
+function setUp$3() {
 	cell = Math.max(14, Math.round(view.min / 26));
 	ctx.font = `${cell}px ${MONOSPACE$1}`;
 	if (hasKatakana === null) hasKatakana = Math.abs(ctx.measureText("ｱｲｳｴｵ").width - ctx.measureText("").width) > 1;
@@ -4028,7 +4427,7 @@ var matrix = {
 		columns = [];
 	},
 	draw(dt) {
-		if (!columns.length) setUp$2();
+		if (!columns.length) setUp$3();
 		const rows = Math.ceil(view.height / cell) + 1;
 		const speed = .45 + audio.mid * 1.4 + audio.beat * .5;
 		ctx.font = `${cell}px ${MONOSPACE$1}`;
@@ -4240,7 +4639,7 @@ var falcon = {
 	vy: 0,
 	life: 0
 };
-function setUp$1(count) {
+function setUp$2(count) {
 	const { width, height, cx, cy, min } = view;
 	birdX = new Float32Array(count);
 	birdY = new Float32Array(count);
@@ -4391,7 +4790,7 @@ var murmur = {
 	},
 	draw(dt) {
 		const count = quality.level === 2 ? 600 : 350;
-		if (birdX.length !== count) setUp$1(count);
+		if (birdX.length !== count) setUp$2(count);
 		const step = Math.min(dt, 1 / 30);
 		hashBirds();
 		fly(step);
@@ -4476,24 +4875,6 @@ var nebula = {
 		fillCircle(ctx, cx, cy, coreR);
 	}
 };
-//#endregion
-//#region src/render/neon.ts
-/** The neon tube look, shared by the neon modes. */
-/**
-* Strokes the current path of `ctx` as a neon tube: a wide faint glow, a softer
-* glow, and a thin bright core. `k` is the palette colour, `width` the tube width.
-*/
-function neonStroke(ctx, k, width, alpha) {
-	ctx.strokeStyle = color(k, alpha * .09, 55);
-	ctx.lineWidth = width * 4;
-	ctx.stroke();
-	ctx.strokeStyle = color(k, alpha * .4, 65);
-	ctx.lineWidth = width * 1.8;
-	ctx.stroke();
-	ctx.strokeStyle = color(k, alpha, 92);
-	ctx.lineWidth = width * .6;
-	ctx.stroke();
-}
 //#endregion
 //#region src/modes/neon.ts
 /** Neon tubes: drifting glowing outlines and a spinning wireframe solid. */
@@ -5237,10 +5618,109 @@ var orb = {
 	}
 };
 //#endregion
+//#region src/modes/parallax.ts
+/**
+* Tilt to look: the screen is a window into a tunnel of neon frames with shapes
+* floating at each depth. Tilt the phone (with Motion on) or move the mouse, and the
+* near layers move less than the far ones, like a hologram card. Without either, the
+* view sways slowly by itself. The bass flies you forward; beats thicken the lines.
+*/
+var LAYERS = 16;
+/** Depth between two layers. */
+var GAP = .55;
+var look = {
+	x: 0,
+	y: 0
+};
+var pointer = {
+	x: 0,
+	y: 0,
+	at: -1e9
+};
+var travel = 0;
+addEventListener("pointermove", (e) => {
+	if (e.pointerType !== "mouse") return;
+	pointer.x = e.clientX / view.width * 2 - 1;
+	pointer.y = e.clientY / view.height * 2 - 1;
+	pointer.at = clock.time;
+});
+/** A small neon shape: 0 triangle, 1 diamond, 2 circle. */
+function shapePath(kind, x, y, r, turn) {
+	ctx.beginPath();
+	if (kind === 2) {
+		ctx.arc(x, y, r, 0, TAU);
+		return;
+	}
+	const corners = kind === 0 ? 3 : 4;
+	for (let i = 0; i <= corners; i++) {
+		const a = turn + i / corners * TAU;
+		if (i) ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+		else ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+	}
+}
+var parallax = {
+	name: "parallax",
+	fade: .5,
+	beatRings: false,
+	palettes: [
+		"neon",
+		"vapor",
+		"ultraviolet",
+		"deep sea",
+		"technicolor",
+		"void"
+	],
+	draw(dt) {
+		const { width, height, cx, cy, min } = view;
+		const time = clock.time;
+		let tx = Math.sin(time * .5) * .7;
+		let ty = Math.sin(time * .37 + 1) * .5;
+		if (motion.enabled) {
+			tx = motion.tiltX * 1.6;
+			ty = motion.tiltY * 1.6;
+		} else if (time - pointer.at < 4) {
+			tx = pointer.x;
+			ty = pointer.y;
+		}
+		look.x += (tx - look.x) * Math.min(1, dt * 5);
+		look.y += (ty - look.y) * Math.min(1, dt * 5);
+		travel += dt * .6 * (1 + audio.bass * .8);
+		const phase = travel % GAP;
+		const base = Math.floor(travel / GAP);
+		ctx.lineJoin = "round";
+		const gx = cx - look.x * width * .35 * .8979591836734694;
+		const gy = cy - look.y * height * .35 * .8979591836734694;
+		const glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, min * .3);
+		glow.addColorStop(0, color(base * .3, .5 + audio.bass * .3, 70));
+		glow.addColorStop(1, color(base * .3, 0, 40));
+		ctx.fillStyle = glow;
+		ctx.fillRect(0, 0, width, height);
+		for (let k = 15; k >= 0; k--) {
+			const s = 1 / (1 + k * GAP - phase);
+			const ox = cx - look.x * width * .35 * (1 - s);
+			const oy = cy - look.y * height * .35 * (1 - s);
+			const id = k + base;
+			const alpha = Math.min(1, s * 1.8) * Math.min(1, (LAYERS - k) / 3);
+			const w = width * .92 * s;
+			const h = height * .92 * s;
+			ctx.beginPath();
+			ctx.roundRect(ox - w / 2, oy - h / 2, w, h, min * .04 * s);
+			neonStroke(ctx, id * .5 + time * .1, Math.max(.6, min * .006 * s * (1 + audio.beat)), alpha);
+			for (let j = 0; j < 3; j++) {
+				const hx = (hash01(id * 3.1 + j) - .5) * w * .8;
+				const hy = (hash01(id * 7.7 + j) - .5) * h * .8;
+				const r = min * .035 * s * (1 + audio.bass * .4);
+				shapePath(Math.floor(hash01(id + j * 13) * 3), ox + hx, oy + hy, r, time * (j - 1) + id);
+				neonStroke(ctx, id * .5 + j + 2, Math.max(.5, min * .004 * s), alpha);
+			}
+		}
+	}
+};
+//#endregion
 //#region src/modes/pixels.ts
 /** A chunky 32-pixel-wide field; beats sort rows and columns like a pixel-sorting glitch. */
 var COLUMNS = 32;
-var layer$2 = new PixelLayer();
+var layer$5 = new PixelLayer();
 /** Brightness per pixel, 0..1, smoothed over time. */
 var values = null;
 var ascending = (a, b) => a - b;
@@ -5273,16 +5753,16 @@ var pixels = {
 	beat() {
 		if (!values) return;
 		const rows = 1 + Math.floor(audio.bass * 4);
-		for (let r = 0; r < rows; r++) sortRow(values, layer$2.width, layer$2.height);
-		if (Math.random() < .4) sortColumn(values, layer$2.width, layer$2.height);
+		for (let r = 0; r < rows; r++) sortRow(values, layer$5.width, layer$5.height);
+		if (Math.random() < .4) sortColumn(values, layer$5.width, layer$5.height);
 	},
 	draw(dt) {
 		const { width, height } = view;
 		const w = COLUMNS;
 		const h = Math.max(8, Math.round(32 * height / width));
-		if (layer$2.setSize(w, h) || !values) values = new Float32Array(w * h);
+		if (layer$5.setSize(w, h) || !values) values = new Float32Array(w * h);
 		const v = values;
-		const data = layer$2.pixels;
+		const data = layer$5.pixels;
 		const rate = Math.min(1, dt * 6);
 		for (let j = 0; j < h; j++) {
 			const wave = Math.abs(waveAt(j / h));
@@ -5299,10 +5779,10 @@ var pixels = {
 			}
 		}
 		if (audio.high > .6 && Math.random() < .3) v.copyWithin(0, w);
-		layer$2.flush();
+		layer$5.flush();
 		ctx.imageSmoothingEnabled = false;
 		const jolt = audio.beat > .5 ? (Math.random() - .5) * width / w : 0;
-		ctx.drawImage(layer$2.canvas, jolt, 0, width, height);
+		ctx.drawImage(layer$5.canvas, jolt, 0, width, height);
 		ctx.imageSmoothingEnabled = true;
 	}
 };
@@ -5317,7 +5797,7 @@ var pixels = {
 * contour bands and faster colour cycling. Beat: a jolt of bending and colour.
 */
 var RAMP_SIZE = 256;
-var layer$1 = new PixelLayer();
+var layer$4 = new PixelLayer();
 /** Colour cycling position, 0..1 per palette cycle. */
 var cycle = 0;
 /** Extra bending after a beat, 1..0. */
@@ -5329,6 +5809,7 @@ var plasma = {
 	blend: "source-over",
 	beatRings: false,
 	palettes: [
+		"scriabin",
 		"acid",
 		"lava",
 		"ultraviolet",
@@ -5346,7 +5827,7 @@ var plasma = {
 		const cell = quality.level === 2 ? 4 : 6;
 		const w = clamp(Math.round(width / cell), 48, 220);
 		const h = Math.max(36, Math.round(w * height / width));
-		layer$1.setSize(w, h);
+		layer$4.setSize(w, h);
 		const time = clock.time * (.5 + audio.mid * .9);
 		cycle += dt * (.05 + audio.high * .25);
 		jolt = Math.max(0, jolt - dt * 2);
@@ -5361,7 +5842,7 @@ var plasma = {
 		const s2y = Math.sin(time * .41) * 1.4;
 		const span = scene.palette.rgb ? scene.palette.rgb.length : 9;
 		const ramp = colorRamp(RAMP_SIZE, (t) => colorRgb(t * span, 58));
-		const pixels = layer$1.pixels;
+		const pixels = layer$4.pixels;
 		const aspect = w / h;
 		let p = 0;
 		for (let j = 0; j < h; j++) {
@@ -5383,9 +5864,9 @@ var plasma = {
 				p += 4;
 			}
 		}
-		layer$1.flush();
+		layer$4.flush();
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer$1.canvas, 0, 0, width, height);
+		ctx.drawImage(layer$4.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -6051,7 +6532,7 @@ var shroom = {
 * Bass: speed and scent strength. Mid: how wide they smell. Treble: how sharply they
 * turn. Beat: a burst of spores somewhere on the screen.
 */
-var layer = new PixelLayer();
+var layer$3 = new PixelLayer();
 var gridW = 0;
 var gridH = 0;
 var trail = /* @__PURE__ */ new Float32Array(0);
@@ -6060,10 +6541,10 @@ var spread = /* @__PURE__ */ new Float32Array(0);
 var agentX = /* @__PURE__ */ new Float32Array(0);
 var agentY = /* @__PURE__ */ new Float32Array(0);
 var heading = /* @__PURE__ */ new Float32Array(0);
-function setUp(w, h) {
+function setUp$1(w, h) {
 	gridW = w;
 	gridH = h;
-	layer.setSize(w, h);
+	layer$3.setSize(w, h);
 	trail = new Float32Array(w * h);
 	spread = new Float32Array(w * h);
 	const count = Math.round(Math.min(quality.level === 2 ? 14e3 : 8e3, w * h * .25));
@@ -6165,15 +6646,243 @@ var slime = {
 		const cell = quality.level === 2 ? 3 : 4;
 		const w = Math.max(32, Math.min(360, Math.round(width / cell)));
 		const h = Math.max(24, Math.round(w * height / width));
-		if (w !== gridW || h !== gridH) setUp(w, h);
+		if (w !== gridW || h !== gridH) setUp$1(w, h);
 		const steps = Math.min(3, dt * 60);
 		moveAgents(steps);
 		diffuse(steps);
 		const shift = clock.time * .05;
 		const ramp = colorRamp(256, (t) => colorRgb(t * 2.5 + shift, 6 + t * 92));
-		paintField(layer, trail, ramp, (v) => 1 - Math.exp(-v * .3));
+		paintField(layer$3, trail, ramp, (v) => 1 - Math.exp(-v * .3));
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer.canvas, 0, 0, width, height);
+		ctx.drawImage(layer$3.canvas, 0, 0, width, height);
+	}
+};
+//#endregion
+//#region src/input/camera.ts
+/**
+* The phone's back camera, for the camera modes. It starts when such a mode first asks
+* for a picture, turns off when no mode has asked for 2.5 s (so the camera light goes
+* out), and turns off after 1 hour in case it was forgotten; leaving the mode and
+* coming back turns it on again.
+*/
+var LIMIT_MS = 36e5;
+var IDLE_MS = 2500;
+var state$3 = "off";
+var stream = null;
+var video = null;
+var startedAt = 0;
+var lastUse = 0;
+var camera = { 
+/** The camera worked once in this page, so auto-switch may pick camera modes. */
+allowed: false };
+function stop(next) {
+	for (const track of stream?.getTracks() ?? []) track.stop();
+	stream = null;
+	video = null;
+	state$3 = next;
+}
+async function start() {
+	if (!navigator.mediaDevices?.getUserMedia) {
+		state$3 = "failed";
+		return;
+	}
+	state$3 = "asking";
+	setStatus("Allow the camera for this mode.");
+	try {
+		stream = await navigator.mediaDevices.getUserMedia({
+			video: {
+				facingMode: { ideal: "environment" },
+				width: { ideal: 640 },
+				height: { ideal: 480 }
+			},
+			audio: false
+		});
+	} catch {
+		state$3 = "failed";
+		setStatus("No camera: this mode shows its own dancers instead.");
+		return;
+	}
+	if (performance.now() - lastUse > IDLE_MS) {
+		stop("off");
+		return;
+	}
+	video = document.createElement("video");
+	video.muted = true;
+	video.playsInline = true;
+	video.srcObject = stream;
+	await video.play().catch(() => {});
+	state$3 = "on";
+	camera.allowed = true;
+	startedAt = performance.now();
+	setStatus("Camera on. Point it at the dance floor.");
+}
+/** The live camera picture, or null (not ready, not allowed, or no camera). */
+function cameraVideo() {
+	const now = performance.now();
+	if (state$3 === "expired" && now - lastUse > IDLE_MS) state$3 = "off";
+	lastUse = now;
+	if (state$3 === "off") start();
+	return state$3 === "on" && video && video.readyState >= 2 ? video : null;
+}
+setInterval(() => {
+	if (state$3 !== "on") return;
+	const now = performance.now();
+	if (now - lastUse > IDLE_MS) stop("off");
+	else if (now - startedAt > LIMIT_MS) {
+		stop("expired");
+		setStatus("Camera turned off after 1 hour. Leave the mode and come back to turn it on.");
+	}
+}, 1e3);
+//#endregion
+//#region src/modes/smear.ts
+/**
+* Camera time smear (slit-scan, the trick behind the stargate in "2001"): point the
+* phone at the dance floor. Each row of the picture comes from a different moment, so
+* people stretch and bend through time. Every 8 beats the time map changes: rows,
+* rings, columns, waves. The bass reaches further back in time. Without a camera it
+* smears three dancing figures of its own.
+*/
+var MAPS = [
+	"rows",
+	"rings",
+	"columns",
+	"waves"
+];
+/** Frames kept: about one second at 60 frames per second. */
+var DEPTH$1 = 64;
+var source = document.createElement("canvas");
+var sourceCtx = context2d(source, { willReadFrequently: true });
+var layer$2 = new PixelLayer();
+var frames$1 = [];
+var head = 0;
+var map = 0;
+var beats$2 = 0;
+function setUp(w, h) {
+	source.width = w;
+	source.height = h;
+	layer$2.setSize(w, h);
+	frames$1 = Array.from({ length: DEPTH$1 }, () => new Uint8ClampedArray(w * h * 4));
+	head = 0;
+}
+/** The camera picture, cut to fill the frame. */
+function drawCamera(video, w, h) {
+	const scale = Math.max(w / video.videoWidth, h / video.videoHeight);
+	const dw = video.videoWidth * scale;
+	const dh = video.videoHeight * scale;
+	sourceCtx.drawImage(video, (w - dw) / 2, (h - dh) / 2, dw, dh);
+}
+function limb(x1, y1, x2, y2) {
+	sourceCtx.beginPath();
+	sourceCtx.moveTo(x1, y1);
+	sourceCtx.lineTo(x2, y2);
+	sourceCtx.stroke();
+}
+/** Three dancing figures under stage lights, for when there is no camera. */
+function drawDancers(w, h) {
+	const g = sourceCtx;
+	const t = clock.time;
+	const beat = audio.beats + (1 - audio.beat) * .5;
+	g.fillStyle = "#0a0710";
+	g.fillRect(0, 0, w, h);
+	for (let k = 0; k < 3; k++) {
+		const x = w * (.2 + k * .3) + Math.sin(t * .7 + k) * w * .15;
+		const light = g.createLinearGradient(x, 0, x, h);
+		light.addColorStop(0, `hsla(${k * 120 + t * 20},100%,60%,${.35 + audio.beat * .3})`);
+		light.addColorStop(1, "hsla(0,0%,0%,0)");
+		g.fillStyle = light;
+		g.beginPath();
+		g.moveTo(x - 3, 0);
+		g.lineTo(x + 3, 0);
+		g.lineTo(x + w * .18, h);
+		g.lineTo(x - w * .18, h);
+		g.closePath();
+		g.fill();
+	}
+	[
+		[
+			.24,
+			.55,
+			0,
+			330
+		],
+		[
+			.52,
+			.6,
+			1.3,
+			190
+		],
+		[
+			.79,
+			.52,
+			2.6,
+			50
+		]
+	].forEach(([px, py, offset, hue], i) => {
+		const s = h * .2;
+		const swing = Math.sin(beat * Math.PI + offset);
+		g.save();
+		g.translate(w * px + Math.sin(t * (.6 + i * .25) + i * 2) * w * .05, h * py);
+		g.translate(0, -Math.abs(Math.sin(beat * Math.PI)) * s * .18);
+		g.rotate(swing * .12);
+		g.strokeStyle = g.fillStyle = `hsl(${hue},95%,72%)`;
+		g.lineWidth = s * .24;
+		g.lineCap = "round";
+		g.beginPath();
+		g.arc(0, -s * 1.1, s * .28, 0, TAU);
+		g.fill();
+		limb(0, -s * .8, 0, s * .2);
+		const left = -2.3 + swing * .9;
+		const right = -.85 - swing * .9;
+		limb(0, -s * .62, Math.cos(left) * s * .8, -s * .62 + Math.sin(left) * s * .8);
+		limb(0, -s * .62, Math.cos(right) * s * .8, -s * .62 + Math.sin(right) * s * .8);
+		limb(0, s * .2, -s * .35 - swing * s * .15, s * .95);
+		limb(0, s * .2, s * .35 - swing * s * .15, s * .95);
+		g.restore();
+	});
+}
+var smear = {
+	name: "time-smear",
+	fade: 1,
+	bloom: .4,
+	blend: "source-over",
+	beatRings: false,
+	camera: true,
+	beat() {
+		if (++beats$2 % 8 === 0) map = (map + 1) % MAPS.length;
+	},
+	resize() {
+		frames$1 = [];
+	},
+	draw() {
+		const { width, height } = view;
+		const w = 160;
+		const h = Math.max(60, Math.round(w * height / width));
+		if (!frames$1.length || source.width !== w || source.height !== h) setUp(w, h);
+		const video = cameraVideo();
+		if (video) drawCamera(video, w, h);
+		else drawDancers(w, h);
+		frames$1[head].set(sourceCtx.getImageData(0, 0, w, h).data);
+		const kind = MAPS[map];
+		const reach = 63 * (.55 + audio.bass * .45);
+		const out = layer$2.pixels;
+		const t = clock.time;
+		for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+			let f;
+			if (kind === "rows") f = y / h;
+			else if (kind === "columns") f = x / w;
+			else if (kind === "rings") f = Math.min(1, Math.hypot(x - w / 2, (y - h / 2) * 1.6) / (w * .55));
+			else f = .5 + .5 * Math.sin(x / w * TAU * 1.5 + t) * (y / h);
+			const frame = frames$1[(head - Math.floor(f * reach) + DEPTH$1) % DEPTH$1];
+			const i = (y * w + x) * 4;
+			out[i] = frame[i];
+			out[i + 1] = frame[i + 1];
+			out[i + 2] = frame[i + 2];
+			out[i + 3] = 255;
+		}
+		head = (head + 1) % DEPTH$1;
+		layer$2.flush();
+		ctx.imageSmoothingEnabled = true;
+		ctx.drawImage(layer$2.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -6321,7 +7030,7 @@ var DODECA = [...signs([
 	1 / PHI,
 	PHI
 ]).flatMap(signs)];
-var SHAPES = [
+var SHAPES$1 = [
 	{
 		outer: solid(DODECA, ICOSA),
 		inner: solid(ICOSA, DODECA)
@@ -6363,8 +7072,8 @@ var TESSERACT = Array.from({ length: 16 }, (_, i) => [
 ].map((bit) => i >> bit & 1 ? 1 : -1));
 var TESSERACT_EDGES = [];
 for (let i = 0; i < 16; i++) for (let bit = 0; bit < 4; bit++) if (!(i & 1 << bit)) TESSERACT_EDGES.push([i, i | 1 << bit]);
-var shape = 0;
-var beats = 0;
+var shape$1 = 0;
+var beats$1 = 0;
 var angles = {
 	x: .4,
 	y: .2,
@@ -6512,6 +7221,7 @@ var solids = {
 	rotate: .003,
 	beatRings: false,
 	palettes: [
+		"scriabin",
 		"neon",
 		"ultraviolet",
 		"vapor",
@@ -6522,13 +7232,13 @@ var solids = {
 	],
 	beat() {
 		explode = Math.max(explode, .35 + audio.bass * .5);
-		if (++beats % 8 === 0) {
+		if (++beats$1 % 8 === 0) {
 			explode = 1.1;
-			shape = (shape + 1 + rndInt(2)) % SHAPES.length;
+			shape$1 = (shape$1 + 1 + rndInt(2)) % SHAPES$1.length;
 		}
 		if (Math.random() < .3) {
 			glitchUntil = clock.time + rnd(.1, .25);
-			const count = SHAPES[shape] === "tesseract" ? 16 : 20;
+			const count = SHAPES$1[shape$1] === "tesseract" ? 16 : 20;
 			broken = Array.from({ length: 1 + rndInt(3) }, () => ({
 				index: rndInt(count),
 				offset: [
@@ -6549,7 +7259,7 @@ var solids = {
 		if (clock.time > glitchUntil) broken = [];
 		const radius = view.min * .3 * (1 + audio.bass * .15 + audio.beat * .06);
 		const k = clock.time * .2;
-		const current = SHAPES[shape];
+		const current = SHAPES$1[shape$1];
 		if (current === "tesseract") drawTesseract(radius, k);
 		else {
 			if (current.inner) drawSolid(current.inner, radius * .5, -1.4, k + 2, false);
@@ -6632,430 +7342,49 @@ var spiro = {
 	}
 };
 //#endregion
-//#region src/modes/splats.ts
-/** Paint splats with droplets land on the beat and slowly cover the canvas. */
-var blobs = [];
-var splats = {
-	name: "splats",
-	fade: .015,
-	beatRings: false,
-	palettes: [
-		"paper",
-		"cream",
-		"sand",
-		"candy",
-		"mint",
-		"chalk"
-	],
-	beat() {
-		const { width, height, min } = view;
-		const count = 1 + Math.floor(audio.bass * 3);
-		for (let i = 0; i < count; i++) {
-			const x = rnd(width * .1, width * .9);
-			const y = rnd(height * .1, height * .9);
-			const r = min * (.06 + audio.bass * .22) * rnd(.6, 1.2);
-			const k = Math.random() * 4;
-			blobs.push({
-				x,
-				y,
-				r,
-				k,
-				seed: Math.random() * 100,
-				t: 0
-			});
-			for (let d = 0; d < 8; d++) {
-				const a = Math.random() * TAU;
-				const distance = r * rnd(1, 2.2);
-				blobs.push({
-					x: x + Math.cos(a) * distance,
-					y: y + Math.sin(a) * distance,
-					r: r * rnd(.05, .2),
-					k,
-					seed: Math.random() * 100,
-					t: .2
-				});
-			}
-		}
-	},
-	draw(dt) {
-		const { width, height } = view;
-		if (Math.random() < audio.high * .5) blobs.push({
-			x: Math.random() * width,
-			y: Math.random() * height,
-			r: rnd(2, 8) * (1 + audio.high * 3),
-			k: Math.random() * 4,
-			seed: Math.random() * 100,
-			t: .3
-		});
-		for (let i = blobs.length - 1; i >= 0; i--) {
-			const s = blobs[i];
-			s.t += dt * 3;
-			const grown = Math.min(1, s.t);
-			ctx.fillStyle = color(s.k, .85, 50);
-			blobPath(ctx, s.x, s.y, s.r * (.2 + .8 * Math.sin(grown * Math.PI / 2)), .9, s.seed);
-			ctx.fill();
-			if (grown >= 1) blobs.splice(i, 1);
-		}
-	}
-};
-//#endregion
-//#region src/modes/sprites.ts
-/** Random symmetric 8-bit critters that walk and blink, over a blocky spectrum floor. */
-var critters = [];
-function randomBitmap() {
-	const bitmap = [];
-	for (let y = 0; y < 8; y++) {
-		const row = [];
-		for (let x = 0; x < 5; x++) row.push(Math.random() < .5);
-		bitmap.push(row);
-	}
-	return bitmap;
-}
-function hatch() {
-	const count = 1 + Math.floor(audio.bass * 3);
-	for (let i = 0; i < count; i++) critters.push({
-		bitmap: randomBitmap(),
-		x: rnd(.1, .9),
-		y: rnd(.1, .8),
-		size: rnd(.5, 1.2),
-		k: Math.random() * 4,
-		age: 0,
-		life: rnd(2, 5),
-		vx: rnd(-.06, .06)
-	});
-	while (critters.length > 14) critters.shift();
-}
-var sprites = {
-	name: "sprites",
-	fade: .5,
-	blend: "source-over",
-	beatRings: false,
-	fps: 12,
-	palettes: [
-		"hazard",
-		"phosphor",
-		"mono",
-		"void",
-		"neon",
-		"noir"
-	],
-	beat: hatch,
-	draw(dt) {
-		const { width, height, min } = view;
-		if (!critters.length) hatch();
-		const walkFrame = Math.floor(clock.time * 4) % 2;
-		for (let i = critters.length - 1; i >= 0; i--) {
-			const s = critters[i];
-			s.age += dt;
-			if (s.age > s.life) {
-				critters.splice(i, 1);
-				continue;
-			}
-			s.x += s.vx * dt;
-			const cell = min * .03 * s.size * (1 + audio.bass * .4 + audio.beat * .3);
-			const x0 = s.x * width - cell * 4.5;
-			const y0 = s.y * height - cell * 4;
-			ctx.fillStyle = color(s.k, Math.min(1, s.life - s.age), 60);
-			for (let y = 0; y < 8; y++) for (let x = 0; x < 9; x++) {
-				const bx = x < 5 ? x : 8 - x;
-				let on = s.bitmap[y][bx];
-				if (walkFrame && y > 5) on = s.bitmap[y][4 - bx];
-				if (!on) continue;
-				ctx.fillRect(x0 + x * cell, y0 + y * cell, cell - 1, cell - 1);
-			}
-		}
-		const columns = 16;
-		const columnWidth = width / columns;
-		for (let i = 0; i < columns; i++) {
-			const blocks = Math.floor(spectrumAt(i / columns, .45, 1.7) * 8);
-			for (let k = 0; k < blocks; k++) {
-				ctx.fillStyle = color(k * .4, 1, 50 + k * 4);
-				ctx.fillRect(i * columnWidth + 2, height - (k + 1) * columnWidth * .6, columnWidth - 4, columnWidth * .6 - 3);
-			}
-		}
-	}
-};
-//#endregion
-//#region src/modes/strings.ts
-/** Vertical strings that vibrate with the waveform, one per frequency band. */
-var strings = {
-	name: "strings",
-	fade: .25,
-	draw() {
-		const { width, height } = view;
-		const wave = audio.wave;
-		const count = width > height ? 12 : 8;
-		const spacing = width / (count + 1);
-		ctx.lineCap = "round";
-		for (let i = 0; i < count; i++) {
-			const x = spacing * (i + 1);
-			const v = spectrumAt(i / count, .3, 1.5);
-			const amplitude = spacing * .45 * v * (1 + audio.beat * .5);
-			const offset = Math.floor(i / count * wave.length * .5);
-			ctx.strokeStyle = color(i * .5, .9, 55 + v * 35);
-			ctx.lineWidth = 1.5 + v * 5;
-			ctx.beginPath();
-			for (let j = 0; j <= 80; j++) {
-				const t = j / 80;
-				const w = (wave[(offset + Math.floor(t * wave.length * .5)) % wave.length] - 128) / 128;
-				pathPoint(ctx, j, x + w * amplitude * Math.sin(t * Math.PI), t * height);
-			}
-			ctx.stroke();
-			ctx.fillStyle = color(i * .5 + 2, .9, 80);
-			fillCircle(ctx, x, height * .5 + Math.sin(clock.time * 2 + i) * height * .3 * v, 3 + v * 8);
-		}
-	}
-};
-//#endregion
-//#region src/modes/terrain.ts
-/** Synthwave landscape: the spectrum history as mountain ridges under a striped sun. */
-var terrain = {
-	name: "terrain",
-	fade: 1,
-	blend: "source-over",
-	beatRings: false,
-	palettes: [
-		"sunset",
-		"neon",
-		"wine",
-		"deep sea"
-	],
-	draw(dt) {
-		recordSpectrum(dt);
-		const { width, height, cx, min } = view;
-		const horizon = height * .45;
-		const sunR = min * (.12 + audio.bass * .08);
-		const sun = ctx.createRadialGradient(cx, horizon, 0, cx, horizon, sunR);
-		sun.addColorStop(0, color(0, 1, 85));
-		sun.addColorStop(1, color(1, .9, 55));
-		ctx.fillStyle = sun;
-		fillCircle(ctx, cx, horizon, sunR);
-		ctx.fillStyle = background(1);
-		for (let i = 0; i < 5; i++) ctx.fillRect(cx - sunR, horizon + sunR * .15 + i * sunR * .17, 2 * sunR, 2 + sunR * .05 * (1 + i * .5) * audio.mid);
-		ctx.lineWidth = 1.5;
-		ctx.lineJoin = "round";
-		for (let r = spectrumHistory.length - 1; r >= 0; r--) {
-			const row = spectrumHistory[r];
-			const z = (r + .5) / 28;
-			const y = horizon + (height - horizon) * Math.pow(1 - z, 1.8);
-			const rowWidth = width * 1.6 * (.25 + .75 * (1 - z));
-			const x0 = cx - rowWidth / 2;
-			const amplitude = (height - horizon) * .5 * (1 - z) * (.6 + audio.bass * .6);
-			ctx.beginPath();
-			for (let i = 0; i < 48; i++) {
-				const t = i / 47;
-				pathPoint(ctx, i, x0 + t * rowWidth, y - row[i] * amplitude * (.3 + .7 * Math.sin(t * Math.PI)));
-			}
-			ctx.lineTo(x0 + rowWidth, y + 2);
-			ctx.lineTo(x0, y + 2);
-			ctx.closePath();
-			ctx.fillStyle = background(.92);
-			ctx.fill();
-			ctx.strokeStyle = color(2 + z * 2, .9, 60 + (1 - z) * 20);
-			ctx.stroke();
-		}
-		ctx.strokeStyle = color(3, .35, 60);
-		ctx.lineWidth = 1;
-		ctx.beginPath();
-		for (let i = 0; i <= 12; i++) {
-			const t = i / 12;
-			ctx.moveTo(cx + (t - .5) * width * 1.6, height);
-			ctx.lineTo(cx + (t - .5) * width * .25, horizon);
-		}
-		ctx.stroke();
-	}
-};
-//#endregion
-//#region src/modes/tree.ts
-/**
-* A tree that grows in real time. Branches sprout level by level (faster with the mids,
-* in spurts on beats) up to 11 levels and about two thousand tips, which blossom with
-* the treble. The thin branches sway more in the wind than the trunk. When the tree is
-* full grown it stands for a moment, then a new tree grows while the old one fades.
-*
-* The branches are collected per level and drawn with one stroke per level, so even
-* thousands of branches stay fast.
-*/
-var LEVELS = 11;
-/** Upper limit of branches per frame. */
-var MAX_BRANCHES = 5e3;
-/** Levels of growth per second, and how long a full tree stands before the next one. */
-var GROWTH_SPEED = .9;
-var treeSeed = 1;
-/** Grown levels: 2.5 means two levels are complete and the third is half grown. */
-var growth = 0;
-/** Branch segments per level, as x1, y1, x2, y2. */
-var segments = Array.from({ length: LEVELS }, () => []);
-var tips = [];
-var tree = {
-	name: "tree",
-	fade: .3,
-	palettes: [
-		"forest",
-		"mushroom",
-		"paper",
-		"toxic",
-		"sunset",
-		"technicolor"
-	],
-	beat() {
-		growth += .4 + audio.bass * .4;
-	},
-	draw(dt) {
-		const { height, cx, min } = view;
-		const time = clock.time;
-		growth += dt * GROWTH_SPEED * (.8 + audio.mid * 1.5);
-		if (growth > 15) {
-			treeSeed = hash01(treeSeed * 7.13 + time) * 1e3;
-			growth = 0;
-		}
-		const spread = .38 + audio.mid * .3 + Math.sin(time * .3) * .08;
-		for (const list of segments) list.length = 0;
-		tips.length = 0;
-		let branches = 0;
-		function branch(x, y, length, angle, level, seed) {
-			if (level >= LEVELS || branches++ > MAX_BRANCHES) return;
-			const grown = clamp(growth - level, 0, 1);
-			if (grown <= 0) return;
-			const sway = Math.sin(time * 1.3 + level * .4 + seed) * .03 * level * (.4 + audio.mid);
-			const a = angle + sway;
-			const x2 = x + Math.cos(a) * length * grown;
-			const y2 = y + Math.sin(a) * length * grown;
-			segments[level].push(x, y, x2, y2);
-			if (grown < 1) return;
-			if (level >= 9) tips.push(x2, y2);
-			const r1 = hash01(seed * 12.9898);
-			const r2 = hash01(seed * 78.233);
-			branch(x2, y2, length * (.68 + r1 * .12), a - spread * (.7 + r2 * .6), level + 1, seed * 1.7 + 1);
-			branch(x2, y2, length * (.68 + r2 * .12), a + spread * (.7 + r1 * .6), level + 1, seed * 2.3 + 2);
-			if (level < 8 && r1 > .55) branch(x2, y2, length * .55, a + sway * 2, level + 2, seed * 3.1 + 3);
-		}
-		branch(cx, height, min * .24 * (1 + audio.bass * .15), -Math.PI / 2, 0, treeSeed);
-		ctx.lineCap = "round";
-		segments.forEach((list, level) => {
-			if (!list.length) return;
-			ctx.beginPath();
-			for (let i = 0; i < list.length; i += 4) {
-				ctx.moveTo(list[i], list[i + 1]);
-				ctx.lineTo(list[i + 2], list[i + 3]);
-			}
-			ctx.strokeStyle = color(level * .45 + time * .2, .9, 40 + level * 4);
-			ctx.lineWidth = Math.max(.8, Math.pow(LEVELS - level, 1.5) * .35 * (1 + audio.bass * .5));
-			ctx.stroke();
-		});
-		const bloom = 1.2 + audio.high * 4 + audio.beat * 1.5;
-		ctx.fillStyle = color(3 + time * .2, .85, 80);
-		ctx.beginPath();
-		for (let i = 0; i < tips.length; i += 2) {
-			ctx.moveTo(tips[i] + bloom, tips[i + 1]);
-			ctx.arc(tips[i], tips[i + 1], bloom, 0, TAU);
-		}
-		ctx.fill();
-	}
-};
-//#endregion
-//#region src/modes/tunnel.ts
-/** Polygon rings fly toward the viewer; sparks stream along the spokes. */
-var rings$1 = [];
-var tunnel$1 = {
-	name: "tunnel",
-	fade: .07,
-	zoom: 1.025,
-	rotate: .003,
-	beat() {
-		rings$1.push({
-			s: .02,
-			k: Math.random() * 4,
-			sides: 3 + rndInt(5),
-			rot: Math.random() * 6.28,
-			width: 2 + audio.bass * 8,
-			dir: Math.random() < .5 ? 1 : -1
-		});
-	},
-	draw(dt) {
-		const { width, height, cx, cy } = view;
-		if (Math.random() < audio.mid * .35) rings$1.push({
-			s: .02,
-			k: 2 + Math.random() * 2,
-			sides: 4 + rndInt(4),
-			rot: clock.time,
-			width: 1.5,
-			dir: 1
-		});
-		const far = Math.max(width, height) * .8;
-		for (let i = rings$1.length - 1; i >= 0; i--) {
-			const ring = rings$1[i];
-			ring.s += dt * (.35 + audio.bass * 1.2 + audio.beat * .5) * (.2 + ring.s * 1.5);
-			ring.rot += dt * .6 * ring.dir;
-			if (ring.s > 1.2) {
-				rings$1.splice(i, 1);
-				continue;
-			}
-			const r = ring.s * far;
-			ctx.strokeStyle = color(ring.k + ring.s * 1.5, (1 - ring.s / 1.2) * .9, 60);
-			ctx.lineWidth = ring.width * (1 + ring.s * 3);
-			ctx.beginPath();
-			for (let k = 0; k <= ring.sides; k++) {
-				const a = ring.rot + k / ring.sides * TAU;
-				pathPoint(ctx, k, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-			}
-			ctx.stroke();
-		}
-		const spokes = 14;
-		for (let k = 0; k < spokes; k++) {
-			const a = k / spokes * TAU + clock.time * .3;
-			const d = (clock.time * 260 + k * 137) % far;
-			ctx.fillStyle = color(k * .5, .4 + audio.high * .6, 75);
-			fillCircle(ctx, cx + Math.cos(a) * d, cy + Math.sin(a) * d, 1 + audio.high * 5 * (d / far));
-		}
-		ctx.fillStyle = color(4.5, .25, 70);
-		fillCircle(ctx, cx, cy, 10 + audio.bass * 60);
-	}
-};
-//#endregion
 //#region src/render/words/show.ts
 /** Shared types and helpers for the heard-words styles. */
-var CJK$1 = "\"Noto Sans SC\", sans-serif";
+var CJK$2 = "\"Noto Sans SC\", sans-serif";
 var FACES = [
 	{
 		name: "bold",
-		family: `Unbounded, ${CJK$1}`,
+		family: `Unbounded, ${CJK$2}`,
 		weight: 700,
 		chance: 3
 	},
 	{
 		name: "pixel",
-		family: `"Press Start 2P", ${CJK$1}`,
+		family: `"Press Start 2P", ${CJK$2}`,
 		weight: 400,
 		chance: 1.6
 	},
 	{
 		name: "glitch",
-		family: `"Rubik Glitch", ${CJK$1}`,
+		family: `"Rubik Glitch", ${CJK$2}`,
 		weight: 400,
 		chance: 1
 	},
 	{
 		name: "horror",
-		family: `Creepster, "Rubik Wet Paint", ${CJK$1}`,
+		family: `Creepster, "Rubik Wet Paint", ${CJK$2}`,
 		weight: 400,
 		chance: 1
 	},
 	{
 		name: "drip",
-		family: `"Rubik Wet Paint", ${CJK$1}`,
+		family: `"Rubik Wet Paint", ${CJK$2}`,
 		weight: 400,
 		chance: .8
 	},
 	{
 		name: "beast",
-		family: `"Rubik Beastly", ${CJK$1}`,
+		family: `"Rubik Beastly", ${CJK$2}`,
 		weight: 400,
 		chance: .8
 	},
 	{
 		name: "neon",
-		family: `Monoton, Unbounded, ${CJK$1}`,
+		family: `Monoton, Unbounded, ${CJK$2}`,
 		weight: 400,
 		chance: .8
 	}
@@ -7103,868 +7432,6 @@ function shadowText(text, x, y, size, alpha) {
 /** Glowing blend on dark palettes; normal drawing on light ones. */
 function glowBlend() {
 	return scene.palette.light ? "source-over" : "lighter";
-}
-//#endregion
-//#region src/modes/words.ts
-/**
-* A big word with a stacked 3D shadow. A new word on each beat, and now and then a new
-* typeface (bold, pixel, glitch, horror, ...).
-*/
-var WORDS = [
-	"LOUD",
-	"BASS",
-	"BOOM",
-	"MORE",
-	"NOW",
-	"GO",
-	"YES",
-	"WOW",
-	"DROP",
-	"LOUDER",
-	"!!!",
-	"OK",
-	"HEY",
-	"UP",
-	"BIG",
-	"WHY",
-	"FUN",
-	"DANCE",
-	"BEAT",
-	"AGAIN"
-];
-var word = "LOUD";
-var rotation = 0;
-var offsetX = 0;
-var offsetY = 0;
-var k = 0;
-var face = FACES[0];
-for (const f of FACES) document.fonts?.load?.(`${f.weight} 40px ${f.family}`, WORDS.join("")).catch(() => {});
-//#endregion
-//#region src/modes/index.ts
-/** All modes, in the order of the style menu and the ‹ › buttons. New modes go at the end. */
-var MODES = [
-	nebula,
-	halo,
-	tunnel$1,
-	kaleido$1,
-	grid,
-	flow$1,
-	fireworks,
-	scope,
-	bars,
-	splats,
-	{
-		name: "words",
-		fade: .3,
-		bloom: .6,
-		beat() {
-			word = WORDS[rndInt(WORDS.length)];
-			rotation = rnd(-.25, .25);
-			offsetX = rnd(-.12, .12);
-			offsetY = rnd(-.2, .2);
-			k = Math.random() * 4;
-			if (Math.random() < .3) face = pickFace(face);
-		},
-		draw() {
-			const { width, height, cx, cy } = view;
-			useFace(face);
-			ctx.font = font(100);
-			const measured = Math.max(1, ctx.measureText(word).width);
-			const size = Math.min(height * .45, 100 * (width * .86 / measured) * (.75 + audio.bass * .35 + audio.beat * .15));
-			ctx.font = font(size);
-			ctx.textAlign = "center";
-			ctx.textBaseline = "middle";
-			ctx.save();
-			ctx.translate(cx + offsetX * width, cy + offsetY * height);
-			ctx.rotate(rotation + Math.sin(clock.time * 3) * audio.high * .1);
-			for (let i = 4; i >= 0; i--) {
-				const o = i * size * .05 * (1 + audio.mid);
-				ctx.fillStyle = i ? color(k + i, .9, 50) : color(k, 1, 85);
-				ctx.fillText(word, o, o);
-			}
-			ctx.restore();
-		}
-	},
-	blocks,
-	rays,
-	spiral$1,
-	strings,
-	bounce$1,
-	halftone,
-	ripples,
-	ascii,
-	cutout$1,
-	terrain,
-	ridges,
-	mandala,
-	plasma,
-	melt,
-	julia,
-	moire,
-	spiro,
-	shroom,
-	tree,
-	matrix,
-	pixels,
-	mosh,
-	sprites,
-	corrupt,
-	lasers,
-	embers,
-	neon,
-	orb,
-	film,
-	slime,
-	coral,
-	cymatics,
-	datamatics,
-	attractor,
-	murmur,
-	eightBit,
-	neonStrings,
-	neonTesla,
-	neonKnot,
-	solids
-];
-//#endregion
-//#region src/render/beatRings.ts
-/** Rings that grow out of the centre on each beat, drawn over most modes. */
-var rings = [];
-function addBeatRing() {
-	rings.push({
-		r: 0,
-		k: Math.random() * 4,
-		width: 2 + audio.bass * 10
-	});
-}
-function drawBeatRings(dt) {
-	const { cx, cy } = view;
-	const maxR = Math.hypot(cx, cy);
-	for (let i = rings.length - 1; i >= 0; i--) {
-		const ring = rings[i];
-		ring.r += dt * (600 + audio.bass * 600);
-		if (ring.r > maxR) {
-			rings.splice(i, 1);
-			continue;
-		}
-		const a = 1 - ring.r / maxR;
-		ctx.strokeStyle = color(ring.k, a * .6, 70);
-		ctx.lineWidth = ring.width * (1 + a);
-		strokeCircle(ctx, cx, cy, ring.r);
-	}
-}
-//#endregion
-//#region src/render/compositor.ts
-/**
-* Copies the finished scene to the visible canvas, with effects that must never feed
-* back into the scene: a camera punch-in on the beat, chromatic aberration, bloom, an
-* exposure kick, scene transitions, a vignette and dither.
-*/
-/** The outgoing frame of a transition. */
-var outgoing = createLayer();
-/** Red and cyan copies of the scene for chromatic aberration. */
-var red = createLayer();
-var cyan = createLayer();
-/** Bloom pyramid at 1/4, 1/8 and 1/16 of the screen size. */
-var bloomLevels = [
-	createLayer(),
-	createLayer(),
-	createLayer()
-];
-/** LED wall look: one pixel per lamp, and a mask tile with a round hole. */
-var lamps = createLayer();
-var lampMask = createLayer();
-var lampPattern = null;
-var hasFilter = "filter" in CanvasRenderingContext2D.prototype;
-onResize(() => {
-	for (const layer of [
-		outgoing,
-		red,
-		cyan
-	]) {
-		layer.canvas.width = sceneCanvas.width;
-		layer.canvas.height = sceneCanvas.height;
-	}
-});
-var transition = {
-	/** 1 at the start, 0 when done. */
-	t: 0,
-	duration: 1,
-	/** Clear the scene at the next frame (a new mode must not draw over the old one). */
-	clearScene: false,
-	/** Frame number when the outgoing frame was captured. */
-	capturedAt: -1,
-	/** 0 zoom through, 1 twist away, 2 lift off, 3 light dissolve. */
-	kind: 0
-};
-var transitionsOn = false;
-var frameNumber = 0;
-/** Transitions start working after the first scene is set up. */
-function enableTransitions() {
-	transitionsOn = true;
-}
-/**
-* Starts a transition from what is on screen now. When the mode, palette and look all
-* change in one frame, they share one transition.
-*/
-function startTransition(duration, clearScene) {
-	if (!transitionsOn) return;
-	if (transition.capturedAt !== frameNumber) {
-		const o = outgoing.ctx;
-		o.setTransform(1, 0, 0, 1, 0, 0);
-		o.globalCompositeOperation = "copy";
-		o.drawImage(display, 0, 0);
-		transition.capturedAt = frameNumber;
-		transition.kind = Math.floor(Math.random() * 4);
-		transition.duration = duration;
-		transition.clearScene = clearScene;
-	} else {
-		transition.duration = Math.max(transition.duration, duration);
-		transition.clearScene = transition.clearScene || clearScene;
-	}
-	transition.t = 1;
-}
-/** Bright-pass and blur into the bloom pyramid. */
-function renderBloom() {
-	const levels = quality.level >= 1 ? 3 : 2;
-	const w0 = Math.max(16, Math.round(view.width / 4));
-	const h0 = Math.max(16, Math.round(view.height / 4));
-	bloomLevels.forEach((layer, i) => setCanvasSize(layer.canvas, Math.max(8, w0 >> i), Math.max(8, h0 >> i)));
-	const first = bloomLevels[0];
-	first.ctx.globalCompositeOperation = "copy";
-	first.ctx.imageSmoothingEnabled = true;
-	if (hasFilter) first.ctx.filter = "brightness(0.62) contrast(2.6) saturate(1.35)";
-	first.ctx.drawImage(sceneCanvas, 0, 0, first.canvas.width, first.canvas.height);
-	if (hasFilter) first.ctx.filter = "none";
-	for (let i = 1; i < levels; i++) {
-		const layer = bloomLevels[i];
-		layer.ctx.globalCompositeOperation = "copy";
-		layer.ctx.imageSmoothingEnabled = true;
-		if (hasFilter) layer.ctx.filter = "blur(1.5px)";
-		layer.ctx.drawImage(bloomLevels[i - 1].canvas, 0, 0, layer.canvas.width, layer.canvas.height);
-		if (hasFilter) layer.ctx.filter = "none";
-	}
-}
-/** Fills `layer` with the scene multiplied by `tint` (one colour channel of it). */
-function tintedCopy(layer, tint) {
-	layer.ctx.globalCompositeOperation = "copy";
-	layer.ctx.drawImage(sceneCanvas, 0, 0);
-	layer.ctx.globalCompositeOperation = "multiply";
-	layer.ctx.fillStyle = tint;
-	layer.ctx.fillRect(0, 0, layer.canvas.width, layer.canvas.height);
-}
-/**
-* The LED wall look: the picture at one pixel per lamp, scaled up without smoothing,
-* then a mask of dark gaps with round holes on top. On the display only, so the
-* gaps never feed back into the scene.
-*/
-function drawLedWall() {
-	const d = displayCtx;
-	const dw = display.width;
-	const dh = display.height;
-	const lamp = Math.max(5, Math.round(view.min * view.dpr / 80));
-	const w = Math.ceil(dw / lamp);
-	const h = Math.ceil(dh / lamp);
-	setCanvasSize(lamps.canvas, w, h);
-	lamps.ctx.imageSmoothingEnabled = true;
-	lamps.ctx.drawImage(display, 0, 0, w, h);
-	if (lampMask.canvas.width !== lamp || !lampPattern) {
-		setCanvasSize(lampMask.canvas, lamp, lamp);
-		const m = lampMask.ctx;
-		m.clearRect(0, 0, lamp, lamp);
-		m.fillStyle = "rgba(0,0,0,0.92)";
-		m.fillRect(0, 0, lamp, lamp);
-		m.globalCompositeOperation = "destination-out";
-		const hole = m.createRadialGradient(lamp / 2, lamp / 2, 0, lamp / 2, lamp / 2, lamp * .46);
-		hole.addColorStop(0, "rgba(0,0,0,1)");
-		hole.addColorStop(.7, "rgba(0,0,0,0.95)");
-		hole.addColorStop(1, "rgba(0,0,0,0)");
-		m.fillStyle = hole;
-		m.fillRect(0, 0, lamp, lamp);
-		m.globalCompositeOperation = "source-over";
-		lampPattern = d.createPattern(lampMask.canvas, "repeat");
-	}
-	d.globalCompositeOperation = "copy";
-	d.imageSmoothingEnabled = false;
-	d.drawImage(lamps.canvas, 0, 0, w * lamp, h * lamp);
-	d.imageSmoothingEnabled = true;
-	d.globalCompositeOperation = "source-over";
-	if (lampPattern) {
-		d.fillStyle = lampPattern;
-		d.fillRect(0, 0, dw, dh);
-	}
-}
-function drawTransition(dt, light) {
-	const d = displayCtx;
-	const dw = display.width;
-	const dh = display.height;
-	if (transition.clearScene) {
-		ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-		ctx.globalCompositeOperation = "source-over";
-		ctx.globalAlpha = 1;
-		ctx.fillStyle = backgroundGradient(ctx);
-		ctx.fillRect(0, 0, view.width, view.height);
-		transition.clearScene = false;
-	}
-	const t = transition.t;
-	const e = t * t * (3 - 2 * t);
-	d.globalCompositeOperation = "source-over";
-	d.globalAlpha = e;
-	d.save();
-	d.translate(dw / 2, dh / 2);
-	if (transition.kind === 0) {
-		const z = 1 + (1 - e) * .35;
-		d.scale(z, z);
-	} else if (transition.kind === 1) {
-		const z = 1 - (1 - e) * .25;
-		d.scale(z, z);
-		d.rotate((1 - e) * .5);
-	} else if (transition.kind === 2) d.translate(0, -(1 - e) * dh * .25);
-	else {
-		const z = 1 + (1 - e) * .12;
-		d.scale(z, z);
-		d.globalCompositeOperation = light ? "multiply" : "screen";
-	}
-	d.drawImage(outgoing.canvas, -dw / 2, -dh / 2, dw, dh);
-	d.restore();
-	d.globalAlpha = 1;
-	transition.t = Math.max(0, transition.t - dt / transition.duration);
-}
-function composite(mode, dt) {
-	frameNumber++;
-	const d = displayCtx;
-	const beat = audio.beat;
-	const light = !!scene.palette.light;
-	const time = clock.time;
-	const dpr = view.dpr;
-	d.setTransform(1, 0, 0, 1, 0, 0);
-	d.globalAlpha = 1;
-	d.globalCompositeOperation = "copy";
-	d.imageSmoothingEnabled = true;
-	const zoom = 1 + beat * beat * .035 + audio.bass * .008;
-	const roll = Math.sin(time * .23) * .004;
-	const driftX = Math.sin(time * .17) * view.width * .004;
-	const driftY = Math.cos(time * .13) * view.height * .004;
-	const dw = display.width;
-	const dh = display.height;
-	const x = (dw - dw * zoom) / 2 + driftX * dpr;
-	const y = (dh - dh * zoom) / 2 + driftY * dpr;
-	const split = quality.level >= 2 && beat > .3 ? ((beat - .3) * 7 + audio.high * 1.2) * dpr : 0;
-	d.save();
-	d.translate(dw / 2, dh / 2);
-	d.rotate(roll);
-	d.translate(-dw / 2, -dh / 2);
-	if (split > .8) {
-		tintedCopy(red, "#f00");
-		tintedCopy(cyan, "#0ff");
-		d.drawImage(red.canvas, x - split, y, dw * zoom, dh * zoom);
-		d.globalCompositeOperation = "lighter";
-		d.drawImage(cyan.canvas, x + split, y + split * .3, dw * zoom, dh * zoom);
-	} else d.drawImage(sceneCanvas, x, y, dw * zoom, dh * zoom);
-	d.restore();
-	const bloom = (mode.bloom ?? 1) * (light ? 0 : 1) * (hasFilter ? 1 : .35);
-	if (bloom > 0) {
-		renderBloom();
-		d.globalCompositeOperation = "screen";
-		d.globalAlpha = Math.min(1, (.42 + audio.bass * .25 + beat * .25) * bloom);
-		d.drawImage(bloomLevels[1].canvas, 0, 0, dw, dh);
-		d.globalAlpha = Math.min(1, (.5 + audio.bass * .3 + beat * .3) * bloom);
-		d.drawImage(bloomLevels[quality.level >= 1 ? 2 : 1].canvas, 0, 0, dw, dh);
-		d.globalAlpha = 1;
-	}
-	if (beat > .05) {
-		d.globalCompositeOperation = light ? "multiply" : "screen";
-		d.fillStyle = cssRgba(colorRgb(0, light ? 55 : 75), beat * beat * (light ? .12 : .16));
-		d.fillRect(0, 0, dw, dh);
-	}
-	if (scene.look.ledWall) drawLedWall();
-	if (transition.t > 0) drawTransition(dt, light);
-	d.globalCompositeOperation = "source-over";
-	const R = Math.hypot(dw, dh) / 2;
-	vignette(d, dw / 2, dh / 2, R * .45, R * 1.02, light ? "rgba(60,35,15,0.22)" : "rgba(0,0,0,0.42)", dw, dh);
-	d.fillStyle = light ? "rgba(0,0,0,0.035)" : "rgba(255,255,255,0.03)";
-	speckle(d, Math.floor(dw * dh / 9e3), dw, dh, dpr);
-}
-//#endregion
-//#region src/scene.ts
-/** Scene control: which mode, palette and look are on screen, and how they change. */
-var listeners$1 = [];
-/** Calls `listener` after each change of mode, palette or look. */
-function onSceneChange(listener) {
-	listeners$1.push(listener);
-}
-function changed() {
-	for (const listener of listeners$1) listener();
-}
-function currentMode() {
-	return MODES[scene.modeIndex];
-}
-function setMode(index) {
-	scene.modeIndex = wrap(index, MODES.length);
-	startTransition(.9, true);
-	scene.lastSwitch = clock.time;
-	audio.beat = Math.max(audio.beat, .6);
-	changed();
-}
-function setPalette(index) {
-	startTransition(.6, false);
-	scene.paletteIndex = wrap(index, PALETTES.length);
-	scene.palette = PALETTES[scene.paletteIndex];
-	changed();
-}
-function setLook(index) {
-	startTransition(.45, false);
-	scene.lookIndex = wrap(index, LOOKS.length);
-	scene.look = LOOKS[scene.lookIndex];
-	changed();
-}
-/** A random palette, often one that suits the current mode. */
-function randomPalette() {
-	const preferred = currentMode().palettes;
-	let palette = null;
-	if (preferred && Math.random() < .65) {
-		const name = pick(preferred);
-		palette = PALETTES.find((p) => p.name === name);
-	}
-	if (!palette) palette = pick(PALETTES, scene.palette);
-	setPalette(PALETTES.indexOf(palette));
-}
-/** A random look; about a third of the time the clean one. */
-function randomLook() {
-	setLook(Math.random() < .35 ? 0 : LOOKS.indexOf(pick(LOOKS.slice(1))));
-}
-/** A new random mode with a fitting palette and a random look. */
-function shuffle() {
-	scene.modeIndex = MODES.indexOf(pick(MODES, currentMode()));
-	randomPalette();
-	randomLook();
-	setMode(scene.modeIndex);
-}
-/** Reacts to a detected beat. */
-function onBeat() {
-	audio.beat = 1;
-	audio.beats++;
-	scene.hue = (scene.hue + 20 + Math.random() * 50) % 360;
-	const mode = currentMode();
-	if (mode.beatRings !== false) addBeatRing();
-	mode.beat?.();
-	if (scene.autoSwitch) {
-		if (audio.beats % 32 === 0) shuffle();
-		else if (audio.beats % 16 === 8) randomPalette();
-		else if (audio.beats % 12 === 6) randomLook();
-	}
-}
-//#endregion
-//#region src/input/motion.ts
-/**
-* Phone motion: tilt pushes the image, shaking adds hits, twisting bends the image,
-* a hard shake changes the scene. On iOS the user must allow motion access first.
-*/
-var needsPermission = typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function";
-/** Raw sensor readings. */
-var sensor = {
-	/** Orientation in degrees (front-back and left-right tilt). */
-	beta: null,
-	gamma: null,
-	/** Resting orientation: follows the real one slowly, so tilt is relative to how the phone is held. */
-	restBeta: null,
-	restGamma: null,
-	/** Acceleration without gravity, m/s². */
-	ax: 0,
-	ay: 0,
-	az: 0,
-	/** Rotation speed in deg/s: total, and around the screen axis. */
-	rotation: 0,
-	rotationZ: 0,
-	/** clock.time of the last shake that changed the scene. */
-	lastShuffle: 0
-};
-var listening = false;
-/** The user has pressed the Motion button. After that, motion never turns itself on. */
-var userChose = false;
-var listeners = [];
-/** Calls `listener` when motion turns on or off. */
-function onMotionChange(listener) {
-	listeners.push(listener);
-}
-function setEnabled(enabled) {
-	motion.enabled = enabled;
-	for (const listener of listeners) listener();
-}
-function dataArrived() {
-	motion.available = true;
-	if (!motion.enabled && !needsPermission && !userChose) setEnabled(true);
-}
-function onOrientation(e) {
-	if (e.beta == null || e.gamma == null) return;
-	sensor.beta = e.beta;
-	sensor.gamma = e.gamma;
-	dataArrived();
-}
-function onMotion(e) {
-	const a = e.acceleration;
-	const r = e.rotationRate;
-	if (a && a.x != null) {
-		sensor.ax = a.x;
-		sensor.ay = a.y ?? 0;
-		sensor.az = a.z || 0;
-		dataArrived();
-	}
-	if (r && r.alpha != null) {
-		sensor.rotation = Math.hypot(r.alpha, r.beta || 0, r.gamma || 0);
-		sensor.rotationZ = r.alpha;
-	}
-}
-function listen() {
-	if (listening) return;
-	listening = true;
-	addEventListener("deviceorientation", onOrientation);
-	addEventListener("devicemotion", onMotion);
-}
-/** Starts listening where no permission is needed. */
-function initMotion() {
-	if (!needsPermission) listen();
-}
-/** The Motion button. */
-async function toggleMotion() {
-	userChose = true;
-	if (motion.enabled) {
-		setEnabled(false);
-		return;
-	}
-	if (typeof DeviceMotionEvent === "undefined") {
-		setStatus("No motion sensors in this browser.");
-		return;
-	}
-	try {
-		if (needsPermission) {
-			if (await DeviceMotionEvent.requestPermission?.() !== "granted") {
-				setStatus("Motion access was denied.");
-				return;
-			}
-			const orientation = DeviceOrientationEvent;
-			if (typeof orientation.requestPermission === "function") try {
-				await orientation.requestPermission();
-			} catch {}
-		}
-	} catch {
-		setStatus("Motion access was denied.");
-		return;
-	}
-	listen();
-	setEnabled(true);
-	setStatus("Tilt, twist or shake the phone.");
-	setTimeout(() => {
-		if (motion.enabled && !motion.available) setStatus("No motion data is arriving: it needs https and a phone with sensors.");
-	}, 2500);
-}
-/** Smooths the sensor data into `motion`, once per frame. */
-function updateMotion(dt) {
-	if (!motion.enabled || !motion.available) {
-		motion.tiltX *= .9;
-		motion.tiltY *= .9;
-		motion.shake *= .9;
-		motion.twist *= .9;
-		motion.spin *= .9;
-		return;
-	}
-	if (sensor.beta != null && sensor.gamma != null) {
-		if (sensor.restBeta == null || sensor.restGamma == null) {
-			sensor.restBeta = sensor.beta;
-			sensor.restGamma = sensor.gamma;
-		}
-		sensor.restBeta += (sensor.beta - sensor.restBeta) * Math.min(1, dt * .6);
-		sensor.restGamma += (sensor.gamma - sensor.restGamma) * Math.min(1, dt * .6);
-		const tiltX = clamp((sensor.gamma - sensor.restGamma) / 35, -1, 1);
-		const tiltY = clamp((sensor.beta - sensor.restBeta) / 35, -1, 1);
-		motion.tiltX += (tiltX - motion.tiltX) * Math.min(1, dt * 8);
-		motion.tiltY += (tiltY - motion.tiltY) * Math.min(1, dt * 8);
-		motion.gravityX = clamp(Math.sin(sensor.gamma * Math.PI / 180), -1, 1);
-		motion.gravityY = clamp(Math.sin(sensor.beta * Math.PI / 180), -1, 1);
-	}
-	const acceleration = Math.hypot(sensor.ax, sensor.ay, sensor.az);
-	motion.shake = Math.max(motion.shake * (1 - dt * 2.5), clamp((acceleration - 2) / 14, 0, 1));
-	motion.twist += (clamp(sensor.rotation / 250, 0, 1) - motion.twist) * Math.min(1, dt * 6);
-	motion.spin += (clamp(sensor.rotationZ / 250, -1, 1) - motion.spin) * Math.min(1, dt * 6);
-	sensor.rotation *= Math.pow(.05, dt);
-	sensor.rotationZ *= Math.pow(.05, dt);
-	if (motion.shake > .15) {
-		audio.beat = Math.max(audio.beat, motion.shake);
-		scene.hue = (scene.hue + motion.shake * dt * 300) % 360;
-	}
-	if (motion.shake > .85 && clock.time - sensor.lastShuffle > 1.5) {
-		sensor.lastShuffle = clock.time;
-		shuffle();
-	}
-}
-/** True when motion is on and the phone is moving enough to matter. */
-function motionIsActive() {
-	return motion.enabled && motion.available && (Math.abs(motion.tiltX) > .02 || Math.abs(motion.tiltY) > .02 || motion.shake > .02 || motion.twist > .02);
-}
-//#endregion
-//#region src/audio/sections.ts
-/**
-* Section-change detection. Compares the last ~1 s of audio texture (loudness,
-* bass, mid, high, brightness) with 1 s blocks from 2.5 to 10.5 s ago. A sustained
-* jump starts a new scene; a bass drop that returns after a breakdown starts one at
-* once. Tuned to miss a change rather than fire falsely.
-*/
-var FEATURES = 5;
-var FRAME_S = .1;
-/** 12 s of frames. */
-var MAX_FRAMES = 120;
-var sections = { enabled: true };
-var frames = [];
-var sum = [
-	0,
-	0,
-	0,
-	0,
-	0
-];
-var samples = 0;
-var frameTime = 0;
-/** Seconds that a rise or fall has lasted. */
-var rising = 0;
-var falling = 0;
-/** No texture changes for this many seconds after a change. */
-var cooldown = 0;
-/** Seconds that the bass has been gone. */
-var bassGoneFor = 0;
-/** Recent bass peak, decaying slowly. */
-var bassReference = 0;
-var lastFire = -1e9;
-window.loudEvents = [];
-var mean = (list, feature) => list.reduce((a, f) => a + f[feature], 0) / list.length;
-function fire(why) {
-	rising = 0;
-	falling = 0;
-	cooldown = 6;
-	if (clock.time - lastFire < 1.5 || why !== "drop" && clock.time - scene.lastSwitch < 1.5) return;
-	lastFire = clock.time;
-	window.loudEvents.push({
-		t: +clock.time.toFixed(1),
-		why
-	});
-	audio.beats = 0;
-	shuffle();
-	setStatus(`Section change (${why}): new scene`);
-}
-/** Bass gone for 2 s or more (against its recent peak), then back: the drop. Returns true when it fired. */
-function detectDrop() {
-	const bassNow = mean(frames.slice(-2), 1);
-	bassReference = Math.max(bassReference * .999, mean(frames.slice(-10), 1));
-	if (bassReference <= .15) return false;
-	if (bassNow < .4 * bassReference) bassGoneFor += FRAME_S;
-	else if (bassGoneFor >= 2 && bassNow > .75 * bassReference) {
-		bassGoneFor = 0;
-		fire("drop");
-		return true;
-	} else if (bassNow > .6 * bassReference) bassGoneFor = 0;
-	return false;
-}
-/** The last second against 1 s blocks from 2.5 to 10.5 s ago. */
-function detectTextureChange() {
-	const recent = frames.slice(-10);
-	const older = frames.slice(-105, -25);
-	const blocks = [];
-	for (let k = 0; k + 10 <= older.length; k += 10) blocks.push(older.slice(k, k + 10));
-	let distance = 0;
-	let direction = 0;
-	let level = 0;
-	for (let i = 0; i < FEATURES; i++) {
-		const now = mean(recent, i);
-		const blockMeans = blocks.map((block) => mean(block, i));
-		const before = blockMeans.reduce((a, v) => a + v, 0) / blockMeans.length;
-		const spread = Math.sqrt(blockMeans.reduce((a, v) => a + (v - before) * (v - before), 0) / blockMeans.length);
-		distance += Math.abs(now - before) / (spread + .04);
-		if (i < 2) {
-			direction += now - before;
-			level = Math.max(level, now, before);
-		}
-	}
-	distance /= FEATURES;
-	if (level < .08) {
-		rising = 0;
-		falling = 0;
-		return;
-	}
-	if (distance > 2.2) {
-		if (direction > 0) {
-			rising += FRAME_S;
-			falling = 0;
-		} else {
-			falling += FRAME_S;
-			rising = 0;
-		}
-	} else {
-		rising = Math.max(0, rising - .2);
-		falling = Math.max(0, falling - .2);
-	}
-	if (rising >= .6) fire("rise");
-	else if (falling >= 4) fire("breakdown");
-}
-/** Called every frame with the raw (before gain) measurements. */
-function trackSections(dt, bass, mid, high, rms, brightness) {
-	if (!sections.enabled || !isListening()) return;
-	const features = [
-		Math.min(1, rms * 3),
-		bass,
-		mid,
-		high,
-		brightness
-	];
-	for (let i = 0; i < FEATURES; i++) sum[i] += features[i];
-	samples++;
-	frameTime += dt;
-	if (frameTime < FRAME_S) return;
-	frames.push(sum.map((v) => v / samples));
-	if (frames.length > MAX_FRAMES) frames.shift();
-	sum.fill(0);
-	samples = 0;
-	frameTime = 0;
-	if (cooldown > 0) cooldown -= FRAME_S;
-	if (detectDrop()) return;
-	if (cooldown > 0 || frames.length < 70) return;
-	detectTextureChange();
-}
-//#endregion
-//#region src/audio/analysis.ts
-/**
-* Turns the analyser data into the `audio` features once per frame: noise gate,
-* automatic gain, band levels and beat detection. With no source (or a quiet room)
-* a synthetic pulse keeps the screen moving.
-*/
-/** Input level and noise gate threshold in dBFS, for the meter. */
-var levels = {
-	inputDb: -60,
-	gateDb: -50
-};
-/** Frequency bands in Hz. */
-var BASS = [20, 150];
-var MID = [150, 2e3];
-var HIGH = [2e3, 9e3];
-/** Mid and high are quieter than bass in most music; these weights even them out. */
-var MID_WEIGHT = 1.3;
-var HIGH_WEIGHT = 2.2;
-/** No two beats closer than this. */
-var MIN_BEAT_GAP_MS = 200;
-/** Noise gate, 0 closed .. 1 open. */
-var gate = 1;
-/** Recent loudest band level, for the automatic gain. */
-var peak = .5;
-/** Recent waveform level, for the waveform gain. */
-var waveLevel = .1;
-var lastBass = 0;
-var lastBeatMs = 0;
-/** The last 40 bass levels, for the beat threshold. */
-var bassHistory = /* @__PURE__ */ new Float32Array(40);
-var bassHistoryIndex = 0;
-var idleFreq = /* @__PURE__ */ new Uint8Array(0);
-var idleWave = /* @__PURE__ */ new Uint8Array(0);
-/** A synthetic signal: a soft 120 bpm pulse with some texture. */
-function writeIdleSignal(freq, wave) {
-	const t = clock.time;
-	const pulse = Math.pow(1 - t % .5 / .5, 3);
-	const offbeat = Math.pow(1 - (t + .25) % .5 / .5, 2);
-	for (let i = 0; i < freq.length; i++) {
-		const f = i / freq.length;
-		freq[i] = Math.max(0, Math.min(255, Math.exp(-f * 16) * 220 * (.25 + .75 * pulse) + Math.exp(-f * 3) * 70 * (.5 + .5 * Math.sin(i * .4 + t * 3)) + Math.exp(-f * 1.2) * 40 * offbeat * Math.random()));
-	}
-	for (let i = 0; i < wave.length; i++) wave[i] = 128 + 60 * Math.sin(i * .015 + t * 2) * Math.sin(t * .9) + 22 * Math.sin(i * .09 + t * 6) * offbeat;
-}
-/** Mean spectrum level (0..1) in a band. */
-function band([lo, hi]) {
-	const freq = audio.freq;
-	const a = Math.max(1, Math.floor(lo / engine.binHz));
-	const b = Math.min(freq.length - 1, Math.ceil(hi / engine.binHz));
-	let sum = 0;
-	for (let i = a; i <= b; i++) sum += freq[i];
-	return sum / ((b - a + 1) * 255);
-}
-/** Root mean square of the waveform, every 4th sample. */
-function waveRms() {
-	const wave = audio.wave;
-	let energy = 0;
-	for (let i = 0; i < wave.length; i += 4) {
-		const v = (wave[i] - 128) / 128;
-		energy += v * v;
-	}
-	return Math.sqrt(energy / (wave.length / 4));
-}
-/** Spectral centroid of the lowest 300 bins, 0..1: how bright the sound is. */
-function brightness() {
-	const freq = audio.freq;
-	let weighted = 0;
-	let total = 0;
-	for (let i = 1; i < 300; i++) {
-		weighted += i * freq[i];
-		total += freq[i];
-	}
-	return total > 0 ? weighted / total / 300 : 0;
-}
-/**
-* Noise gate (fast to open, slow to close) and automatic gain: the loudest band is
-* pulled to about 0.9, however loud the source is. While the gate is closing, the
-* idle pulse fades in, so the screen keeps breathing in a quiet room.
-*/
-function applyGateAndGain(dt, rawBass, rawMid, rawHigh, rms) {
-	const db = 20 * Math.log10(rms + 1e-5);
-	levels.inputDb = follow(levels.inputDb, db, .5, Math.min(1, dt * 4));
-	const open = clamp((levels.inputDb - levels.gateDb + 6) / 12, 0, 1);
-	gate = follow(gate, open, .35, Math.min(1, dt * 1.5));
-	const loudest = Math.max(rawBass, rawMid * MID_WEIGHT, rawHigh * HIGH_WEIGHT);
-	if (gate > .5) peak = Math.max(peak * (1 - dt * .12), loudest, .05);
-	const gain = Math.min(18, .9 / peak) * gate;
-	waveLevel = follow(waveLevel, rms, .3, Math.min(1, dt * .5));
-	const waveGain = clamp(.25 / (waveLevel + 1e-4), .3, 12) * gate;
-	const { freq, wave } = audio;
-	if (gate < .98) {
-		if (idleFreq.length !== freq.length) {
-			idleFreq = new Uint8Array(freq.length);
-			idleWave = new Uint8Array(wave.length);
-		}
-		writeIdleSignal(idleFreq, idleWave);
-		const idle = (1 - gate) * .6;
-		for (let i = 0; i < freq.length; i++) freq[i] = Math.min(255, freq[i] * gain + idleFreq[i] * idle);
-		for (let i = 0; i < wave.length; i++) wave[i] = clamp(128 + (wave[i] - 128) * waveGain + (idleWave[i] - 128) * idle, 0, 255);
-	} else {
-		for (let i = 0; i < freq.length; i++) freq[i] = Math.min(255, freq[i] * gain);
-		for (let i = 0; i < wave.length; i++) wave[i] = clamp(128 + (wave[i] - 128) * waveGain, 0, 255);
-	}
-}
-function analyze(dt) {
-	const analyser = isListening() ? engine.graph?.analyser : void 0;
-	if (analyser) {
-		analyser.getByteFrequencyData(audio.freq);
-		analyser.getByteTimeDomainData(audio.wave);
-	} else writeIdleSignal(audio.freq, audio.wave);
-	const rawBass = band(BASS);
-	const rawMid = band(MID);
-	const rawHigh = band(HIGH);
-	const rms = waveRms();
-	const centroid = brightness();
-	if (analyser) applyGateAndGain(dt, rawBass, rawMid, rawHigh, rms);
-	const bass = Math.min(1, band(BASS));
-	const mid = Math.min(1, band(MID) * MID_WEIGHT);
-	const high = Math.min(1, band(HIGH) * HIGH_WEIGHT);
-	audio.bass = follow(audio.bass, bass, .6, .15);
-	audio.mid = follow(audio.mid, mid, .5, .12);
-	audio.high = follow(audio.high, high, .5, .15);
-	bassHistory[bassHistoryIndex] = bass;
-	bassHistoryIndex = (bassHistoryIndex + 1) % bassHistory.length;
-	let average = 0;
-	for (let i = 0; i < bassHistory.length; i++) average += bassHistory[i];
-	average /= bassHistory.length;
-	const now = performance.now();
-	const onset = bass - lastBass;
-	lastBass = bass;
-	if (now - lastBeatMs > MIN_BEAT_GAP_MS && bass > .2 && (bass > average * 1.25 || onset > .12)) {
-		lastBeatMs = now;
-		onBeat();
-	}
-	audio.beat = Math.max(0, audio.beat - dt * 3.2);
-	trackSections(dt, rawBass, rawMid, rawHigh, rms, centroid);
 }
 //#endregion
 //#region src/render/words/anagram.ts
@@ -8183,7 +7650,7 @@ var crawl = {
 //#region src/render/words/cutout.ts
 /** Hero: giant letters that invert the picture inside them, slowly zooming in. */
 var shown$1 = "";
-var shownAt$2 = 0;
+var shownAt$3 = 0;
 var cutout = {
 	name: "cutout",
 	role: "hero",
@@ -8191,10 +7658,10 @@ var cutout = {
 	draw(show) {
 		if (show.word !== shown$1) {
 			shown$1 = show.word;
-			shownAt$2 = show.age;
+			shownAt$3 = show.age;
 		}
 		const { cx, cy, height } = view;
-		const size = fitFont(shown$1, .96, height * .85) * (1 + (show.age - shownAt$2) * .18 + audio.beat * .04);
+		const size = fitFont(shown$1, .96, height * .85) * (1 + (show.age - shownAt$3) * .18 + audio.beat * .04);
 		ctx.translate(cx, cy);
 		ctx.rotate(Math.sin(show.age * .7) * .08);
 		ctx.font = font(size);
@@ -8218,19 +7685,19 @@ var GLYPHS = "!<>-_\\/[]{}=+*^?#%&ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 var LOCK_STEP = .06;
 var LATIN = /^[\u0000-ɏ\s]*$/;
 var shown = "";
-var shownAt$1 = 0;
+var shownAt$2 = 0;
 var decode = {
 	name: "decode",
 	role: "hero",
 	weight: 1.8,
 	start(show) {
 		shown = show.word;
-		shownAt$1 = show.age;
+		shownAt$2 = show.age;
 	},
 	draw(show) {
 		if (show.word !== shown) {
 			shown = show.word;
-			shownAt$1 = show.age;
+			shownAt$2 = show.age;
 		}
 		const { cx, cy, height } = view;
 		const family = LATIN.test(show.phrase) && currentFace().name === "bold" ? MONOSPACE : void 0;
@@ -8240,7 +7707,7 @@ var decode = {
 		const letters = [...shown];
 		const widths = letters.map((letter) => ctx.measureText(letter).width);
 		let x = cx - widths.reduce((sum, w) => sum + w, 0) / 2;
-		const t = show.age - shownAt$1;
+		const t = show.age - shownAt$2;
 		letters.forEach((letter, i) => {
 			const locked = t > .15 + i * LOCK_STEP;
 			ctx.fillStyle = locked ? color(i * .4, show.alpha, 90) : color(2 + i * .4, show.alpha * .8, 55);
@@ -8877,7 +8344,7 @@ var tape = {
 //#endregion
 //#region src/render/words/tunnel.ts
 /** Ambient: copies of the text fly out of the centre, turning, and grow past the viewer. */
-var tunnel = {
+var tunnel$1 = {
 	name: "tunnel",
 	role: "ambient",
 	weight: 2,
@@ -8952,7 +8419,7 @@ var HEROES = [
 	stretch
 ];
 var AMBIENTS = [
-	tunnel,
+	tunnel$1,
 	orbit,
 	wave,
 	bounce,
@@ -8963,10 +8430,10 @@ var AMBIENTS = [
 	stickersStyle,
 	crawl
 ];
-var show = null;
+var show$1 = null;
 /** False while the fonts load; the text starts when they are ready. */
 var started = false;
-var shownAt = 0;
+var shownAt$1 = 0;
 var lastBeats = 0;
 var lastWordAt = 0;
 var heroStyle = slam;
@@ -8974,6 +8441,12 @@ var ambients = [];
 var heroBeats = 0;
 var heroFace = FACES[0];
 var ambientFace = FACES[0];
+/** The longest word of the last text, kept after the text is gone. */
+var lastWord = "";
+/** The longest word of the last heard text, or '' before any. */
+function lastHeardWord() {
+	return lastWord;
+}
 /** A random style, by weight, that is not in `not` (and not round, if `noRound`). */
 function pickStyle(styles, not, noRound = false) {
 	const options = styles.filter((s) => !not.includes(s) && !(noRound && s.round));
@@ -8985,13 +8458,13 @@ function pickStyle(styles, not, noRound = false) {
 	return options[options.length - 1];
 }
 /** Chinese, Japanese and Korean characters. */
-var CJK = /[぀-ヿ㐀-鿿가-힯豈-﫿]/;
+var CJK$1 = /[぀-ヿ㐀-鿿가-힯豈-﫿]/;
 /** The words of the text. Text without spaces (Chinese, Japanese) is cut into short chunks. */
 function splitWords(phrase) {
 	const words = [];
 	for (const token of phrase.split(/\s+/).filter(Boolean)) {
 		const characters = [...token];
-		if (!CJK.test(token) || characters.length <= 4) {
+		if (!CJK$1.test(token) || characters.length <= 4) {
 			words.push(token);
 			continue;
 		}
@@ -9008,10 +8481,10 @@ function fontReady(face, phrase) {
 }
 /** Calls each style's `start`, in its own face. */
 function startStyles() {
-	if (!show) return;
+	if (!show$1) return;
 	for (const style of [heroStyle, ...ambients]) {
 		useFace(style.role === "hero" ? heroFace : ambientFace);
-		style.start?.(show);
+		style.start?.(show$1);
 	}
 }
 /**
@@ -9027,7 +8500,8 @@ function showHeardWords(text, hero, ...ambient) {
 	const named = FACES.find((f) => ambient.includes(`face:${f.name}`));
 	ambientFace = named ?? pickFace();
 	heroFace = named ?? (Math.random() < .5 ? ambientFace : pickFace());
-	show = {
+	lastWord = words.reduce((a, w) => [...w].length > [...a].length ? w : a, "");
+	show$1 = {
 		phrase,
 		words,
 		age: 0,
@@ -9037,7 +8511,7 @@ function showHeardWords(text, hero, ...ambient) {
 		word: words[0]
 	};
 	started = false;
-	shownAt = clock.time;
+	shownAt$1 = clock.time;
 	heroStyle = HEROES.find((s) => s.name === hero) ?? pickStyle(HEROES, []);
 	heroBeats = 0;
 	const chosen = AMBIENTS.filter((s) => ambient.includes(s.name));
@@ -9046,33 +8520,33 @@ function showHeardWords(text, hero, ...ambient) {
 }
 /** Draws the heard words, if there are any to show now. */
 function drawHeardWords(dt) {
-	if (!show) return;
+	if (!show$1) return;
 	if (!started) {
-		if (!(fontReady(heroFace, show.phrase) && fontReady(ambientFace, show.phrase)) && clock.time - shownAt < FONT_WAIT_S) return;
+		if (!(fontReady(heroFace, show$1.phrase) && fontReady(ambientFace, show$1.phrase)) && clock.time - shownAt$1 < FONT_WAIT_S) return;
 		started = true;
-		shownAt = clock.time;
+		shownAt$1 = clock.time;
 		lastBeats = audio.beats;
 		lastWordAt = 0;
 		startStyles();
 	}
-	const age = clock.time - shownAt;
+	const age = clock.time - shownAt$1;
 	if (age > SHOW_S) {
-		show = null;
+		show$1 = null;
 		return;
 	}
-	show.age = age;
-	show.alpha = Math.max(0, Math.min(1, age / .4, (SHOW_S - age) / 1.5));
-	show.beat = audio.beats !== lastBeats || age - lastWordAt > WORD_MAX_S;
-	if (show.beat) {
+	show$1.age = age;
+	show$1.alpha = Math.max(0, Math.min(1, age / .4, (SHOW_S - age) / 1.5));
+	show$1.beat = audio.beats !== lastBeats || age - lastWordAt > WORD_MAX_S;
+	if (show$1.beat) {
 		lastBeats = audio.beats;
 		lastWordAt = age;
-		show.beats++;
-		show.word = show.words[show.beats % show.words.length];
+		show$1.beats++;
+		show$1.word = show$1.words[show$1.beats % show$1.words.length];
 		if (++heroBeats >= HERO_BEATS) {
 			heroStyle = pickStyle(HEROES, [heroStyle], ambients.some((s) => s.round));
 			if (Math.random() < .6) heroFace = pickFace(heroFace);
 			useFace(heroFace);
-			heroStyle.start?.(show);
+			heroStyle.start?.(show$1);
 			heroBeats = 0;
 		}
 	}
@@ -9082,9 +8556,1764 @@ function drawHeardWords(dt) {
 		ctx.globalCompositeOperation = glowBlend();
 		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
-		style.draw(show, dt);
+		style.draw(show$1, dt);
 		ctx.restore();
 	}
+}
+//#endregion
+//#region src/modes/stereo.ts
+/**
+* Magic eye: a random-dot stereogram. Look through the screen until the two white dots
+* at the top become three, and a shape floats out in 3D: the last word the mic heard
+* (or LOUD), rings, a dome or a wavy sea, pulsing toward you with the kick.
+*
+* How: each row is built left to right. Where the hidden surface is near, a pixel
+* copies the pixel a little less than one pattern width to its left; where it is far,
+* a full width. The two eyes then match pixels at different distances, and the brain
+* reads that as depth.
+*/
+var SHAPES = [
+	"word",
+	"rings",
+	"word",
+	"dome",
+	"sea"
+];
+/** Depth range in pattern pixels: near points copy from this much closer. */
+var DEPTH = 12;
+var layer$1 = new PixelLayer();
+var depthCanvas = document.createElement("canvas");
+var depthCtx = context2d(depthCanvas, { willReadFrequently: true });
+/** Depth per pixel, 0 far .. 255 near. */
+var depth = /* @__PURE__ */ new Uint8Array(0);
+var waveX = /* @__PURE__ */ new Float32Array(0);
+var waveY = /* @__PURE__ */ new Float32Array(0);
+var pattern = /* @__PURE__ */ new Uint8Array(0);
+var patternWidth = 0;
+var patternFor = null;
+var shape = 0;
+var beats = 0;
+/** A fixed random dot pattern in the palette's colours. */
+function makePattern(width, height) {
+	patternWidth = width;
+	pattern = new Uint8Array(width * height * 3);
+	const colors = [
+		0,
+		1,
+		2,
+		3,
+		4
+	].map((k) => colorRgb(k * 1.3, 35 + k * 12));
+	for (let i = 0; i < width * height; i++) {
+		const c = colors[Math.floor(Math.random() * colors.length)];
+		pattern[i * 3] = c[0];
+		pattern[i * 3 + 1] = c[1];
+		pattern[i * 3 + 2] = c[2];
+	}
+	patternFor = scene.palette;
+}
+/** Fills `depth` with the hidden surface. */
+function makeDepth(w, h, pulse, shift) {
+	const kind = SHAPES[shape];
+	if (kind === "sea") {
+		if (waveX.length !== w) waveX = new Float32Array(w);
+		if (waveY.length !== h) waveY = new Float32Array(h);
+		for (let x = 0; x < w; x++) waveX[x] = Math.sin(x * .06 + clock.time * 1.5);
+		for (let y = 0; y < h; y++) waveY[y] = Math.sin(y * .08 - clock.time);
+		for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) depth[y * w + x] = 255 * pulse * (.45 + .45 * waveX[x] * waveY[y]);
+		return;
+	}
+	const g = depthCtx;
+	g.fillStyle = "#000";
+	g.fillRect(0, 0, w, h);
+	const level = (v) => {
+		const n = Math.round(255 * v * pulse);
+		return `rgb(${n},${n},${n})`;
+	};
+	const cx = w / 2 + shift;
+	const cy = h / 2;
+	if (kind === "word") {
+		const text = lastHeardWord() || "LOUD";
+		g.font = `700 100px ${FACES[0].family}`;
+		g.font = `700 ${Math.min(h * .55, 100 * (w - shift * 2) * .82 / g.measureText(text).width)}px ${FACES[0].family}`;
+		g.textAlign = "center";
+		g.textBaseline = "middle";
+		g.lineWidth = h * .03;
+		g.strokeStyle = level(.45);
+		g.beginPath();
+		g.ellipse(cx, cy, w * .4, h * .42, 0, 0, Math.PI * 2);
+		g.stroke();
+		g.fillStyle = level(1);
+		g.fillText(text, cx, cy);
+	} else if (kind === "rings") for (let i = 5; i >= 1; i--) {
+		g.fillStyle = level(i % 2 ? 1 - i * .12 : .15);
+		fillCircle(g, cx, cy, h * .45 * i / 5);
+	}
+	else if (kind === "dome") {
+		const dome = g.createRadialGradient(cx, cy, 0, cx, cy, h * .45);
+		dome.addColorStop(0, level(1));
+		dome.addColorStop(.7, level(.6));
+		dome.addColorStop(1, level(0));
+		g.fillStyle = dome;
+		fillCircle(g, cx, cy, h * .45);
+	}
+	const grey = g.getImageData(0, 0, w, h).data;
+	for (let i = 0; i < w * h; i++) depth[i] = grey[i * 4];
+}
+var stereo = {
+	name: "magic-eye",
+	fade: 1,
+	bloom: 0,
+	blend: "source-over",
+	beatRings: false,
+	plain: true,
+	palettes: [
+		"candy",
+		"technicolor",
+		"vapor",
+		"acid",
+		"neon",
+		"sunset",
+		"mint"
+	],
+	beat() {
+		if (++beats % 16 === 0) shape = (shape + 1) % SHAPES.length;
+	},
+	resize() {
+		patternWidth = 0;
+	},
+	draw() {
+		const { width, height } = view;
+		const w = Math.max(160, Math.min(420, Math.round(width / 2)));
+		const h = Math.max(100, Math.round(w * height / width));
+		layer$1.setSize(w, h);
+		const p = Math.round(w / 8);
+		if (patternWidth !== p || patternFor !== scene.palette) makePattern(p, h);
+		if (depthCanvas.width !== w || depthCanvas.height !== h) {
+			depthCanvas.width = w;
+			depthCanvas.height = h;
+			depth = new Uint8Array(w * h);
+		}
+		makeDepth(w, h, .72 + audio.beat * .2 + audio.bass * .08, p / 2);
+		const out = layer$1.pixels;
+		for (let y = 0; y < h; y++) {
+			const row = y * w;
+			for (let x = 0; x < w; x++) {
+				const i = (row + x) * 4;
+				const shift = p - Math.round(depth[row + x] / 255 * DEPTH);
+				if (x < shift) {
+					const s = (y * p + x % p) * 3;
+					out[i] = pattern[s];
+					out[i + 1] = pattern[s + 1];
+					out[i + 2] = pattern[s + 2];
+				} else {
+					const j = i - shift * 4;
+					out[i] = out[j];
+					out[i + 1] = out[j + 1];
+					out[i + 2] = out[j + 2];
+				}
+				out[i + 3] = 255;
+			}
+		}
+		layer$1.flush();
+		ctx.imageSmoothingEnabled = false;
+		ctx.drawImage(layer$1.canvas, 0, 0, width, height);
+		ctx.imageSmoothingEnabled = true;
+		const dotGap = p * width / w;
+		ctx.fillStyle = "#fff";
+		fillCircle(ctx, width / 2 - dotGap / 2, height * .05, Math.max(3, height * .008));
+		fillCircle(ctx, width / 2 + dotGap / 2, height * .05, Math.max(3, height * .008));
+	}
+};
+//#endregion
+//#region src/modes/splats.ts
+/** Paint splats with droplets land on the beat and slowly cover the canvas. */
+var blobs = [];
+var splats = {
+	name: "splats",
+	fade: .015,
+	beatRings: false,
+	palettes: [
+		"paper",
+		"cream",
+		"sand",
+		"candy",
+		"mint",
+		"chalk"
+	],
+	beat() {
+		const { width, height, min } = view;
+		const count = 1 + Math.floor(audio.bass * 3);
+		for (let i = 0; i < count; i++) {
+			const x = rnd(width * .1, width * .9);
+			const y = rnd(height * .1, height * .9);
+			const r = min * (.06 + audio.bass * .22) * rnd(.6, 1.2);
+			const k = Math.random() * 4;
+			blobs.push({
+				x,
+				y,
+				r,
+				k,
+				seed: Math.random() * 100,
+				t: 0
+			});
+			for (let d = 0; d < 8; d++) {
+				const a = Math.random() * TAU;
+				const distance = r * rnd(1, 2.2);
+				blobs.push({
+					x: x + Math.cos(a) * distance,
+					y: y + Math.sin(a) * distance,
+					r: r * rnd(.05, .2),
+					k,
+					seed: Math.random() * 100,
+					t: .2
+				});
+			}
+		}
+	},
+	draw(dt) {
+		const { width, height } = view;
+		if (Math.random() < audio.high * .5) blobs.push({
+			x: Math.random() * width,
+			y: Math.random() * height,
+			r: rnd(2, 8) * (1 + audio.high * 3),
+			k: Math.random() * 4,
+			seed: Math.random() * 100,
+			t: .3
+		});
+		for (let i = blobs.length - 1; i >= 0; i--) {
+			const s = blobs[i];
+			s.t += dt * 3;
+			const grown = Math.min(1, s.t);
+			ctx.fillStyle = color(s.k, .85, 50);
+			blobPath(ctx, s.x, s.y, s.r * (.2 + .8 * Math.sin(grown * Math.PI / 2)), .9, s.seed);
+			ctx.fill();
+			if (grown >= 1) blobs.splice(i, 1);
+		}
+	}
+};
+//#endregion
+//#region src/modes/sprites.ts
+/** Random symmetric 8-bit critters that walk and blink, over a blocky spectrum floor. */
+var critters = [];
+function randomBitmap() {
+	const bitmap = [];
+	for (let y = 0; y < 8; y++) {
+		const row = [];
+		for (let x = 0; x < 5; x++) row.push(Math.random() < .5);
+		bitmap.push(row);
+	}
+	return bitmap;
+}
+function hatch() {
+	const count = 1 + Math.floor(audio.bass * 3);
+	for (let i = 0; i < count; i++) critters.push({
+		bitmap: randomBitmap(),
+		x: rnd(.1, .9),
+		y: rnd(.1, .8),
+		size: rnd(.5, 1.2),
+		k: Math.random() * 4,
+		age: 0,
+		life: rnd(2, 5),
+		vx: rnd(-.06, .06)
+	});
+	while (critters.length > 14) critters.shift();
+}
+var sprites = {
+	name: "sprites",
+	fade: .5,
+	blend: "source-over",
+	beatRings: false,
+	fps: 12,
+	palettes: [
+		"hazard",
+		"phosphor",
+		"mono",
+		"void",
+		"neon",
+		"noir"
+	],
+	beat: hatch,
+	draw(dt) {
+		const { width, height, min } = view;
+		if (!critters.length) hatch();
+		const walkFrame = Math.floor(clock.time * 4) % 2;
+		for (let i = critters.length - 1; i >= 0; i--) {
+			const s = critters[i];
+			s.age += dt;
+			if (s.age > s.life) {
+				critters.splice(i, 1);
+				continue;
+			}
+			s.x += s.vx * dt;
+			const cell = min * .03 * s.size * (1 + audio.bass * .4 + audio.beat * .3);
+			const x0 = s.x * width - cell * 4.5;
+			const y0 = s.y * height - cell * 4;
+			ctx.fillStyle = color(s.k, Math.min(1, s.life - s.age), 60);
+			for (let y = 0; y < 8; y++) for (let x = 0; x < 9; x++) {
+				const bx = x < 5 ? x : 8 - x;
+				let on = s.bitmap[y][bx];
+				if (walkFrame && y > 5) on = s.bitmap[y][4 - bx];
+				if (!on) continue;
+				ctx.fillRect(x0 + x * cell, y0 + y * cell, cell - 1, cell - 1);
+			}
+		}
+		const columns = 16;
+		const columnWidth = width / columns;
+		for (let i = 0; i < columns; i++) {
+			const blocks = Math.floor(spectrumAt(i / columns, .45, 1.7) * 8);
+			for (let k = 0; k < blocks; k++) {
+				ctx.fillStyle = color(k * .4, 1, 50 + k * 4);
+				ctx.fillRect(i * columnWidth + 2, height - (k + 1) * columnWidth * .6, columnWidth - 4, columnWidth * .6 - 3);
+			}
+		}
+	}
+};
+//#endregion
+//#region src/modes/strings.ts
+/** Vertical strings that vibrate with the waveform, one per frequency band. */
+var strings = {
+	name: "strings",
+	fade: .25,
+	draw() {
+		const { width, height } = view;
+		const wave = audio.wave;
+		const count = width > height ? 12 : 8;
+		const spacing = width / (count + 1);
+		ctx.lineCap = "round";
+		for (let i = 0; i < count; i++) {
+			const x = spacing * (i + 1);
+			const v = spectrumAt(i / count, .3, 1.5);
+			const amplitude = spacing * .45 * v * (1 + audio.beat * .5);
+			const offset = Math.floor(i / count * wave.length * .5);
+			ctx.strokeStyle = color(i * .5, .9, 55 + v * 35);
+			ctx.lineWidth = 1.5 + v * 5;
+			ctx.beginPath();
+			for (let j = 0; j <= 80; j++) {
+				const t = j / 80;
+				const w = (wave[(offset + Math.floor(t * wave.length * .5)) % wave.length] - 128) / 128;
+				pathPoint(ctx, j, x + w * amplitude * Math.sin(t * Math.PI), t * height);
+			}
+			ctx.stroke();
+			ctx.fillStyle = color(i * .5 + 2, .9, 80);
+			fillCircle(ctx, x, height * .5 + Math.sin(clock.time * 2 + i) * height * .3 * v, 3 + v * 8);
+		}
+	}
+};
+//#endregion
+//#region src/modes/terrain.ts
+/** Synthwave landscape: the spectrum history as mountain ridges under a striped sun. */
+var terrain = {
+	name: "terrain",
+	fade: 1,
+	blend: "source-over",
+	beatRings: false,
+	palettes: [
+		"sunset",
+		"neon",
+		"wine",
+		"deep sea"
+	],
+	draw(dt) {
+		recordSpectrum(dt);
+		const { width, height, cx, min } = view;
+		const horizon = height * .45;
+		const sunR = min * (.12 + audio.bass * .08);
+		const sun = ctx.createRadialGradient(cx, horizon, 0, cx, horizon, sunR);
+		sun.addColorStop(0, color(0, 1, 85));
+		sun.addColorStop(1, color(1, .9, 55));
+		ctx.fillStyle = sun;
+		fillCircle(ctx, cx, horizon, sunR);
+		ctx.fillStyle = background(1);
+		for (let i = 0; i < 5; i++) ctx.fillRect(cx - sunR, horizon + sunR * .15 + i * sunR * .17, 2 * sunR, 2 + sunR * .05 * (1 + i * .5) * audio.mid);
+		ctx.lineWidth = 1.5;
+		ctx.lineJoin = "round";
+		for (let r = spectrumHistory.length - 1; r >= 0; r--) {
+			const row = spectrumHistory[r];
+			const z = (r + .5) / 28;
+			const y = horizon + (height - horizon) * Math.pow(1 - z, 1.8);
+			const rowWidth = width * 1.6 * (.25 + .75 * (1 - z));
+			const x0 = cx - rowWidth / 2;
+			const amplitude = (height - horizon) * .5 * (1 - z) * (.6 + audio.bass * .6);
+			ctx.beginPath();
+			for (let i = 0; i < 48; i++) {
+				const t = i / 47;
+				pathPoint(ctx, i, x0 + t * rowWidth, y - row[i] * amplitude * (.3 + .7 * Math.sin(t * Math.PI)));
+			}
+			ctx.lineTo(x0 + rowWidth, y + 2);
+			ctx.lineTo(x0, y + 2);
+			ctx.closePath();
+			ctx.fillStyle = background(.92);
+			ctx.fill();
+			ctx.strokeStyle = color(2 + z * 2, .9, 60 + (1 - z) * 20);
+			ctx.stroke();
+		}
+		ctx.strokeStyle = color(3, .35, 60);
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		for (let i = 0; i <= 12; i++) {
+			const t = i / 12;
+			ctx.moveTo(cx + (t - .5) * width * 1.6, height);
+			ctx.lineTo(cx + (t - .5) * width * .25, horizon);
+		}
+		ctx.stroke();
+	}
+};
+//#endregion
+//#region src/modes/tree.ts
+/**
+* A tree that grows in real time. Branches sprout level by level (faster with the mids,
+* in spurts on beats) up to 11 levels and about two thousand tips, which blossom with
+* the treble. The thin branches sway more in the wind than the trunk. When the tree is
+* full grown it stands for a moment, then a new tree grows while the old one fades.
+*
+* The branches are collected per level and drawn with one stroke per level, so even
+* thousands of branches stay fast.
+*/
+var LEVELS = 11;
+/** Upper limit of branches per frame. */
+var MAX_BRANCHES = 5e3;
+/** Levels of growth per second, and how long a full tree stands before the next one. */
+var GROWTH_SPEED = .9;
+var treeSeed = 1;
+/** Grown levels: 2.5 means two levels are complete and the third is half grown. */
+var growth = 0;
+/** Branch segments per level, as x1, y1, x2, y2. */
+var segments = Array.from({ length: LEVELS }, () => []);
+var tips = [];
+var tree = {
+	name: "tree",
+	fade: .3,
+	palettes: [
+		"forest",
+		"mushroom",
+		"paper",
+		"toxic",
+		"sunset",
+		"technicolor"
+	],
+	beat() {
+		growth += .4 + audio.bass * .4;
+	},
+	draw(dt) {
+		const { height, cx, min } = view;
+		const time = clock.time;
+		growth += dt * GROWTH_SPEED * (.8 + audio.mid * 1.5);
+		if (growth > 15) {
+			treeSeed = hash01(treeSeed * 7.13 + time) * 1e3;
+			growth = 0;
+		}
+		const spread = .38 + audio.mid * .3 + Math.sin(time * .3) * .08;
+		for (const list of segments) list.length = 0;
+		tips.length = 0;
+		let branches = 0;
+		function branch(x, y, length, angle, level, seed) {
+			if (level >= LEVELS || branches++ > MAX_BRANCHES) return;
+			const grown = clamp(growth - level, 0, 1);
+			if (grown <= 0) return;
+			const sway = Math.sin(time * 1.3 + level * .4 + seed) * .03 * level * (.4 + audio.mid);
+			const a = angle + sway;
+			const x2 = x + Math.cos(a) * length * grown;
+			const y2 = y + Math.sin(a) * length * grown;
+			segments[level].push(x, y, x2, y2);
+			if (grown < 1) return;
+			if (level >= 9) tips.push(x2, y2);
+			const r1 = hash01(seed * 12.9898);
+			const r2 = hash01(seed * 78.233);
+			branch(x2, y2, length * (.68 + r1 * .12), a - spread * (.7 + r2 * .6), level + 1, seed * 1.7 + 1);
+			branch(x2, y2, length * (.68 + r2 * .12), a + spread * (.7 + r1 * .6), level + 1, seed * 2.3 + 2);
+			if (level < 8 && r1 > .55) branch(x2, y2, length * .55, a + sway * 2, level + 2, seed * 3.1 + 3);
+		}
+		branch(cx, height, min * .24 * (1 + audio.bass * .15), -Math.PI / 2, 0, treeSeed);
+		ctx.lineCap = "round";
+		segments.forEach((list, level) => {
+			if (!list.length) return;
+			ctx.beginPath();
+			for (let i = 0; i < list.length; i += 4) {
+				ctx.moveTo(list[i], list[i + 1]);
+				ctx.lineTo(list[i + 2], list[i + 3]);
+			}
+			ctx.strokeStyle = color(level * .45 + time * .2, .9, 40 + level * 4);
+			ctx.lineWidth = Math.max(.8, Math.pow(LEVELS - level, 1.5) * .35 * (1 + audio.bass * .5));
+			ctx.stroke();
+		});
+		const bloom = 1.2 + audio.high * 4 + audio.beat * 1.5;
+		ctx.fillStyle = color(3 + time * .2, .85, 80);
+		ctx.beginPath();
+		for (let i = 0; i < tips.length; i += 2) {
+			ctx.moveTo(tips[i] + bloom, tips[i + 1]);
+			ctx.arc(tips[i], tips[i + 1], bloom, 0, TAU);
+		}
+		ctx.fill();
+	}
+};
+//#endregion
+//#region src/modes/tunnel.ts
+/** Polygon rings fly toward the viewer; sparks stream along the spokes. */
+var rings$1 = [];
+var tunnel = {
+	name: "tunnel",
+	fade: .07,
+	zoom: 1.025,
+	rotate: .003,
+	beat() {
+		rings$1.push({
+			s: .02,
+			k: Math.random() * 4,
+			sides: 3 + rndInt(5),
+			rot: Math.random() * 6.28,
+			width: 2 + audio.bass * 8,
+			dir: Math.random() < .5 ? 1 : -1
+		});
+	},
+	draw(dt) {
+		const { width, height, cx, cy } = view;
+		if (Math.random() < audio.mid * .35) rings$1.push({
+			s: .02,
+			k: 2 + Math.random() * 2,
+			sides: 4 + rndInt(4),
+			rot: clock.time,
+			width: 1.5,
+			dir: 1
+		});
+		const far = Math.max(width, height) * .8;
+		for (let i = rings$1.length - 1; i >= 0; i--) {
+			const ring = rings$1[i];
+			ring.s += dt * (.35 + audio.bass * 1.2 + audio.beat * .5) * (.2 + ring.s * 1.5);
+			ring.rot += dt * .6 * ring.dir;
+			if (ring.s > 1.2) {
+				rings$1.splice(i, 1);
+				continue;
+			}
+			const r = ring.s * far;
+			ctx.strokeStyle = color(ring.k + ring.s * 1.5, (1 - ring.s / 1.2) * .9, 60);
+			ctx.lineWidth = ring.width * (1 + ring.s * 3);
+			ctx.beginPath();
+			for (let k = 0; k <= ring.sides; k++) {
+				const a = ring.rot + k / ring.sides * TAU;
+				pathPoint(ctx, k, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+			}
+			ctx.stroke();
+		}
+		const spokes = 14;
+		for (let k = 0; k < spokes; k++) {
+			const a = k / spokes * TAU + clock.time * .3;
+			const d = (clock.time * 260 + k * 137) % far;
+			ctx.fillStyle = color(k * .5, .4 + audio.high * .6, 75);
+			fillCircle(ctx, cx + Math.cos(a) * d, cy + Math.sin(a) * d, 1 + audio.high * 5 * (d / far));
+		}
+		ctx.fillStyle = color(4.5, .25, 70);
+		fillCircle(ctx, cx, cy, 10 + audio.bass * 60);
+	}
+};
+//#endregion
+//#region src/modes/words.ts
+/**
+* A big word with a stacked 3D shadow. A new word on each beat, and now and then a new
+* typeface (bold, pixel, glitch, horror, ...).
+*/
+var WORDS = [
+	"LOUD",
+	"BASS",
+	"BOOM",
+	"MORE",
+	"NOW",
+	"GO",
+	"YES",
+	"WOW",
+	"DROP",
+	"LOUDER",
+	"!!!",
+	"OK",
+	"HEY",
+	"UP",
+	"BIG",
+	"WHY",
+	"FUN",
+	"DANCE",
+	"BEAT",
+	"AGAIN"
+];
+var word = "LOUD";
+var rotation = 0;
+var offsetX = 0;
+var offsetY = 0;
+var k = 0;
+var face = FACES[0];
+for (const f of FACES) document.fonts?.load?.(`${f.weight} 40px ${f.family}`, WORDS.join("")).catch(() => {});
+//#endregion
+//#region src/modes/index.ts
+/** All modes, in the order of the style menu and the ‹ › buttons. New modes go at the end. */
+var MODES = [
+	nebula,
+	halo,
+	tunnel,
+	kaleido$1,
+	grid,
+	flow$1,
+	fireworks,
+	scope,
+	bars,
+	splats,
+	{
+		name: "words",
+		fade: .3,
+		bloom: .6,
+		beat() {
+			word = WORDS[rndInt(WORDS.length)];
+			rotation = rnd(-.25, .25);
+			offsetX = rnd(-.12, .12);
+			offsetY = rnd(-.2, .2);
+			k = Math.random() * 4;
+			if (Math.random() < .3) face = pickFace(face);
+		},
+		draw() {
+			const { width, height, cx, cy } = view;
+			useFace(face);
+			ctx.font = font(100);
+			const measured = Math.max(1, ctx.measureText(word).width);
+			const size = Math.min(height * .45, 100 * (width * .86 / measured) * (.75 + audio.bass * .35 + audio.beat * .15));
+			ctx.font = font(size);
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+			ctx.save();
+			ctx.translate(cx + offsetX * width, cy + offsetY * height);
+			ctx.rotate(rotation + Math.sin(clock.time * 3) * audio.high * .1);
+			for (let i = 4; i >= 0; i--) {
+				const o = i * size * .05 * (1 + audio.mid);
+				ctx.fillStyle = i ? color(k + i, .9, 50) : color(k, 1, 85);
+				ctx.fillText(word, o, o);
+			}
+			ctx.restore();
+		}
+	},
+	blocks,
+	rays,
+	spiral$1,
+	strings,
+	bounce$1,
+	halftone,
+	ripples,
+	ascii,
+	cutout$1,
+	terrain,
+	ridges,
+	mandala,
+	plasma,
+	melt,
+	julia,
+	moire,
+	spiro,
+	shroom,
+	tree,
+	matrix,
+	pixels,
+	mosh,
+	sprites,
+	corrupt,
+	lasers,
+	embers,
+	neon,
+	orb,
+	film,
+	slime,
+	coral,
+	cymatics,
+	datamatics,
+	attractor,
+	murmur,
+	eightBit,
+	neonStrings,
+	neonTesla,
+	neonKnot,
+	solids,
+	inkMode,
+	stereo,
+	parallax,
+	smear
+];
+//#endregion
+//#region src/render/beatRings.ts
+/** Rings that grow out of the centre on each beat, drawn over most modes. */
+var rings = [];
+function addBeatRing() {
+	rings.push({
+		r: 0,
+		k: Math.random() * 4,
+		width: 2 + audio.bass * 10
+	});
+}
+function drawBeatRings(dt) {
+	const { cx, cy } = view;
+	const maxR = Math.hypot(cx, cy);
+	for (let i = rings.length - 1; i >= 0; i--) {
+		const ring = rings[i];
+		ring.r += dt * (600 + audio.bass * 600);
+		if (ring.r > maxR) {
+			rings.splice(i, 1);
+			continue;
+		}
+		const a = 1 - ring.r / maxR;
+		ctx.strokeStyle = color(ring.k, a * .6, 70);
+		ctx.lineWidth = ring.width * (1 + a);
+		strokeCircle(ctx, cx, cy, ring.r);
+	}
+}
+//#endregion
+//#region src/render/compositor.ts
+/**
+* Copies the finished scene to the visible canvas, with effects that must never feed
+* back into the scene: a camera punch-in on the beat, chromatic aberration, bloom, an
+* exposure kick, scene transitions, a vignette and dither.
+*/
+/** The outgoing frame of a transition. */
+var outgoing = createLayer();
+/** Red and cyan copies of the scene for chromatic aberration. */
+var red = createLayer();
+var cyan = createLayer();
+/** Bloom pyramid at 1/4, 1/8 and 1/16 of the screen size. */
+var bloomLevels = [
+	createLayer(),
+	createLayer(),
+	createLayer()
+];
+/** LED wall look: one pixel per lamp, and a mask tile with a round hole. */
+var lamps = createLayer();
+var lampMask = createLayer();
+var lampPattern = null;
+var hasFilter = "filter" in CanvasRenderingContext2D.prototype;
+onResize(() => {
+	for (const layer of [
+		outgoing,
+		red,
+		cyan
+	]) {
+		layer.canvas.width = sceneCanvas.width;
+		layer.canvas.height = sceneCanvas.height;
+	}
+});
+var transition = {
+	/** 1 at the start, 0 when done. */
+	t: 0,
+	duration: 1,
+	/** Clear the scene at the next frame (a new mode must not draw over the old one). */
+	clearScene: false,
+	/** Frame number when the outgoing frame was captured. */
+	capturedAt: -1,
+	/** 0 zoom through, 1 twist away, 2 lift off, 3 light dissolve. */
+	kind: 0
+};
+var transitionsOn = false;
+var frameNumber = 0;
+/** Transitions start working after the first scene is set up. */
+function enableTransitions() {
+	transitionsOn = true;
+}
+/**
+* Starts a transition from what is on screen now. When the mode, palette and look all
+* change in one frame, they share one transition.
+*/
+function startTransition(duration, clearScene) {
+	if (!transitionsOn) return;
+	if (transition.capturedAt !== frameNumber) {
+		const o = outgoing.ctx;
+		o.setTransform(1, 0, 0, 1, 0, 0);
+		o.globalCompositeOperation = "copy";
+		o.drawImage(display, 0, 0);
+		transition.capturedAt = frameNumber;
+		transition.kind = Math.floor(Math.random() * 4);
+		transition.duration = duration;
+		transition.clearScene = clearScene;
+	} else {
+		transition.duration = Math.max(transition.duration, duration);
+		transition.clearScene = transition.clearScene || clearScene;
+	}
+	transition.t = 1;
+}
+/** Bright-pass and blur into the bloom pyramid. */
+function renderBloom() {
+	const levels = quality.level >= 1 ? 3 : 2;
+	const w0 = Math.max(16, Math.round(view.width / 4));
+	const h0 = Math.max(16, Math.round(view.height / 4));
+	bloomLevels.forEach((layer, i) => setCanvasSize(layer.canvas, Math.max(8, w0 >> i), Math.max(8, h0 >> i)));
+	const first = bloomLevels[0];
+	first.ctx.globalCompositeOperation = "copy";
+	first.ctx.imageSmoothingEnabled = true;
+	if (hasFilter) first.ctx.filter = "brightness(0.62) contrast(2.6) saturate(1.35)";
+	first.ctx.drawImage(sceneCanvas, 0, 0, first.canvas.width, first.canvas.height);
+	if (hasFilter) first.ctx.filter = "none";
+	for (let i = 1; i < levels; i++) {
+		const layer = bloomLevels[i];
+		layer.ctx.globalCompositeOperation = "copy";
+		layer.ctx.imageSmoothingEnabled = true;
+		if (hasFilter) layer.ctx.filter = "blur(1.5px)";
+		layer.ctx.drawImage(bloomLevels[i - 1].canvas, 0, 0, layer.canvas.width, layer.canvas.height);
+		if (hasFilter) layer.ctx.filter = "none";
+	}
+}
+/** Fills `layer` with the scene multiplied by `tint` (one colour channel of it). */
+function tintedCopy(layer, tint) {
+	layer.ctx.globalCompositeOperation = "copy";
+	layer.ctx.drawImage(sceneCanvas, 0, 0);
+	layer.ctx.globalCompositeOperation = "multiply";
+	layer.ctx.fillStyle = tint;
+	layer.ctx.fillRect(0, 0, layer.canvas.width, layer.canvas.height);
+}
+/**
+* The LED wall look: the picture at one pixel per lamp, scaled up without smoothing,
+* then a mask of dark gaps with round holes on top. On the display only, so the
+* gaps never feed back into the scene.
+*/
+function drawLedWall() {
+	const d = displayCtx;
+	const dw = display.width;
+	const dh = display.height;
+	const lamp = Math.max(5, Math.round(view.min * view.dpr / 80));
+	const w = Math.ceil(dw / lamp);
+	const h = Math.ceil(dh / lamp);
+	setCanvasSize(lamps.canvas, w, h);
+	lamps.ctx.imageSmoothingEnabled = true;
+	lamps.ctx.drawImage(display, 0, 0, w, h);
+	if (lampMask.canvas.width !== lamp || !lampPattern) {
+		setCanvasSize(lampMask.canvas, lamp, lamp);
+		const m = lampMask.ctx;
+		m.clearRect(0, 0, lamp, lamp);
+		m.fillStyle = "rgba(0,0,0,0.92)";
+		m.fillRect(0, 0, lamp, lamp);
+		m.globalCompositeOperation = "destination-out";
+		const hole = m.createRadialGradient(lamp / 2, lamp / 2, 0, lamp / 2, lamp / 2, lamp * .46);
+		hole.addColorStop(0, "rgba(0,0,0,1)");
+		hole.addColorStop(.7, "rgba(0,0,0,0.95)");
+		hole.addColorStop(1, "rgba(0,0,0,0)");
+		m.fillStyle = hole;
+		m.fillRect(0, 0, lamp, lamp);
+		m.globalCompositeOperation = "source-over";
+		lampPattern = d.createPattern(lampMask.canvas, "repeat");
+	}
+	d.globalCompositeOperation = "copy";
+	d.imageSmoothingEnabled = false;
+	d.drawImage(lamps.canvas, 0, 0, w * lamp, h * lamp);
+	d.imageSmoothingEnabled = true;
+	d.globalCompositeOperation = "source-over";
+	if (lampPattern) {
+		d.fillStyle = lampPattern;
+		d.fillRect(0, 0, dw, dh);
+	}
+}
+function drawTransition(dt, light) {
+	const d = displayCtx;
+	const dw = display.width;
+	const dh = display.height;
+	if (transition.clearScene) {
+		ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+		ctx.globalCompositeOperation = "source-over";
+		ctx.globalAlpha = 1;
+		ctx.fillStyle = backgroundGradient(ctx);
+		ctx.fillRect(0, 0, view.width, view.height);
+		transition.clearScene = false;
+	}
+	const t = transition.t;
+	const e = t * t * (3 - 2 * t);
+	d.globalCompositeOperation = "source-over";
+	d.globalAlpha = e;
+	d.save();
+	d.translate(dw / 2, dh / 2);
+	if (transition.kind === 0) {
+		const z = 1 + (1 - e) * .35;
+		d.scale(z, z);
+	} else if (transition.kind === 1) {
+		const z = 1 - (1 - e) * .25;
+		d.scale(z, z);
+		d.rotate((1 - e) * .5);
+	} else if (transition.kind === 2) d.translate(0, -(1 - e) * dh * .25);
+	else {
+		const z = 1 + (1 - e) * .12;
+		d.scale(z, z);
+		d.globalCompositeOperation = light ? "multiply" : "screen";
+	}
+	d.drawImage(outgoing.canvas, -dw / 2, -dh / 2, dw, dh);
+	d.restore();
+	d.globalAlpha = 1;
+	transition.t = Math.max(0, transition.t - dt / transition.duration);
+}
+/** Build-up: the colour drains, the frame closes in, and streaks rush to the middle. */
+function drawBuildUp(d, dw, dh, light) {
+	const build = audio.build;
+	d.globalCompositeOperation = "saturation";
+	d.globalAlpha = build * .8;
+	d.fillStyle = "#808080";
+	d.fillRect(0, 0, dw, dh);
+	d.globalAlpha = 1;
+	const cx = dw / 2;
+	const cy = dh / 2;
+	const R = Math.hypot(dw, dh) / 2;
+	d.globalCompositeOperation = light ? "multiply" : "screen";
+	d.strokeStyle = light ? `rgba(0,0,0,${.1 + build * .25})` : `rgba(255,255,255,${.1 + build * .3})`;
+	d.lineWidth = view.dpr * (1 + build * 2);
+	d.beginPath();
+	const lines = Math.round(20 + build * 70);
+	for (let i = 0; i < lines; i++) {
+		const a = hash01(i * 1.7) * TAU;
+		const r1 = R * (1 - (hash01(i * 3.1) + clock.time * (.3 + build * 1.6)) % 1);
+		const r0 = r1 * (.8 - build * .15);
+		d.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+		d.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+	}
+	d.stroke();
+	d.globalCompositeOperation = "source-over";
+	const edge = light ? `rgba(60,35,15,${build * .6})` : `rgba(0,0,0,${build * .85})`;
+	vignette(d, cx, cy, R * (.7 - build * .4), R * (1.02 - build * .25), edge, dw, dh);
+}
+/** The drop: shock rings rush out from the middle. No white flash (photosensitivity). */
+function drawDrop(d, dw, dh, light) {
+	const drop = audio.drop;
+	const R = Math.hypot(dw, dh) / 2;
+	d.globalCompositeOperation = light ? "multiply" : "screen";
+	for (let i = 0; i < 3; i++) {
+		const r = R * 1.25 * Math.pow(Math.min(1, (1 - drop) * (1 + i * .25)), .6);
+		d.strokeStyle = cssRgba(colorRgb(i * 1.4, light ? 40 : 70), drop);
+		d.lineWidth = view.dpr * (4 + drop * 26) * (1 - i * .25);
+		d.beginPath();
+		d.arc(dw / 2, dh / 2, r, 0, TAU);
+		d.stroke();
+	}
+	d.globalCompositeOperation = "source-over";
+}
+function composite(mode, dt) {
+	frameNumber++;
+	const d = displayCtx;
+	const beat = audio.beat;
+	const light = !!scene.palette.light;
+	const time = clock.time;
+	const dpr = view.dpr;
+	d.setTransform(1, 0, 0, 1, 0, 0);
+	d.globalAlpha = 1;
+	d.globalCompositeOperation = "copy";
+	d.imageSmoothingEnabled = true;
+	const zoom = 1 + beat * beat * .035 + audio.bass * .008 + audio.build * .05 + audio.drop ** 2 * .06;
+	const roll = Math.sin(time * .23) * .004;
+	const driftX = Math.sin(time * .17) * view.width * .004;
+	const driftY = Math.cos(time * .13) * view.height * .004;
+	const dw = display.width;
+	const dh = display.height;
+	const x = (dw - dw * zoom) / 2 + driftX * dpr;
+	const y = (dh - dh * zoom) / 2 + driftY * dpr;
+	const split = quality.level >= 2 && beat > .3 && !mode.plain ? ((beat - .3) * 7 + audio.high * 1.2) * dpr : 0;
+	d.save();
+	d.translate(dw / 2, dh / 2);
+	d.rotate(roll);
+	d.translate(-dw / 2, -dh / 2);
+	if (split > .8) {
+		tintedCopy(red, "#f00");
+		tintedCopy(cyan, "#0ff");
+		d.drawImage(red.canvas, x - split, y, dw * zoom, dh * zoom);
+		d.globalCompositeOperation = "lighter";
+		d.drawImage(cyan.canvas, x + split, y + split * .3, dw * zoom, dh * zoom);
+	} else d.drawImage(sceneCanvas, x, y, dw * zoom, dh * zoom);
+	d.restore();
+	const bloom = (mode.bloom ?? 1) * (light ? 0 : 1) * (hasFilter ? 1 : .35);
+	if (bloom > 0) {
+		renderBloom();
+		d.globalCompositeOperation = "screen";
+		d.globalAlpha = Math.min(1, (.42 + audio.bass * .25 + beat * .25) * bloom);
+		d.drawImage(bloomLevels[1].canvas, 0, 0, dw, dh);
+		d.globalAlpha = Math.min(1, (.5 + audio.bass * .3 + beat * .3) * bloom);
+		d.drawImage(bloomLevels[quality.level >= 1 ? 2 : 1].canvas, 0, 0, dw, dh);
+		d.globalAlpha = 1;
+	}
+	if (beat > .05) {
+		d.globalCompositeOperation = light ? "multiply" : "screen";
+		d.fillStyle = cssRgba(colorRgb(0, light ? 55 : 75), beat * beat * (light ? .12 : .16));
+		d.fillRect(0, 0, dw, dh);
+	}
+	if (audio.build > .02) drawBuildUp(d, dw, dh, light);
+	if (audio.drop > .02) drawDrop(d, dw, dh, light);
+	if (scene.look.ledWall && !mode.plain) drawLedWall();
+	if (transition.t > 0) drawTransition(dt, light);
+	d.globalCompositeOperation = "source-over";
+	const R = Math.hypot(dw, dh) / 2;
+	vignette(d, dw / 2, dh / 2, R * .45, R * 1.02, light ? "rgba(60,35,15,0.22)" : "rgba(0,0,0,0.42)", dw, dh);
+	d.fillStyle = light ? "rgba(0,0,0,0.035)" : "rgba(255,255,255,0.03)";
+	speckle(d, Math.floor(dw * dh / 9e3), dw, dh, dpr);
+}
+//#endregion
+//#region src/scene.ts
+/** Scene control: which mode, palette and look are on screen, and how they change. */
+var listeners$2 = [];
+/** Calls `listener` after each change of mode, palette or look. */
+function onSceneChange(listener) {
+	listeners$2.push(listener);
+}
+function changed() {
+	for (const listener of listeners$2) listener();
+}
+function currentMode() {
+	return MODES[scene.modeIndex];
+}
+function setMode(index) {
+	scene.modeIndex = wrap(index, MODES.length);
+	startTransition(.9, true);
+	scene.lastSwitch = clock.time;
+	audio.beat = Math.max(audio.beat, .6);
+	changed();
+}
+function setPalette(index) {
+	startTransition(.6, false);
+	scene.paletteIndex = wrap(index, PALETTES.length);
+	scene.palette = PALETTES[scene.paletteIndex];
+	changed();
+}
+function setLook(index) {
+	startTransition(.45, false);
+	scene.lookIndex = wrap(index, LOOKS.length);
+	scene.look = LOOKS[scene.lookIndex];
+	changed();
+}
+/** A random palette, often one that suits the current mode. */
+function randomPalette() {
+	const preferred = currentMode().palettes;
+	let palette = null;
+	if (preferred && Math.random() < .65) {
+		const name = pick(preferred);
+		palette = PALETTES.find((p) => p.name === name);
+	}
+	if (!palette) palette = pick(PALETTES, scene.palette);
+	setPalette(PALETTES.indexOf(palette));
+}
+/** A random look; about a third of the time the clean one. */
+function randomLook() {
+	setLook(Math.random() < .35 ? 0 : LOOKS.indexOf(pick(LOOKS.slice(1))));
+}
+/** A new random mode with a fitting palette and a random look. */
+function shuffle() {
+	const modes = MODES.filter((m) => !m.camera || camera.allowed);
+	scene.modeIndex = MODES.indexOf(pick(modes, currentMode()));
+	randomPalette();
+	randomLook();
+	setMode(scene.modeIndex);
+}
+/** Reacts to a detected beat. */
+function onBeat() {
+	audio.beat = 1;
+	audio.beats++;
+	scene.hue = (scene.hue + 20 + Math.random() * 50) % 360;
+	const mode = currentMode();
+	if (mode.beatRings !== false) addBeatRing();
+	mode.beat?.();
+	if (scene.autoSwitch) {
+		if (audio.beats % 32 === 0) shuffle();
+		else if (audio.beats % 16 === 8) randomPalette();
+		else if (audio.beats % 12 === 6) randomLook();
+	}
+}
+//#endregion
+//#region src/audio/sections.ts
+/**
+* Section-change detection. Compares the last ~1 s of audio texture (loudness,
+* bass, mid, high, brightness) with 1 s blocks from 2.5 to 10.5 s ago. A sustained
+* jump starts a new scene; a bass drop that returns after a breakdown starts one at
+* once. Tuned to miss a change rather than fire falsely.
+*
+* It also measures the build-up before a drop (`audio.build`): the bass is gone and
+* the loudness, treble and brightness rise. The drop itself sets `audio.drop`.
+*/
+var FEATURES = 5;
+var FRAME_S = .1;
+/** 12 s of frames. */
+var MAX_FRAMES = 120;
+var sections = { enabled: true };
+var frames = [];
+var sum = [
+	0,
+	0,
+	0,
+	0,
+	0
+];
+var samples = 0;
+var frameTime = 0;
+/** Seconds that a rise or fall has lasted. */
+var rising = 0;
+var falling = 0;
+/** No texture changes for this many seconds after a change. */
+var cooldown = 0;
+/** Seconds that the bass has been gone. */
+var bassGoneFor = 0;
+/** Recent bass peak, decaying slowly. */
+var bassReference = 0;
+var lastFire = -1e9;
+/** Where `audio.build` is heading, 0..1. */
+var buildTarget = 0;
+/** A fake build-up from the console: clock.time of its drop, or 0. */
+var fakeDropAt = 0;
+var fakeLength = 0;
+window.loudEvents = [];
+var mean = (list, feature) => list.reduce((a, f) => a + f[feature], 0) / list.length;
+function fire(why) {
+	rising = 0;
+	falling = 0;
+	cooldown = 6;
+	if (clock.time - lastFire < 1.5 || why !== "drop" && clock.time - scene.lastSwitch < 1.5) return;
+	if (why === "drop") {
+		audio.drop = 1;
+		audio.build = 0;
+		buildTarget = 0;
+	}
+	lastFire = clock.time;
+	window.loudEvents.push({
+		t: +clock.time.toFixed(1),
+		why
+	});
+	audio.beats = 0;
+	shuffle();
+	setStatus(`Section change (${why}): new scene`);
+}
+/** Bass gone for 2 s or more (against its recent peak), then back: the drop. Returns true when it fired. */
+function detectDrop() {
+	const bassNow = mean(frames.slice(-2), 1);
+	bassReference = Math.max(bassReference * .999, mean(frames.slice(-10), 1));
+	if (bassReference <= .15) return false;
+	if (bassNow < .4 * bassReference) bassGoneFor += FRAME_S;
+	else if (bassGoneFor >= 2 && bassNow > .75 * bassReference) {
+		bassGoneFor = 0;
+		fire("drop");
+		return true;
+	} else if (bassNow > .6 * bassReference) bassGoneFor = 0;
+	return false;
+}
+/**
+* Build-up: the bass has been gone for a while and the energy (loudness, treble,
+* brightness) of the last second is above that of 2 to 3 s ago. The longer it goes
+* on, the higher the build.
+*/
+function trackBuild() {
+	if (frames.length < 30) return;
+	const energy = (list) => list.reduce((a, f) => a + f[0] * .5 + f[3] * .3 + f[4] * .2, 0) / list.length;
+	const rise = energy(frames.slice(-10)) - energy(frames.slice(-30, -20));
+	if (bassGoneFor < 1) buildTarget = 0;
+	else if (rise > .015) buildTarget = Math.min(1, Math.max(buildTarget, (bassGoneFor - .5) / 7));
+	else if (rise < -.03) buildTarget *= .9;
+}
+/** Plays a fake build-up of `seconds`, then a drop. */
+function simulateDrop(seconds = 6) {
+	fakeLength = Math.max(1, seconds);
+	fakeDropAt = clock.time + fakeLength;
+}
+/** The last second against 1 s blocks from 2.5 to 10.5 s ago. */
+function detectTextureChange() {
+	const recent = frames.slice(-10);
+	const older = frames.slice(-105, -25);
+	const blocks = [];
+	for (let k = 0; k + 10 <= older.length; k += 10) blocks.push(older.slice(k, k + 10));
+	let distance = 0;
+	let direction = 0;
+	let level = 0;
+	for (let i = 0; i < FEATURES; i++) {
+		const now = mean(recent, i);
+		const blockMeans = blocks.map((block) => mean(block, i));
+		const before = blockMeans.reduce((a, v) => a + v, 0) / blockMeans.length;
+		const spread = Math.sqrt(blockMeans.reduce((a, v) => a + (v - before) * (v - before), 0) / blockMeans.length);
+		distance += Math.abs(now - before) / (spread + .04);
+		if (i < 2) {
+			direction += now - before;
+			level = Math.max(level, now, before);
+		}
+	}
+	distance /= FEATURES;
+	if (level < .08) {
+		rising = 0;
+		falling = 0;
+		return;
+	}
+	if (distance > 2.2) {
+		if (direction > 0) {
+			rising += FRAME_S;
+			falling = 0;
+		} else {
+			falling += FRAME_S;
+			rising = 0;
+		}
+	} else {
+		rising = Math.max(0, rising - .2);
+		falling = Math.max(0, falling - .2);
+	}
+	if (rising >= .6) fire("rise");
+	else if (falling >= 4) fire("breakdown");
+}
+/** Called every frame with the raw (before gain) measurements. */
+function trackSections(dt, bass, mid, high, rms, brightness) {
+	audio.drop = Math.max(0, audio.drop - dt * 1.1);
+	if (fakeDropAt) {
+		buildTarget = Math.min(1, 1 - (fakeDropAt - clock.time) / fakeLength);
+		if (clock.time >= fakeDropAt) {
+			fakeDropAt = 0;
+			lastFire = -1e9;
+			fire("drop");
+		}
+	} else if (!sections.enabled || !isListening()) buildTarget = 0;
+	const rate = buildTarget > audio.build ? 1.5 : 4;
+	audio.build += (buildTarget - audio.build) * Math.min(1, dt * rate);
+	if (!sections.enabled || !isListening()) return;
+	const features = [
+		Math.min(1, rms * 3),
+		bass,
+		mid,
+		high,
+		brightness
+	];
+	for (let i = 0; i < FEATURES; i++) sum[i] += features[i];
+	samples++;
+	frameTime += dt;
+	if (frameTime < FRAME_S) return;
+	frames.push(sum.map((v) => v / samples));
+	if (frames.length > MAX_FRAMES) frames.shift();
+	sum.fill(0);
+	samples = 0;
+	frameTime = 0;
+	if (cooldown > 0) cooldown -= FRAME_S;
+	if (detectDrop()) return;
+	trackBuild();
+	if (cooldown > 0 || frames.length < 70) return;
+	detectTextureChange();
+}
+//#endregion
+//#region src/audio/speech.ts
+/**
+* Heard words: every 45 s while the mic is on, 8 s of sound go to ElevenLabs speech to
+* text, and the words it hears are shown over the picture (render/heardWords.ts).
+*
+* Off by default, because it sends recordings of the room to a third party; the choice
+* is kept in this browser. The API key is in the page on purpose: an experiment key
+* with a small balance and no automatic top-up, so anyone who opens the page can read
+* and use it.
+*/
+var ELEVENLABS_URL = "https://api.elevenlabs.io/v1/speech-to-text";
+var ELEVENLABS_KEY = "sk_2c12406b220bee699afe376e1ccefef432eb06f8c6a69e0b";
+var MODEL = "scribe_v2";
+/** The first recording starts this long after the mic is on; then one every PERIOD_MS. */
+var FIRST_AFTER_MS = 5e3;
+var PERIOD_MS = 45e3;
+var RECORD_MS = 8e3;
+/** Longest text that is shown. */
+var MAX_WORDS = 10;
+var SETTING = "loud.heardWords";
+var speech = { enabled: readSetting() };
+var listeners$1 = [];
+var listeningSince = 0;
+var lastCapture = 0;
+var busy = false;
+/** Calls `listener` with each text that ElevenLabs hears. */
+function onHeard(listener) {
+	listeners$1.push(listener);
+}
+function readSetting() {
+	try {
+		return localStorage.getItem(SETTING) === "on";
+	} catch {
+		return false;
+	}
+}
+function setSpeechEnabled(on) {
+	speech.enabled = on;
+	try {
+		localStorage.setItem(SETTING, on ? "on" : "off");
+	} catch {}
+}
+/** Starts a recording when one is due. Call once per frame. */
+function tickSpeech() {
+	const stream = currentMicStream();
+	if (!speech.enabled || !stream) {
+		listeningSince = 0;
+		return;
+	}
+	const now = Date.now();
+	if (!listeningSince) {
+		listeningSince = now;
+		lastCapture = 0;
+	}
+	if (busy) return;
+	if (!(lastCapture ? now - lastCapture >= PERIOD_MS : now - listeningSince >= FIRST_AFTER_MS)) return;
+	lastCapture = now;
+	capture(stream);
+}
+async function capture(stream) {
+	busy = true;
+	try {
+		const recording = await record(stream, RECORD_MS);
+		if (!recording) return;
+		const text = await transcribe(recording.blob, recording.extension);
+		if (text) for (const listener of listeners$1) listener(text);
+	} catch (error) {
+		console.warn("loud: speech to text failed", error);
+		setStatus(`Words: ${error instanceof Error ? error.message : String(error)}`);
+	} finally {
+		busy = false;
+	}
+}
+/** A container that this browser can record, and the file extension for it. */
+function recordingFormat() {
+	const formats = [
+		{
+			mimeType: "audio/webm;codecs=opus",
+			extension: "webm"
+		},
+		{
+			mimeType: "audio/webm",
+			extension: "webm"
+		},
+		{
+			mimeType: "audio/mp4",
+			extension: "m4a"
+		},
+		{
+			mimeType: "audio/ogg;codecs=opus",
+			extension: "ogg"
+		}
+	];
+	if (typeof MediaRecorder === "undefined") return null;
+	return formats.find((f) => MediaRecorder.isTypeSupported(f.mimeType)) ?? null;
+}
+/** Records `ms` of the mic. Null when the browser cannot record or the mic stops. */
+function record(stream, ms) {
+	const format = recordingFormat();
+	if (!format) return Promise.resolve(null);
+	return new Promise((resolve) => {
+		const chunks = [];
+		const recorder = new MediaRecorder(stream, {
+			mimeType: format.mimeType,
+			audioBitsPerSecond: 64e3
+		});
+		recorder.addEventListener("dataavailable", (e) => chunks.push(e.data));
+		recorder.addEventListener("stop", () => {
+			setRecordingLight(false);
+			resolve(currentMicStream() === stream && chunks.length ? {
+				blob: new Blob(chunks, { type: format.mimeType }),
+				extension: format.extension
+			} : null);
+		});
+		recorder.start();
+		setRecordingLight(true);
+		setTimeout(() => {
+			if (recorder.state !== "inactive") recorder.stop();
+		}, ms);
+	});
+}
+async function transcribe(audio, extension) {
+	const form = new FormData();
+	form.append("model_id", MODEL);
+	form.append("tag_audio_events", "false");
+	form.append("file", audio, `room.${extension}`);
+	const response = await fetch(ELEVENLABS_URL, {
+		method: "POST",
+		headers: { "xi-api-key": ELEVENLABS_KEY },
+		body: form
+	});
+	if (!response.ok) throw new Error(`ElevenLabs answered ${response.status}`);
+	return cleanText((await response.json()).text ?? "");
+}
+/** The heard text without bracketed sound tags, at most MAX_WORDS words. */
+function cleanText(text) {
+	return text.replace(/[([][^)\]]*[)\]]/g, " ").split(/\s+/).filter(Boolean).slice(0, MAX_WORDS).join(" ");
+}
+//#endregion
+//#region src/input/motion.ts
+/**
+* Phone motion: tilt pushes the image, shaking adds hits, twisting bends the image,
+* a hard shake changes the scene. On iOS the user must allow motion access first.
+*/
+var needsPermission = typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function";
+/** Raw sensor readings. */
+var sensor = {
+	/** Orientation in degrees (front-back and left-right tilt). */
+	beta: null,
+	gamma: null,
+	/** Resting orientation: follows the real one slowly, so tilt is relative to how the phone is held. */
+	restBeta: null,
+	restGamma: null,
+	/** Acceleration without gravity, m/s². */
+	ax: 0,
+	ay: 0,
+	az: 0,
+	/** Rotation speed in deg/s: total, and around the screen axis. */
+	rotation: 0,
+	rotationZ: 0,
+	/** clock.time of the last shake that changed the scene. */
+	lastShuffle: 0
+};
+var listening = false;
+/** The user has pressed the Motion button. After that, motion never turns itself on. */
+var userChose = false;
+var listeners = [];
+/** Calls `listener` when motion turns on or off. */
+function onMotionChange(listener) {
+	listeners.push(listener);
+}
+function setEnabled(enabled) {
+	motion.enabled = enabled;
+	for (const listener of listeners) listener();
+}
+function dataArrived() {
+	motion.available = true;
+	if (!motion.enabled && !needsPermission && !userChose) setEnabled(true);
+}
+function onOrientation(e) {
+	if (e.beta == null || e.gamma == null) return;
+	sensor.beta = e.beta;
+	sensor.gamma = e.gamma;
+	dataArrived();
+}
+function onMotion(e) {
+	const a = e.acceleration;
+	const r = e.rotationRate;
+	if (a && a.x != null) {
+		sensor.ax = a.x;
+		sensor.ay = a.y ?? 0;
+		sensor.az = a.z || 0;
+		dataArrived();
+	}
+	if (r && r.alpha != null) {
+		sensor.rotation = Math.hypot(r.alpha, r.beta || 0, r.gamma || 0);
+		sensor.rotationZ = r.alpha;
+	}
+}
+function listen() {
+	if (listening) return;
+	listening = true;
+	addEventListener("deviceorientation", onOrientation);
+	addEventListener("devicemotion", onMotion);
+}
+/** Starts listening where no permission is needed. */
+function initMotion() {
+	if (!needsPermission) listen();
+}
+/** The Motion button. */
+async function toggleMotion() {
+	userChose = true;
+	if (motion.enabled) {
+		setEnabled(false);
+		return;
+	}
+	if (typeof DeviceMotionEvent === "undefined") {
+		setStatus("No motion sensors in this browser.");
+		return;
+	}
+	try {
+		if (needsPermission) {
+			if (await DeviceMotionEvent.requestPermission?.() !== "granted") {
+				setStatus("Motion access was denied.");
+				return;
+			}
+			const orientation = DeviceOrientationEvent;
+			if (typeof orientation.requestPermission === "function") try {
+				await orientation.requestPermission();
+			} catch {}
+		}
+	} catch {
+		setStatus("Motion access was denied.");
+		return;
+	}
+	listen();
+	setEnabled(true);
+	setStatus("Tilt, twist or shake the phone.");
+	setTimeout(() => {
+		if (motion.enabled && !motion.available) setStatus("No motion data is arriving: it needs https and a phone with sensors.");
+	}, 2500);
+}
+/** Smooths the sensor data into `motion`, once per frame. */
+function updateMotion(dt) {
+	if (!motion.enabled || !motion.available) {
+		motion.tiltX *= .9;
+		motion.tiltY *= .9;
+		motion.shake *= .9;
+		motion.twist *= .9;
+		motion.spin *= .9;
+		return;
+	}
+	if (sensor.beta != null && sensor.gamma != null) {
+		if (sensor.restBeta == null || sensor.restGamma == null) {
+			sensor.restBeta = sensor.beta;
+			sensor.restGamma = sensor.gamma;
+		}
+		sensor.restBeta += (sensor.beta - sensor.restBeta) * Math.min(1, dt * .6);
+		sensor.restGamma += (sensor.gamma - sensor.restGamma) * Math.min(1, dt * .6);
+		const tiltX = clamp((sensor.gamma - sensor.restGamma) / 35, -1, 1);
+		const tiltY = clamp((sensor.beta - sensor.restBeta) / 35, -1, 1);
+		motion.tiltX += (tiltX - motion.tiltX) * Math.min(1, dt * 8);
+		motion.tiltY += (tiltY - motion.tiltY) * Math.min(1, dt * 8);
+		motion.gravityX = clamp(Math.sin(sensor.gamma * Math.PI / 180), -1, 1);
+		motion.gravityY = clamp(Math.sin(sensor.beta * Math.PI / 180), -1, 1);
+	}
+	const acceleration = Math.hypot(sensor.ax, sensor.ay, sensor.az);
+	motion.shake = Math.max(motion.shake * (1 - dt * 2.5), clamp((acceleration - 2) / 14, 0, 1));
+	motion.twist += (clamp(sensor.rotation / 250, 0, 1) - motion.twist) * Math.min(1, dt * 6);
+	motion.spin += (clamp(sensor.rotationZ / 250, -1, 1) - motion.spin) * Math.min(1, dt * 6);
+	sensor.rotation *= Math.pow(.05, dt);
+	sensor.rotationZ *= Math.pow(.05, dt);
+	if (motion.shake > .15) {
+		audio.beat = Math.max(audio.beat, motion.shake);
+		scene.hue = (scene.hue + motion.shake * dt * 300) % 360;
+	}
+	if (motion.shake > .85 && clock.time - sensor.lastShuffle > 1.5) {
+		sensor.lastShuffle = clock.time;
+		shuffle();
+	}
+}
+/** True when motion is on and the phone is moving enough to matter. */
+function motionIsActive() {
+	return motion.enabled && motion.available && (Math.abs(motion.tiltX) > .02 || Math.abs(motion.tiltY) > .02 || motion.shake > .02 || motion.twist > .02);
+}
+//#endregion
+//#region src/audio/analysis.ts
+/**
+* Turns the analyser data into the `audio` features once per frame: noise gate,
+* automatic gain, band levels and beat detection. With no source (or a quiet room)
+* a synthetic pulse keeps the screen moving.
+*/
+/** Input level and noise gate threshold in dBFS, for the meter. */
+var levels = {
+	inputDb: -60,
+	gateDb: -50
+};
+/** Frequency bands in Hz. */
+var BASS = [20, 150];
+var MID = [150, 2e3];
+var HIGH = [2e3, 9e3];
+/** Mid and high are quieter than bass in most music; these weights even them out. */
+var MID_WEIGHT = 1.3;
+var HIGH_WEIGHT = 2.2;
+/** No two beats closer than this. */
+var MIN_BEAT_GAP_MS = 200;
+/** Noise gate, 0 closed .. 1 open. */
+var gate = 1;
+/** Recent loudest band level, for the automatic gain. */
+var peak = .5;
+/** Recent waveform level, for the waveform gain. */
+var waveLevel = .1;
+var lastBass = 0;
+var lastBeatMs = 0;
+/** The last 40 bass levels, for the beat threshold. */
+var bassHistory = /* @__PURE__ */ new Float32Array(40);
+var bassHistoryIndex = 0;
+var idleFreq = /* @__PURE__ */ new Uint8Array(0);
+var idleWave = /* @__PURE__ */ new Uint8Array(0);
+/** A synthetic signal: a soft 120 bpm pulse with some texture. */
+function writeIdleSignal(freq, wave) {
+	const t = clock.time;
+	const pulse = Math.pow(1 - t % .5 / .5, 3);
+	const offbeat = Math.pow(1 - (t + .25) % .5 / .5, 2);
+	for (let i = 0; i < freq.length; i++) {
+		const f = i / freq.length;
+		freq[i] = Math.max(0, Math.min(255, Math.exp(-f * 16) * 220 * (.25 + .75 * pulse) + Math.exp(-f * 3) * 70 * (.5 + .5 * Math.sin(i * .4 + t * 3)) + Math.exp(-f * 1.2) * 40 * offbeat * Math.random()));
+	}
+	for (let i = 0; i < wave.length; i++) wave[i] = 128 + 60 * Math.sin(i * .015 + t * 2) * Math.sin(t * .9) + 22 * Math.sin(i * .09 + t * 6) * offbeat;
+}
+/** Mean spectrum level (0..1) in a band. */
+function band([lo, hi]) {
+	const freq = audio.freq;
+	const a = Math.max(1, Math.floor(lo / engine.binHz));
+	const b = Math.min(freq.length - 1, Math.ceil(hi / engine.binHz));
+	let sum = 0;
+	for (let i = a; i <= b; i++) sum += freq[i];
+	return sum / ((b - a + 1) * 255);
+}
+/** Root mean square of the waveform, every 4th sample. */
+function waveRms() {
+	const wave = audio.wave;
+	let energy = 0;
+	for (let i = 0; i < wave.length; i += 4) {
+		const v = (wave[i] - 128) / 128;
+		energy += v * v;
+	}
+	return Math.sqrt(energy / (wave.length / 4));
+}
+/** Spectral centroid of the lowest 300 bins, 0..1: how bright the sound is. */
+function brightness() {
+	const freq = audio.freq;
+	let weighted = 0;
+	let total = 0;
+	for (let i = 1; i < 300; i++) {
+		weighted += i * freq[i];
+		total += freq[i];
+	}
+	return total > 0 ? weighted / total / 300 : 0;
+}
+/**
+* Noise gate (fast to open, slow to close) and automatic gain: the loudest band is
+* pulled to about 0.9, however loud the source is. While the gate is closing, the
+* idle pulse fades in, so the screen keeps breathing in a quiet room.
+*/
+function applyGateAndGain(dt, rawBass, rawMid, rawHigh, rms) {
+	const db = 20 * Math.log10(rms + 1e-5);
+	levels.inputDb = follow(levels.inputDb, db, .5, Math.min(1, dt * 4));
+	const open = clamp((levels.inputDb - levels.gateDb + 6) / 12, 0, 1);
+	gate = follow(gate, open, .35, Math.min(1, dt * 1.5));
+	const loudest = Math.max(rawBass, rawMid * MID_WEIGHT, rawHigh * HIGH_WEIGHT);
+	if (gate > .5) peak = Math.max(peak * (1 - dt * .12), loudest, .05);
+	const gain = Math.min(18, .9 / peak) * gate;
+	waveLevel = follow(waveLevel, rms, .3, Math.min(1, dt * .5));
+	const waveGain = clamp(.25 / (waveLevel + 1e-4), .3, 12) * gate;
+	const { freq, wave } = audio;
+	if (gate < .98) {
+		if (idleFreq.length !== freq.length) {
+			idleFreq = new Uint8Array(freq.length);
+			idleWave = new Uint8Array(wave.length);
+		}
+		writeIdleSignal(idleFreq, idleWave);
+		const idle = (1 - gate) * .6;
+		for (let i = 0; i < freq.length; i++) freq[i] = Math.min(255, freq[i] * gain + idleFreq[i] * idle);
+		for (let i = 0; i < wave.length; i++) wave[i] = clamp(128 + (wave[i] - 128) * waveGain + (idleWave[i] - 128) * idle, 0, 255);
+	} else {
+		for (let i = 0; i < freq.length; i++) freq[i] = Math.min(255, freq[i] * gain);
+		for (let i = 0; i < wave.length; i++) wave[i] = clamp(128 + (wave[i] - 128) * waveGain, 0, 255);
+	}
+}
+function analyze(dt) {
+	const analyser = isListening() ? engine.graph?.analyser : void 0;
+	if (analyser) {
+		analyser.getByteFrequencyData(audio.freq);
+		analyser.getByteTimeDomainData(audio.wave);
+	} else writeIdleSignal(audio.freq, audio.wave);
+	const rawBass = band(BASS);
+	const rawMid = band(MID);
+	const rawHigh = band(HIGH);
+	const rms = waveRms();
+	const centroid = brightness();
+	if (analyser) applyGateAndGain(dt, rawBass, rawMid, rawHigh, rms);
+	const bass = Math.min(1, band(BASS));
+	const mid = Math.min(1, band(MID) * MID_WEIGHT);
+	const high = Math.min(1, band(HIGH) * HIGH_WEIGHT);
+	audio.bass = follow(audio.bass, bass, .6, .15);
+	audio.mid = follow(audio.mid, mid, .5, .12);
+	audio.high = follow(audio.high, high, .5, .15);
+	bassHistory[bassHistoryIndex] = bass;
+	bassHistoryIndex = (bassHistoryIndex + 1) % bassHistory.length;
+	let average = 0;
+	for (let i = 0; i < bassHistory.length; i++) average += bassHistory[i];
+	average /= bassHistory.length;
+	const now = performance.now();
+	const onset = bass - lastBass;
+	lastBass = bass;
+	if (now - lastBeatMs > MIN_BEAT_GAP_MS && bass > .2 && (bass > average * 1.25 || onset > .12)) {
+		lastBeatMs = now;
+		onBeat();
+	}
+	audio.beat = Math.max(0, audio.beat - dt * 3.2);
+	trackSections(dt, rawBass, rawMid, rawHigh, rms, centroid);
+	if (analyser) trackHarmony(dt);
+	updateHarmonyColors(dt);
+}
+//#endregion
+//#region src/render/dream.ts
+/**
+* Dream frames: a heard phrase becomes a picture. The text goes to Pollinations (a free
+* image generator; `private=true` keeps it out of their public feed). The picture fades in over the current mode, holds for a moment, then melts away:
+* bright runs of pixels slide down (pixel sorting) and the columns drip off the bottom
+* of the screen, until only the mode is left.
+*/
+var W = 240;
+var FADE_IN_S = 1;
+var HOLD_S = 3;
+var MELT_S = 7;
+var TOTAL_S = 11;
+var layer = new PixelLayer();
+var fit = document.createElement("canvas");
+var fitCtx = context2d(fit, { willReadFrequently: true });
+var base = null;
+var shownAt = 0;
+var dreams = 0;
+var packed = /* @__PURE__ */ new Uint32Array(1024);
+/** Asks for a picture of `text`; it shows when it arrives (usually 5 to 20 s). */
+function requestDream(text) {
+	text.trim();
+}
+/** Shows the picture at `url` as a dream (for trying the melt from the console). */
+function dreamFromUrl(url) {
+	load(url);
+}
+function load(url) {
+	fetch(url).then((response) => {
+		if (!response.ok) throw new Error(`HTTP ${response.status}`);
+		return response.blob();
+	}).then((blob) => createImageBitmap(blob)).then(show).catch(() => {}).finally(() => {});
+}
+/** Cuts the picture to the screen's shape at a small size and starts the show. */
+function show(picture) {
+	const h = Math.max(80, Math.round(W * view.height / view.width));
+	fit.width = W;
+	fit.height = h;
+	const scale = Math.max(W / picture.width, h / picture.height);
+	const dw = picture.width * scale;
+	const dh = picture.height * scale;
+	fitCtx.drawImage(picture, (W - dw) / 2, (h - dh) / 2, dw, dh);
+	picture.close();
+	base = fitCtx.getImageData(0, 0, W, h).data;
+	layer.setSize(W, h);
+	shownAt = clock.time;
+	dreams++;
+}
+var luma = (data, i) => data[i] * .3 + data[i + 1] * .59 + data[i + 2] * .11;
+/** Sorts the run of rows `from`..`to` in column `x` by brightness, bright ones lowest. */
+function sortRun(source, out, x, from, to) {
+	const n = to - from;
+	for (let k = 0; k < n; k++) {
+		const i = ((from + k) * W + x) * 4;
+		packed[k] = (luma(source, i) | 0) * 16777216 + (source[i] << 16) + (source[i + 1] << 8) + source[i + 2];
+	}
+	const run = packed.subarray(0, n);
+	run.sort();
+	for (let k = 0; k < n; k++) {
+		const v = run[k];
+		const i = ((from + k) * W + x) * 4;
+		out[i] = v >>> 16 & 255;
+		out[i + 1] = v >>> 8 & 255;
+		out[i + 2] = v & 255;
+	}
+}
+/** Draws the dream picture, if one is showing. */
+function drawDream() {
+	if (!base) return;
+	const age = clock.time - shownAt;
+	if (age > TOTAL_S) {
+		base = null;
+		return;
+	}
+	const h = layer.height;
+	const out = layer.pixels;
+	out.set(base);
+	const melt = clamp((age - FADE_IN_S - HOLD_S) / MELT_S, 0, 1);
+	if (melt > 0) {
+		const threshold = 255 * (1 - melt * .95);
+		for (let x = 0; x < W; x++) {
+			let y = 0;
+			while (y < h) {
+				while (y < h && luma(base, (y * W + x) * 4) < threshold) y++;
+				const start = y;
+				while (y < h && luma(base, (y * W + x) * 4) >= threshold * .55) y++;
+				if (y - start > 1) sortRun(base, out, x, start, Math.min(y, start + packed.length));
+				if (y === start) y++;
+			}
+			const shape = Math.pow(.5 + .5 * Math.sin(x * .11 + dreams * 2.1), 3) * .7 + hash01(x * .37 + dreams) * .3;
+			const drip = Math.floor(melt * melt * (.25 + shape) * h * 1.2);
+			for (let row = h - 1; row >= 0; row--) {
+				const i = (row * W + x) * 4;
+				if (row < drip) {
+					out[i + 3] = 0;
+					continue;
+				}
+				const j = ((row - drip) * W + x) * 4;
+				out[i] = out[j];
+				out[i + 1] = out[j + 1];
+				out[i + 2] = out[j + 2];
+			}
+		}
+	}
+	layer.flush();
+	ctx.save();
+	ctx.globalCompositeOperation = "source-over";
+	ctx.globalAlpha = .92 * Math.min(1, age / FADE_IN_S, (TOTAL_S - age) / .8);
+	ctx.imageSmoothingEnabled = true;
+	ctx.drawImage(layer.canvas, 0, 0, view.width, view.height);
+	ctx.restore();
 }
 //#endregion
 //#region src/render/lookEffects.ts
@@ -9211,7 +10440,7 @@ function renderFrame(mode, dt) {
 		shakeX += (Math.random() - .5) * k;
 		shakeY += (Math.random() - .5) * k;
 	}
-	const jitter = scene.look.jitter;
+	const jitter = mode.plain ? 0 : scene.look.jitter;
 	if (jitter) {
 		ctx.translate(cx, cy);
 		ctx.rotate((Math.random() - .5) * .02 * jitter);
@@ -9220,7 +10449,7 @@ function renderFrame(mode, dt) {
 		shakeY += (Math.random() - .5) * 5 * jitter;
 	}
 	ctx.translate(shakeX, shakeY);
-	if (moving) {
+	if (moving && !mode.plain) {
 		ctx.translate(cx, cy);
 		ctx.rotate(motion.tiltX * .12 + motion.spin * .3);
 		const z = 1 + motion.shake * .2;
@@ -9230,9 +10459,10 @@ function renderFrame(mode, dt) {
 	ctx.globalCompositeOperation = mode.blend || scene.palette.blend;
 	mode.draw(dt);
 	if (mode.beatRings !== false) drawBeatRings(dt);
+	drawDream();
 	drawHeardWords(dt);
 	ctx.restore();
-	applyLookEffects();
+	if (!mode.plain) applyLookEffects();
 	composite(mode, dt);
 }
 //#endregion
@@ -9273,7 +10503,7 @@ function showControls() {
 	clearTimeout(hideTimer);
 	if (isListening()) hideTimer = setTimeout(() => ui.classList.add("hide"), HIDE_AFTER_MS);
 }
-/** Moves the red sound-level mark on the gate slider. Call once per frame. */
+/** Moves the red sound-level mark on the cutoff slider. Call once per frame. */
 function updateMeter() {
 	if (controlsHidden() || !isListening()) return;
 	const level = clamp((levels.inputDb + 80) / 60, 0, 1);
@@ -9531,6 +10761,169 @@ function startLoop() {
 	requestAnimationFrame(frame);
 }
 //#endregion
+//#region src/keywords.ts
+/**
+* Say it, see it: words that the mic hears steer the show. Someone shouts "fire" and
+* the screen bursts into flames; "ocean", "космос" or "龙" each have their scene and
+* palette. Works for English, Russian and Chinese.
+*/
+var TOPICS = [
+	{
+		mode: "zeds-embers",
+		palette: "lava",
+		words: "fire flame burn burning hot огон* огн* плам* жар* горит гори 火 焰 燃烧"
+	},
+	{
+		mode: "zeds-embers",
+		palette: "ice",
+		words: "snow ice cold winter frozen снег* лёд льд* лед холод* зим* мороз* 雪 冰 冷 冬天"
+	},
+	{
+		mode: "ripples",
+		palette: "deep sea",
+		words: "ocean sea water wave swim beach море моря морю морем морск* океан* вода воды воду водой волн* пляж* 海 水 浪 游泳"
+	},
+	{
+		mode: "nebula",
+		palette: "void",
+		words: "space cosmos galaxy star universe planet moon космос* звезд* звёзд* галакт* вселенн* планет* лун* 星 宇宙 银河 月亮"
+	},
+	{
+		mode: "tree",
+		palette: "forest",
+		words: "tree forest jungle nature leaf лес* дерев* природ* джунгл* 树 森林 自然"
+	},
+	{
+		mode: "shroom",
+		palette: "mushroom",
+		words: "mushroom shroom trip psychedelic гриб* трип* психодел* 蘑菇 迷幻"
+	},
+	{
+		mode: "zeds-lasers",
+		palette: "neon",
+		words: "laser lasers лазер* 激光"
+	},
+	{
+		mode: "bounce",
+		palette: "technicolor",
+		words: "dance dancing jump bounce ball танц* прыга* пляш* мяч* 跳舞 跳 球"
+	},
+	{
+		mode: "8bit",
+		words: "mario game gaming pixel nintendo марио игр* пиксел* 游戏 马里奥 像素"
+	},
+	{
+		mode: "zeds-neon",
+		palette: "neon",
+		words: "neon неон* 霓虹"
+	},
+	{
+		mode: "matrix",
+		palette: "phosphor",
+		words: "matrix hacker hack code computer матриц* хакер* код* компьют* 黑客 代码 电脑 矩阵"
+	},
+	{
+		mode: "solids",
+		palette: "ultraviolet",
+		words: "crystal diamond geometry cube кристал* алмаз* бриллиант* геометр* куб* 水晶 钻石 几何"
+	},
+	{
+		mode: "plasma",
+		palette: "vapor",
+		words: "dream dreams sleep сон снится мечт* сны 梦 做梦"
+	},
+	{
+		mode: "halo",
+		palette: "candy",
+		words: "love heart kiss любов* любл* сердц* поцел* 爱 心 亲吻"
+	},
+	{
+		mode: "fireworks",
+		palette: "technicolor",
+		words: "firework fireworks party celebrate birthday салют* фейерверк* праздн* вечеринк* 烟花 派对 生日"
+	},
+	{
+		mode: "murmur",
+		palette: "sunset",
+		words: "bird birds flock fly flying птиц* стая* лета* 鸟 飞"
+	},
+	{
+		mode: "datamatics",
+		palette: "mono",
+		words: "data digital numbers данн* цифр* 数据 数字"
+	},
+	{
+		mode: "tunnel",
+		palette: "ultraviolet",
+		words: "tunnel deeper faster speed туннел* тоннел* быстр* глубж* 隧道 更快"
+	},
+	{
+		mode: "slime",
+		palette: "toxic",
+		words: "slime toxic acid poison слиз* токсич* кислот* яд* 毒 酸"
+	},
+	{
+		mode: "coral",
+		palette: "deep sea",
+		words: "coral reef корал* риф* 珊瑚"
+	},
+	{
+		mode: "attractor",
+		palette: "ultraviolet",
+		words: "chaos smoke ghost хаос* дым* призрак* 混沌 烟"
+	},
+	{
+		mode: "neon-tesla",
+		palette: "ultraviolet",
+		words: "electric lightning thunder storm tesla молни* гроз* электр* тесл* 闪电 雷 电"
+	},
+	{
+		mode: "fireworks",
+		palette: "lava",
+		words: "dragon дракон* 龙"
+	}
+];
+/** Chinese, Japanese and Korean characters. */
+var CJK = /[぀-ヿ㐀-鿿가-힯]/;
+/** How many words of `topic` are in the text. */
+function score(topic, text, tokens) {
+	let hits = 0;
+	for (const word of topic.words.split(" ")) if (CJK.test(word)) {
+		if (text.includes(word)) hits++;
+	} else if (word.endsWith("*")) {
+		const stem = word.slice(0, -1);
+		hits += tokens.filter((t) => t.startsWith(stem)).length;
+	} else hits += tokens.filter((t) => t === word || t === `${word}s` || t === `${word}es`).length;
+	return hits;
+}
+/** The topic that the text talks about most, if any. */
+function topicOf(text) {
+	const lower = text.toLowerCase();
+	const tokens = lower.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+	let best = null;
+	let bestScore = 0;
+	for (const topic of TOPICS) {
+		const s = score(topic, lower, tokens);
+		if (s > bestScore) {
+			best = topic;
+			bestScore = s;
+		}
+	}
+	return best;
+}
+/** Switches to the scene of what was heard, if it names one. */
+function steerByWords(text) {
+	const topic = topicOf(text);
+	if (!topic) return;
+	const modeIndex = MODES.findIndex((m) => m.name === topic.mode);
+	if (modeIndex < 0) return;
+	if (modeIndex !== scene.modeIndex) setMode(modeIndex);
+	else scene.lastSwitch = clock.time;
+	const paletteIndex = topic.palette ? PALETTES.findIndex((p) => p.name === topic.palette) : -1;
+	if (paletteIndex >= 0 && paletteIndex !== scene.paletteIndex) setPalette(paletteIndex);
+	setStatus(`Heard it: ${topic.mode}`);
+}
+//#endregion
 //#region src/main.ts
 onResize(() => {
 	for (const mode of MODES) mode.resize?.();
@@ -9544,7 +10937,15 @@ document.addEventListener("visibilitychange", () => {
 });
 addEventListener("pagehide", releaseMic);
 onHeard(showHeardWords);
-window.loudSay = showHeardWords;
+onHeard(steerByWords);
+onHeard(requestDream);
+window.loudSay = (text, hero, ...ambient) => {
+	showHeardWords(text, hero, ...ambient);
+	steerByWords(text);
+	requestDream(text);
+};
+window.loudDrop = simulateDrop;
+window.loudDream = dreamFromUrl;
 initControls();
 initMotion();
 resize();
@@ -9829,6 +11230,12 @@ svg {
   padding: 0;
   display: grid;
   place-items: center;
+}
+
+.chip.icon.text {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.02em;
 }
 
 /* ‹ mode › as one segmented pill */
@@ -10142,19 +11549,11 @@ svg {
 
         <!-- Shown while the mic is on. The red mark is the live sound level. -->
         <div class="row gate" id="gateRow" hidden>
-          <label for="gate" title="Sounds below the gate are ignored">Gate</label>
+          <label for="gate" title="Sounds below the cutoff are ignored">Cutoff</label>
           <div class="gate-slider" id="gateSlider">
             <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" />
             <div class="noise-mark" aria-hidden="true"></div>
           </div>
-          <button
-            class="chip"
-            id="wordsBtn"
-            aria-pressed="false"
-            title="Words: every 45 s, send 8 s of sound to ElevenLabs and show the words it hears"
-          >
-            Words
-          </button>
         </div>
 
         <!-- Tap a name chip for the next one; hold it for the full list. -->
@@ -10215,6 +11614,15 @@ svg {
               <rect x="8" y="3" width="8" height="18" rx="2" transform="rotate(-15 12 12)" />
               <path d="M4 9a6 6 0 0 0 0 6M20 9a6 6 0 0 1 0 6" />
             </svg>
+          </button>
+          <button
+            class="chip icon text"
+            id="wordsBtn"
+            aria-pressed="false"
+            title="Words: every 45 s, send 8 s of sound to ElevenLabs and show the words it hears"
+            aria-label="Words"
+          >
+            Aa
           </button>
         </div>
 

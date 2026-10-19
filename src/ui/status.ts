@@ -14,7 +14,7 @@ export function setRecordingLight(on: boolean): void {
   micButton.classList.toggle('rec', on);
 }
 
-/** Lights the Mic button and shows the noise gate while the mic is on. */
+/** Lights the Mic button and shows the cutoff slider while the mic is on. */
 export function showMicState(on: boolean): void {
   micButton.classList.toggle('on', on);
   micButton.setAttribute('aria-pressed', String(on));

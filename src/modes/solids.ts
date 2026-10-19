@@ -289,7 +289,7 @@ export const solids: Mode = {
   zoom: 1.01,
   rotate: 0.003,
   beatRings: false,
-  palettes: ['neon', 'ultraviolet', 'vapor', 'acid', 'void', 'technicolor', 'deep sea'],
+  palettes: ['scriabin', 'neon', 'ultraviolet', 'vapor', 'acid', 'void', 'technicolor', 'deep sea'],
 
   beat() {
     explode = Math.max(explode, 0.35 + audio.bass * 0.5);
