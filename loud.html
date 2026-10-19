@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#000000" />
     <title>loud — music visualizer</title>
+    <script>
+      // The old github.io address forwards here over plain http, where the mic cannot work.
+      if (location.protocol === 'http:' && location.hostname === 'loud.ivanov.hk') {
+        location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

@@ -4,7 +4,7 @@ A music visualizer that runs in the browser. 54 visual modes react to the bass, 
 treble and the beats of the music. There are 29 palettes and 14 looks (film, CRT, stop-motion,
 mirror, glitch, LED wall and others).
 
-**Open <https://anton-bot.github.io/loud/loud.html>, tap Mic and play some music.**
+**Open <https://loud.ivanov.hk>, tap Mic and play some music.**
 
 `loud.html` is one self-contained file. The mic needs an http or https address, so serve the file
 (for example `python -m http.server 8000`) when you use a local copy.
