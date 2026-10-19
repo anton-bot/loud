@@ -1,19 +1,15 @@
 /**
- * The Web Audio graph: source → analyser → monitor gain → output.
+ * The Web Audio graph for the mic: mic → analyser → silent gain → output.
  *
- * There are two kinds of AudioContext. For the demo beat and files, a normal one that
- * plays to the speakers. For the mic, one for analysis only: it renders to no output
- * device where the browser can do that (`sinkId: { type: 'none' }`, Chrome 110+), or
- * else to a muted output. The mic context is closed as soon as the mic is released.
+ * The context is for analysis only. It renders to no output device where the browser
+ * can do that (`sinkId: { type: 'none' }`, Chrome 110+), or else to a muted output.
+ * It is closed as soon as the mic is released.
  */
 import { audio } from '../core/state';
 
 export interface AudioGraph {
   readonly context: AudioContext;
   readonly analyser: AnalyserNode;
-  /** Gain between the analyser and the output: 1 to hear the source, 0 for the mic. */
-  readonly monitor: GainNode;
-  readonly withOutput: boolean;
 }
 
 export const engine = {
@@ -29,10 +25,9 @@ export function closeAudio(): void {
   graph.context.close().catch(() => {});
 }
 
-function createContext(withOutput: boolean): AudioContext {
+function createContext(): AudioContext {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) throw new Error('This browser has no Web Audio');
-  if (withOutput) return new AudioContextClass();
   try {
     return new AudioContextClass({
       sinkId: { type: 'none' },
@@ -43,26 +38,25 @@ function createContext(withOutput: boolean): AudioContext {
   }
 }
 
-/** The audio graph, created (or re-created with the other kind of output) when needed. */
-export function ensureAudio(withOutput = true): AudioGraph {
+/** The audio graph, created when needed. */
+export function ensureAudio(): AudioGraph {
   let graph = engine.graph;
-  if (!graph || graph.withOutput !== withOutput || graph.context.state === 'closed') {
-    closeAudio();
-    const context = createContext(withOutput);
+  if (!graph || graph.context.state === 'closed') {
+    const context = createContext();
     const analyser = context.createAnalyser();
     analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0.6;
     analyser.minDecibels = -90;
     analyser.maxDecibels = -5;
-    const monitor = context.createGain();
-    analyser.connect(monitor);
-    monitor.gain.value = withOutput ? 1 : 0;
     // The graph must reach the destination, or the browser does not process it.
-    monitor.connect(context.destination);
+    const silent = context.createGain();
+    silent.gain.value = 0;
+    analyser.connect(silent);
+    silent.connect(context.destination);
     audio.freq = new Uint8Array(analyser.frequencyBinCount);
     audio.wave = new Uint8Array(analyser.fftSize);
     engine.binHz = context.sampleRate / analyser.fftSize;
-    graph = { context, analyser, monitor, withOutput };
+    graph = { context, analyser };
     engine.graph = graph;
   }
   if (graph.context.state === 'suspended') graph.context.resume().catch(() => {});

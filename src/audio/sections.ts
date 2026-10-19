@@ -7,7 +7,7 @@
 import { audio, clock, scene } from '../core/state';
 import { shuffle } from '../scene';
 import { setStatus } from '../ui/status';
-import { currentSource } from './sources';
+import { isListening } from './mic';
 
 /** Feature frames: [loudness, bass, mid, high, brightness], one per 0.1 s. */
 type Frame = number[];
@@ -122,7 +122,7 @@ export function trackSections(
   rms: number,
   brightness: number,
 ): void {
-  if (!sections.enabled || currentSource() === 'none') return;
+  if (!sections.enabled || !isListening()) return;
   const features = [Math.min(1, rms * 3), bass, mid, high, brightness];
   for (let i = 0; i < FEATURES; i++) sum[i] += features[i];
   samples++;

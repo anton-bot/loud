@@ -58,7 +58,8 @@
 
   /** Mode, palette and look, as the controls show them. */
   function scene() {
-    const text = (id) => document.getElementById(id)?.textContent ?? '?';
+    const text = (id) =>
+      document.getElementById(id)?.textContent?.replace(/\s+/g, ' ').trim() ?? '?';
     return `${text('modeName')} | ${text('palBtn')} | ${text('lookBtn')}`;
   }
 

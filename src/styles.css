@@ -115,30 +115,27 @@ body {
 }
 
 .chip,
-.ic {
+.ic,
+.mic {
   appearance: none;
   border: 1px solid var(--line);
   background: var(--chip);
   color: var(--fg);
   font: inherit;
-  font-size: 15px;
-  padding: 10px 15px;
-  border-radius: 999px;
   cursor: pointer;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   transition:
     background 0.15s,
+    color 0.15s,
     transform 0.1s;
   text-shadow: var(--text-shadow);
-}
-
-.chip {
   -webkit-touch-callout: none;
 }
 
 .chip:active,
-.ic:active {
+.ic:active,
+.mic:active {
   transform: scale(0.96);
 }
 
@@ -149,9 +146,20 @@ body {
 
 .chip:focus-visible,
 .ic:focus-visible,
+.mic:focus-visible,
 input:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 2px;
+}
+
+svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .ic {
@@ -161,46 +169,124 @@ input:focus-visible {
   display: grid;
   place-items: center;
   font-size: 18px;
+  border-radius: 999px;
 }
 
-.slider {
+/* The big Mic button */
+
+.mic {
+  align-self: center;
+  display: flex;
   align-items: center;
-  gap: 12px;
-  color: var(--muted);
+  gap: 10px;
+  min-height: 60px;
+  padding: 0 32px 0 26px;
+  border-radius: 999px;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.mic svg {
+  width: 26px;
+  height: 26px;
+}
+
+.mic.on {
+  background: #fff;
+  border-color: #fff;
+  color: #000;
+  text-shadow: none;
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.45);
+}
+
+/* One row of small chips. On a very narrow screen it scrolls sideways. */
+
+.chips {
+  flex-wrap: nowrap;
+  justify-content: safe center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex: none;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 999px;
   font-size: 13px;
+  white-space: nowrap;
+}
+
+.chip.name {
+  max-width: 8.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip.icon {
+  width: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+/* ‹ mode › as one segmented pill */
+.group {
+  display: flex;
+  flex: none;
+}
+
+.group .chip {
+  border-radius: 0;
+  padding: 0 8px;
+}
+
+.group .chip.name {
+  padding: 0 4px;
+}
+
+.group .chip + .chip {
+  border-left: 0;
+}
+
+.group .chip:first-child {
+  border-radius: 999px 0 0 999px;
+  padding-left: 10px;
+}
+
+.group .chip:last-child {
+  border-radius: 0 999px 999px 0;
+  padding-right: 10px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: -1px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+/* Noise gate: shown while the mic is on */
+.gate {
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
   text-shadow: var(--text-shadow);
 }
 
-.slider input {
-  flex: 0 1 150px;
+.gate input {
+  flex: 0 1 130px;
   accent-color: #fff;
-}
-
-/* Input level meter; the red mark is the noise gate. */
-.meter {
-  position: relative;
-  width: 84px;
-  height: 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.18);
-  overflow: hidden;
-}
-
-#meterFill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  background: #fff;
-}
-
-#meterGate {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: #ff3d6e;
 }
 
 .link {
@@ -215,7 +301,7 @@ input:focus-visible {
 
 .status {
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
   min-height: 1.3em;
   text-shadow: var(--text-shadow);
@@ -286,6 +372,61 @@ input:focus-visible {
 
 .mi:active {
   background: var(--chip);
+}
+
+/* Phones in portrait: smaller chips, and the palette as a colour dot only, so that the row fits. */
+@media (max-width: 440px) {
+  .bar {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .chips {
+    gap: 4px;
+  }
+
+  .chip {
+    height: 30px;
+    padding: 0 9px;
+    font-size: 12px;
+  }
+
+  .chip.name {
+    max-width: 5em;
+  }
+
+  .chip.icon {
+    width: 29px;
+  }
+
+  #palBtn {
+    width: 30px;
+    padding: 0;
+  }
+
+  #palName {
+    display: none;
+  }
+
+  #palBtn .swatch {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    vertical-align: -3px;
+  }
+
+  .group .chip {
+    padding: 0 5px;
+  }
+
+  .group .chip.name {
+    padding: 0 2px;
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

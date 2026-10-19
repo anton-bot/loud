@@ -180,14 +180,13 @@ for (const [i, testCase] of cases.entries()) {
   const head = await render('head', testCase);
   const frame = base.hashes.findIndex((hash, n) => hash !== head.hashes[n]);
   const label = `case ${String(i + 1).padStart(2)}  seed ${String(testCase.seed).padEnd(3)}  ${head.scene}`;
-  if (frame === -1 && base.scene === head.scene) {
+  // Only the pictures count; the scene names are for the log (control labels can change).
+  if (frame === -1) {
     console.log(`  ok    ${label}`);
   } else {
-    const at =
-      frame === -1
-        ? 'same pictures, different scene'
-        : `from frame ${(frame + 1) * testCase.every}`;
-    console.log(`  DIFF  ${label}  (${at}; base: ${base.scene})`);
+    console.log(
+      `  DIFF  ${label}  (from frame ${(frame + 1) * testCase.every}; base: ${base.scene})`,
+    );
     failures.push(i + 1);
   }
 }

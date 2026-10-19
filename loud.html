@@ -11,250 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700&display=swap"
       rel="stylesheet"
     />
-    <script type="module" crossorigin>//#region src/audio/demoBeat.ts
-var BPM = 128;
-/** Bass roots of the four-bar loop, Hz. */
-var ROOTS = [
-	55,
-	43.65,
-	65.41,
-	49
-];
-/** Minor pentatonic scale over two octaves, in semitones. */
-var PENTATONIC = [
-	0,
-	3,
-	5,
-	7,
-	10,
-	12,
-	15,
-	17,
-	19,
-	22,
-	24
-];
-/** Lead rhythms, one 16-step bar each. */
-var LEAD_PATTERNS = [
-	[
-		1,
-		0,
-		0,
-		1,
-		0,
-		0,
-		1,
-		0,
-		1,
-		0,
-		0,
-		1,
-		0,
-		1,
-		0,
-		0
-	],
-	[
-		1,
-		0,
-		1,
-		0,
-		0,
-		1,
-		0,
-		1,
-		0,
-		0,
-		1,
-		0,
-		1,
-		0,
-		0,
-		1
-	],
-	[
-		0,
-		1,
-		0,
-		1,
-		1,
-		0,
-		1,
-		0,
-		0,
-		1,
-		0,
-		1,
-		1,
-		0,
-		0,
-		1
-	],
-	[
-		1,
-		0,
-		0,
-		1,
-		0,
-		1,
-		0,
-		0,
-		1,
-		0,
-		0,
-		1,
-		0,
-		1,
-		1,
-		0
-	]
-];
-/** How far ahead notes are scheduled, and how often the scheduler runs. */
-var LOOKAHEAD_S = .15;
-var SCHEDULER_MS = 25;
-var semitones = (n) => Math.pow(2, n / 12);
-function createDemoBeat(ac, out) {
-	/** Length of one 16th note in seconds. */
-	const step = 60 / BPM / 4;
-	const noise = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
-	const samples = noise.getChannelData(0);
-	for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
-	const bus = ac.createGain();
-	bus.gain.value = .9;
-	const compressor = ac.createDynamicsCompressor();
-	compressor.threshold.value = -14;
-	compressor.ratio.value = 5;
-	bus.connect(compressor);
-	compressor.connect(out);
-	const delay = ac.createDelay(1);
-	delay.delayTime.value = step * 3;
-	const feedback = ac.createGain();
-	feedback.gain.value = .38;
-	const wet = ac.createGain();
-	wet.gain.value = .28;
-	delay.connect(feedback);
-	feedback.connect(delay);
-	delay.connect(wet);
-	wet.connect(bus);
-	function kick(t) {
-		const osc = ac.createOscillator();
-		const gain = ac.createGain();
-		osc.frequency.setValueAtTime(170, t);
-		osc.frequency.exponentialRampToValueAtTime(42, t + .12);
-		gain.gain.setValueAtTime(1.1, t);
-		gain.gain.exponentialRampToValueAtTime(.001, t + .4);
-		osc.connect(gain);
-		gain.connect(bus);
-		osc.start(t);
-		osc.stop(t + .42);
-	}
-	/** Filtered noise burst: hi-hats and claps. */
-	function noiseHit(t, type, frequency, q, level, decay) {
-		const source = ac.createBufferSource();
-		source.buffer = noise;
-		const filter = ac.createBiquadFilter();
-		filter.type = type;
-		filter.frequency.value = frequency;
-		if (q != null) filter.Q.value = q;
-		const gain = ac.createGain();
-		gain.gain.setValueAtTime(level, t);
-		gain.gain.exponentialRampToValueAtTime(.001, t + decay);
-		source.connect(filter);
-		filter.connect(gain);
-		gain.connect(bus);
-		source.start(t);
-		source.stop(t + decay + .02);
-	}
-	function hat(t, open) {
-		noiseHit(t, "highpass", 7500, null, open ? .3 : .22, open ? .22 : .05);
-	}
-	function clap(t) {
-		noiseHit(t, "bandpass", 1800, .8, .7, .18);
-	}
-	function bass(t, frequency) {
-		const saw = ac.createOscillator();
-		const sub = ac.createOscillator();
-		const filter = ac.createBiquadFilter();
-		const gain = ac.createGain();
-		saw.type = "sawtooth";
-		sub.type = "square";
-		saw.frequency.value = frequency;
-		sub.frequency.value = frequency * .5;
-		filter.type = "lowpass";
-		filter.frequency.setValueAtTime(900, t);
-		filter.frequency.exponentialRampToValueAtTime(180, t + step * .9);
-		filter.Q.value = 6;
-		gain.gain.setValueAtTime(.45, t);
-		gain.gain.setTargetAtTime(1e-4, t + step * .6, .03);
-		saw.connect(filter);
-		sub.connect(filter);
-		filter.connect(gain);
-		gain.connect(bus);
-		for (const osc of [saw, sub]) {
-			osc.start(t);
-			osc.stop(t + step);
-		}
-	}
-	function lead(t, frequency) {
-		const osc = ac.createOscillator();
-		const filter = ac.createBiquadFilter();
-		const gain = ac.createGain();
-		osc.type = "square";
-		osc.frequency.value = frequency;
-		filter.type = "lowpass";
-		filter.frequency.value = 2200;
-		gain.gain.setValueAtTime(.14, t);
-		gain.gain.exponentialRampToValueAtTime(.001, t + step * .8);
-		osc.connect(filter);
-		filter.connect(gain);
-		gain.connect(bus);
-		gain.connect(delay);
-		osc.start(t);
-		osc.stop(t + step);
-	}
-	/** Plays step `s` (0..15) of bar `bar`. The song is 16 bars: 14 of groove, then a 2-bar riser. */
-	function playStep(t, s, bar) {
-		const phrase = bar % 16;
-		const root = ROOTS[bar % 4];
-		if (phrase < 14) {
-			if (s % 4 === 0) kick(t);
-			if (s === 4 || s === 12) clap(t);
-			if (s % 2 === 0) hat(t, s % 4 === 2);
-			if (phrase >= 4 && s === 15 && bar % 2) kick(t);
-			if (s % 4 === 2 || s === 7) bass(t, s === 7 ? root : root * 2);
-			if (phrase >= 2 && LEAD_PATTERNS[phrase % LEAD_PATTERNS.length][s]) lead(t, 220 * semitones(PENTATONIC[(s * 3 + bar * 2) % PENTATONIC.length]));
-		} else {
-			hat(t, false);
-			if (phrase === 14 ? s % 4 === 0 : s % 2 === 0) clap(t);
-			lead(t, 220 * semitones(PENTATONIC[((phrase - 14) * 16 + s) % PENTATONIC.length]) * (phrase === 15 ? 2 : 1));
-			if (phrase === 15 && s === 15) kick(t);
-		}
-	}
-	let stepIndex = 0;
-	let nextTime = ac.currentTime + .05;
-	let timer;
-	function schedule() {
-		const horizon = ac.currentTime + LOOKAHEAD_S;
-		while (nextTime < horizon) {
-			playStep(nextTime, stepIndex % 16, Math.floor(stepIndex / 16));
-			nextTime += step;
-			stepIndex++;
-		}
-	}
-	return {
-		start() {
-			schedule();
-			timer = setInterval(schedule, SCHEDULER_MS);
-		},
-		stop() {
-			clearInterval(timer);
-			bus.gain.setTargetAtTime(0, ac.currentTime, .04);
-			setTimeout(() => compressor.disconnect(), 400);
-		}
-	};
-}
-//#endregion
-//#region src/look/looks.ts
+    <script type="module" crossorigin>//#region src/look/looks.ts
 var LOOKS = [
 	{ name: "clean" },
 	{
@@ -754,12 +511,11 @@ var motion = {
 //#endregion
 //#region src/audio/engine.ts
 /**
-* The Web Audio graph: source → analyser → monitor gain → output.
+* The Web Audio graph for the mic: mic → analyser → silent gain → output.
 *
-* There are two kinds of AudioContext. For the demo beat and files, a normal one that
-* plays to the speakers. For the mic, one for analysis only: it renders to no output
-* device where the browser can do that (`sinkId: { type: 'none' }`, Chrome 110+), or
-* else to a muted output. The mic context is closed as soon as the mic is released.
+* The context is for analysis only. It renders to no output device where the browser
+* can do that (`sinkId: { type: 'none' }`, Chrome 110+), or else to a muted output.
+* It is closed as soon as the mic is released.
 */
 var engine = {
 	graph: null,
@@ -772,10 +528,9 @@ function closeAudio() {
 	engine.graph = null;
 	graph.context.close().catch(() => {});
 }
-function createContext(withOutput) {
+function createContext() {
 	const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 	if (!AudioContextClass) throw new Error("This browser has no Web Audio");
-	if (withOutput) return new AudioContextClass();
 	try {
 		return new AudioContextClass({
 			sinkId: { type: "none" },
@@ -785,29 +540,26 @@ function createContext(withOutput) {
 		return new AudioContextClass();
 	}
 }
-/** The audio graph, created (or re-created with the other kind of output) when needed. */
-function ensureAudio(withOutput = true) {
+/** The audio graph, created when needed. */
+function ensureAudio() {
 	let graph = engine.graph;
-	if (!graph || graph.withOutput !== withOutput || graph.context.state === "closed") {
-		closeAudio();
-		const context = createContext(withOutput);
+	if (!graph || graph.context.state === "closed") {
+		const context = createContext();
 		const analyser = context.createAnalyser();
 		analyser.fftSize = 2048;
 		analyser.smoothingTimeConstant = .6;
 		analyser.minDecibels = -90;
 		analyser.maxDecibels = -5;
-		const monitor = context.createGain();
-		analyser.connect(monitor);
-		monitor.gain.value = withOutput ? 1 : 0;
-		monitor.connect(context.destination);
+		const silent = context.createGain();
+		silent.gain.value = 0;
+		analyser.connect(silent);
+		silent.connect(context.destination);
 		audio.freq = new Uint8Array(analyser.frequencyBinCount);
 		audio.wave = new Uint8Array(analyser.fftSize);
 		engine.binHz = context.sampleRate / analyser.fftSize;
 		graph = {
 			context,
-			analyser,
-			monitor,
-			withOutput
+			analyser
 		};
 		engine.graph = graph;
 	}
@@ -849,18 +601,18 @@ function setCanvasSize(canvas, width, height) {
 }
 //#endregion
 //#region src/ui/status.ts
-/** The status line under the controls, and the highlight of the active sound source. */
+/** The status line, and the parts of the controls that follow the mic state. */
 var statusLine = byId("status");
+var micButton = byId("micBtn");
+var gateRow = byId("gateRow");
 function setStatus(text) {
 	statusLine.textContent = text;
 }
-/** Highlights the button of the active source ('demo', 'mic', 'file'), or none. */
-function markSource(source) {
-	for (const button of document.querySelectorAll(".src")) {
-		const on = button.dataset.src === source;
-		button.classList.toggle("on", on);
-		button.setAttribute("aria-pressed", String(on));
-	}
+/** Lights the Mic button and shows the noise gate while the mic is on. */
+function showMicState(on) {
+	micButton.classList.toggle("on", on);
+	micButton.setAttribute("aria-pressed", String(on));
+	gateRow.hidden = !on;
 }
 //#endregion
 //#region src/ui/directLink.ts
@@ -913,87 +665,29 @@ function initDirectLink() {
 	});
 }
 //#endregion
-//#region src/audio/sources.ts
-/** The sound sources: the built-in demo beat, the microphone, or an audio file. */
-var kind = "none";
+//#region src/audio/mic.ts
+/** The microphone: the only sound source. */
 var micStream = null;
 var input = null;
-var demo = null;
 /**
-* Each choice of source gets a new number. An async step (mic prompt, file decoding)
-* that ends after a newer choice sees a different number and gives up.
+* Each mic request gets a new number. A request that ends after a newer one (or
+* after the mic was turned off) sees a different number and gives up.
 */
 var request = 0;
 /** The mic was on when the page was hidden: turn it on again when the page is visible. */
 var micWanted = false;
-function currentSource() {
-	return kind;
+function isListening() {
+	return micStream !== null;
 }
-function stopSource() {
-	const wasMic = kind === "mic" || !!micStream;
-	if (demo) {
-		demo.stop();
-		demo = null;
-	}
+function stopMic() {
 	if (micStream) {
 		for (const track of micStream.getTracks()) track.stop();
 		micStream = null;
 	}
-	if (input) {
-		if (input instanceof AudioBufferSourceNode) try {
-			input.stop();
-		} catch {}
-		input.disconnect();
-		input = null;
-	}
-	if (wasMic) closeAudio();
-	kind = "none";
-	markSource(null);
-}
-function playDemo() {
-	request++;
-	micWanted = false;
-	stopSource();
-	const graph = ensureAudio(true);
-	demo = createDemoBeat(graph.context, graph.analyser);
-	demo.start();
-	kind = "demo";
-	markSource("demo");
-	setStatus("Built-in beat. Shuffle for a new mode, palette and look.");
-}
-async function playFile(file) {
-	const myRequest = ++request;
-	micWanted = false;
-	stopSource();
-	const { context } = ensureAudio(true);
-	setStatus(`Decoding ${file.name}…`);
-	let buffer;
-	try {
-		buffer = await context.decodeAudioData(await file.arrayBuffer());
-	} catch (error) {
-		if (myRequest === request) setStatus(`Could not decode ${file.name} (${errorName(error)}).`);
-		return;
-	}
-	if (myRequest !== request) return;
-	stopSource();
-	const graph = ensureAudio(true);
-	const source = graph.context.createBufferSource();
-	source.buffer = buffer;
-	source.loop = true;
-	source.connect(graph.analyser);
-	graph.monitor.gain.value = 1;
-	source.start();
-	input = source;
-	kind = "file";
-	markSource("file");
-	setStatus(`Playing ${file.name}`);
-	if (graph.context.state !== "running") {
-		setStatus(`Tap the screen to start ${file.name}`);
-		addEventListener("pointerdown", () => {
-			graph.context.resume().catch(() => {});
-			setStatus(`Playing ${file.name}`);
-		}, { once: true });
-	}
+	input?.disconnect();
+	input = null;
+	closeAudio();
+	showMicState(false);
 }
 /** The error's name (DOMException names like 'NotAllowedError'), or the error as text. */
 function errorName(error) {
@@ -1003,11 +697,11 @@ function errorName(error) {
 /** The mic can only work here when this is true. Otherwise it sets a status that says why. */
 function micCanWork() {
 	if (!/^https?:$/.test(location.protocol)) {
-		setStatus(`Chrome never grants the mic to a local file (${location.protocol}//). The page needs an http(s) address: serve loud.html with a local web server (Termux: python -m http.server 8000) and open http://localhost:8000/loud.html.`);
+		setStatus(`The mic needs an http(s) address, not ${location.protocol}//. Serve loud.html, for example with: python -m http.server 8000`);
 		return false;
 	}
 	if (!window.isSecureContext) {
-		setStatus(`The mic needs https or localhost. This page is on plain http://${location.host}.`);
+		setStatus(`The mic needs https or localhost, not plain http://${location.host}.`);
 		return false;
 	}
 	if (!navigator.mediaDevices?.getUserMedia) {
@@ -1016,7 +710,7 @@ function micCanWork() {
 		return false;
 	}
 	if (micBlockedByFrame()) {
-		setStatus("The frame around this page blocks the mic, so the browser never shows a prompt.");
+		setStatus("The frame around this page blocks the mic.");
 		offerDirectLink();
 		return false;
 	}
@@ -1084,20 +778,22 @@ async function openMic() {
 		return stream;
 	}
 }
-/** The Mic button: turns the mic on, or off when it is on. */
-async function toggleMic() {
-	if (kind === "mic" || micStream) {
-		request++;
-		micWanted = false;
-		stopSource();
-		setStatus("Mic off.");
-		return;
-	}
+function explainMicError(error) {
+	const name = errorName(error);
+	if (name === "NotAllowedError" || name === "SecurityError") {
+		if (inFrame) {
+			setStatus(`The page host blocks the mic (${name}).`);
+			offerDirectLink();
+		} else setStatus("Mic not allowed. Allow it with the lock icon in the address bar, then try again.");
+	} else if (name === "NotFoundError") setStatus("No microphone found on this device.");
+	else if (name === "NotReadableError") setStatus("Another app is using the mic. Close it and try again.");
+	else setStatus(`Mic failed: ${name}`);
+}
+async function startMic() {
 	const myRequest = ++request;
-	stopSource();
 	if (!micCanWork()) return;
-	ensureAudio(false);
-	setStatus("Asking for the mic. Allow it in the browser prompt.");
+	ensureAudio();
+	setStatus("Allow the mic in the browser prompt.");
 	let stream;
 	try {
 		stream = await openMic();
@@ -1105,55 +801,50 @@ async function toggleMic() {
 		if (myRequest === request) explainMicError(error);
 		return;
 	}
-	if (myRequest !== request || kind !== "none" || document.visibilityState === "hidden") {
+	if (myRequest !== request || document.visibilityState === "hidden") {
 		stopStream(stream);
 		return;
 	}
-	const graph = ensureAudio(false);
+	const graph = ensureAudio();
 	micStream = stream;
-	const source = graph.context.createMediaStreamSource(stream);
-	source.connect(graph.analyser);
-	input = source;
+	input = graph.context.createMediaStreamSource(stream);
+	input.connect(graph.analyser);
 	for (const track of stream.getTracks()) track.addEventListener("ended", () => {
 		if (micStream !== stream) return;
-		stopSource();
-		setStatus("The mic was taken by another app. Tap Mic to listen again.");
+		stopMic();
+		setStatus("Another app took the mic. Tap Mic to listen again.");
 	});
-	kind = "mic";
 	micWanted = true;
-	markSource("mic");
-	setStatus("Listening. Set the noise gate so the red mark sits just above the room's quiet level.");
+	showMicState(true);
+	setStatus("Listening. Set the gate just above the room noise.");
 }
-function explainMicError(error) {
-	const name = errorName(error);
-	if (name === "NotAllowedError" || name === "SecurityError") {
-		if (inFrame) {
-			setStatus(`Mic blocked by the page host (${name}).`);
-			offerDirectLink();
-		} else setStatus(`Mic permission denied (${name}). Allow it via the lock icon in the address bar, then try again.`);
-	} else if (name === "NotFoundError") setStatus("No microphone found on this device.");
-	else if (name === "NotReadableError") setStatus("Another app is holding the mic. Close it and try again.");
-	else setStatus(`Mic failed: ${name}`);
+/** The Mic button: turns the mic on, or off when it is on. */
+async function toggleMic() {
+	if (micStream) {
+		request++;
+		micWanted = false;
+		stopMic();
+		setStatus("Mic off.");
+		return;
+	}
+	await startMic();
 }
 /**
 * Page hidden: release the mic, so other apps get the audio session back.
 * Page visible again: turn the mic back on if it was on.
 */
-function onPageVisibility(visible) {
+async function onPageVisibility(visible) {
 	if (!visible) {
-		if (kind === "mic" || micStream) {
+		if (micStream) {
 			request++;
-			stopSource();
+			stopMic();
 		}
-	} else if (micWanted && kind === "none") {
-		micWanted = false;
-		toggleMic();
-	}
+	} else if (micWanted && !micStream) await startMic();
 }
 /** The page is closing. */
-function releaseAll() {
+function releaseMic() {
 	request++;
-	stopSource();
+	stopMic();
 }
 //#endregion
 //#region src/core/math.ts
@@ -4959,7 +4650,7 @@ function detectTextureChange() {
 }
 /** Called every frame with the raw (before gain) measurements. */
 function trackSections(dt, bass, mid, high, rms, brightness) {
-	if (!sections.enabled || currentSource() === "none") return;
+	if (!sections.enabled || !isListening()) return;
 	const features = [
 		Math.min(1, rms * 3),
 		bass,
@@ -5061,11 +4752,10 @@ function brightness() {
 * pulled to about 0.9, however loud the source is. While the gate is closing, the
 * idle pulse fades in, so the screen keeps breathing in a quiet room.
 */
-function applyGateAndGain(dt, rawBass, rawMid, rawHigh, rms, isMic) {
+function applyGateAndGain(dt, rawBass, rawMid, rawHigh, rms) {
 	const db = 20 * Math.log10(rms + 1e-5);
 	levels.inputDb = follow(levels.inputDb, db, .5, Math.min(1, dt * 4));
-	const threshold = isMic ? levels.gateDb : -75;
-	const open = clamp((levels.inputDb - threshold + 6) / 12, 0, 1);
+	const open = clamp((levels.inputDb - levels.gateDb + 6) / 12, 0, 1);
 	gate = follow(gate, open, .35, Math.min(1, dt * 1.5));
 	const loudest = Math.max(rawBass, rawMid * MID_WEIGHT, rawHigh * HIGH_WEIGHT);
 	if (gate > .5) peak = Math.max(peak * (1 - dt * .12), loudest, .05);
@@ -5088,8 +4778,7 @@ function applyGateAndGain(dt, rawBass, rawMid, rawHigh, rms, isMic) {
 	}
 }
 function analyze(dt) {
-	const source = currentSource();
-	const analyser = source !== "none" ? engine.graph?.analyser : void 0;
+	const analyser = isListening() ? engine.graph?.analyser : void 0;
 	if (analyser) {
 		analyser.getByteFrequencyData(audio.freq);
 		analyser.getByteTimeDomainData(audio.wave);
@@ -5099,7 +4788,7 @@ function analyze(dt) {
 	const rawHigh = band(HIGH);
 	const rms = waveRms();
 	const centroid = brightness();
-	if (analyser) applyGateAndGain(dt, rawBass, rawMid, rawHigh, rms, source === "mic");
+	if (analyser) applyGateAndGain(dt, rawBass, rawMid, rawHigh, rms);
 	const bass = Math.min(1, band(BASS));
 	const mid = Math.min(1, band(MID) * MID_WEIGHT);
 	const high = Math.min(1, band(HIGH) * HIGH_WEIGHT);
@@ -5293,38 +4982,45 @@ var meterGate = byId("meterGate");
 var menu = byId("menu");
 var menuList = byId("menuList");
 var menuTitle = byId("menuTitle");
-var fileInput = byId("file");
 var hideTimer;
 var controlsHidden = () => ui.classList.contains("hide");
 function hideControls() {
 	ui.classList.add("hide");
 	clearTimeout(hideTimer);
 }
-/** Shows the controls. While something plays, they hide again after a few seconds. */
+/** Shows the controls. While the mic is on, they hide again after a few seconds. */
 function showControls() {
 	ui.classList.remove("hide");
 	clearTimeout(hideTimer);
-	if (currentSource() !== "none") hideTimer = setTimeout(() => ui.classList.add("hide"), HIDE_AFTER_MS);
+	if (isListening()) hideTimer = setTimeout(() => ui.classList.add("hide"), HIDE_AFTER_MS);
 }
 /** Moves the level meter. Call once per frame. */
 function updateMeter() {
 	if (controlsHidden()) return;
-	const level = currentSource() === "none" ? 0 : clamp((levels.inputDb + 80) / 60, 0, 1);
+	const level = isListening() ? clamp((levels.inputDb + 80) / 60, 0, 1) : 0;
 	meterFill.style.width = (level * 100).toFixed(1) + "%";
 	meterGate.style.left = (clamp((levels.gateDb + 80) / 60, 0, 1) * 100).toFixed(1) + "%";
 }
-/** Sets a toggle button's text and pressed state. */
-function setToggle(id, on, onText, offText) {
+/** Lights a toggle chip when it is on. `status` says what changed. */
+function setToggle(id, on, status) {
 	const button = byId(id);
-	button.textContent = on ? onText : offText;
+	button.classList.toggle("on", on);
 	button.setAttribute("aria-pressed", String(on));
+	if (status) setStatus(status);
+}
+/** A small swatch of the palette colours: a rainbow for the palette without colours. */
+function paletteSwatch() {
+	const { colors } = scene.palette;
+	return colors?.length ? `linear-gradient(135deg, ${colors.join(", ")})` : "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)";
 }
 function updateSceneLabels() {
 	const name = currentMode().name;
 	byId("modeName").textContent = name;
 	byId("modeBtn").textContent = name;
-	byId("palBtn").textContent = "Palette: " + scene.palette.name;
-	byId("lookBtn").textContent = "Look: " + scene.look.name;
+	byId("palName").textContent = scene.palette.name;
+	byId("palBtn").setAttribute("aria-label", "Palette: " + scene.palette.name);
+	byId("palSwatch").style.background = paletteSwatch();
+	byId("lookBtn").textContent = scene.look.name;
 }
 var MENUS = {
 	mode: {
@@ -5402,25 +5098,15 @@ function onLongPress(element, action) {
 	});
 	element.addEventListener("contextmenu", (e) => e.preventDefault());
 }
-function initSourceButtons() {
-	for (const button of document.querySelectorAll(".src")) button.addEventListener("click", () => {
-		const source = button.dataset.src;
-		if (source === "file") {
-			fileInput.click();
-			return;
-		}
-		if (source === "demo") playDemo();
-		else toggleMic();
-		keepAwake();
-		showControls();
-	});
-	fileInput.addEventListener("change", async () => {
-		const file = fileInput.files?.[0];
-		if (!file) return;
-		await playFile(file);
-		keepAwake();
-		showControls();
-		fileInput.value = "";
+async function pressMic() {
+	await toggleMic();
+	if (isListening()) keepAwake();
+	showControls();
+}
+function initMicButton() {
+	byId("micBtn").addEventListener("click", () => void pressMic());
+	byId("gate").addEventListener("input", (e) => {
+		levels.gateDb = +e.currentTarget.value;
 	});
 	document.addEventListener("pointerdown", resumeAudio);
 }
@@ -5436,17 +5122,14 @@ function initSceneButtons() {
 	byId("shuffleBtn").addEventListener("click", shuffle);
 	byId("autoBtn").addEventListener("click", () => {
 		scene.autoSwitch = !scene.autoSwitch;
-		setToggle("autoBtn", scene.autoSwitch, "Auto-switch on", "Auto-switch off");
+		setToggle("autoBtn", scene.autoSwitch, scene.autoSwitch ? "Auto-switch on: a new scene now and then." : "Auto-switch off.");
 	});
 	byId("secBtn").addEventListener("click", () => {
 		sections.enabled = !sections.enabled;
-		setToggle("secBtn", sections.enabled, "Sections on", "Sections off");
+		setToggle("secBtn", sections.enabled, sections.enabled ? "Sections on: a new scene when the music changes." : "Sections off.");
 	});
 	byId("motionBtn").addEventListener("click", () => void toggleMotion());
-	onMotionChange(() => setToggle("motionBtn", motion.enabled, "Motion on", "Motion off"));
-	byId("gate").addEventListener("input", (e) => {
-		levels.gateDb = +e.currentTarget.value;
-	});
+	onMotionChange(() => setToggle("motionBtn", motion.enabled));
 	onSceneChange(updateSceneLabels);
 	byId("menuBack").addEventListener("click", closeMenu);
 }
@@ -5463,7 +5146,8 @@ function initKeyboard() {
 		else if (e.key === " ") {
 			e.preventDefault();
 			shuffle();
-		} else if (e.key === "h") ui.classList.toggle("hide");
+		} else if (e.key === "m") pressMic();
+		else if (e.key === "h") ui.classList.toggle("hide");
 	});
 }
 function initFullscreen() {
@@ -5486,7 +5170,7 @@ function initControls() {
 		if (controlsHidden()) showControls();
 		else hideControls();
 	});
-	initSourceButtons();
+	initMicButton();
 	initSceneButtons();
 	initKeyboard();
 	initFullscreen();
@@ -5530,10 +5214,11 @@ onResize(() => {
 addEventListener("resize", resize);
 document.addEventListener("visibilitychange", () => {
 	const visible = document.visibilityState !== "hidden";
-	if (visible && currentSource() !== "none") keepAwake();
-	onPageVisibility(visible);
+	onPageVisibility(visible).then(() => {
+		if (visible && isListening()) keepAwake();
+	});
 });
-addEventListener("pagehide", releaseAll);
+addEventListener("pagehide", releaseMic);
 initControls();
 initMotion();
 resize();
@@ -5658,30 +5343,27 @@ body {
 }
 
 .chip,
-.ic {
+.ic,
+.mic {
   appearance: none;
   border: 1px solid var(--line);
   background: var(--chip);
   color: var(--fg);
   font: inherit;
-  font-size: 15px;
-  padding: 10px 15px;
-  border-radius: 999px;
   cursor: pointer;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   transition:
     background 0.15s,
+    color 0.15s,
     transform 0.1s;
   text-shadow: var(--text-shadow);
-}
-
-.chip {
   -webkit-touch-callout: none;
 }
 
 .chip:active,
-.ic:active {
+.ic:active,
+.mic:active {
   transform: scale(0.96);
 }
 
@@ -5692,9 +5374,20 @@ body {
 
 .chip:focus-visible,
 .ic:focus-visible,
+.mic:focus-visible,
 input:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 2px;
+}
+
+svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .ic {
@@ -5704,46 +5397,124 @@ input:focus-visible {
   display: grid;
   place-items: center;
   font-size: 18px;
+  border-radius: 999px;
 }
 
-.slider {
+/* The big Mic button */
+
+.mic {
+  align-self: center;
+  display: flex;
   align-items: center;
-  gap: 12px;
-  color: var(--muted);
+  gap: 10px;
+  min-height: 60px;
+  padding: 0 32px 0 26px;
+  border-radius: 999px;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.mic svg {
+  width: 26px;
+  height: 26px;
+}
+
+.mic.on {
+  background: #fff;
+  border-color: #fff;
+  color: #000;
+  text-shadow: none;
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.45);
+}
+
+/* One row of small chips. On a very narrow screen it scrolls sideways. */
+
+.chips {
+  flex-wrap: nowrap;
+  justify-content: safe center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex: none;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 999px;
   font-size: 13px;
+  white-space: nowrap;
+}
+
+.chip.name {
+  max-width: 8.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip.icon {
+  width: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+/* ‹ mode › as one segmented pill */
+.group {
+  display: flex;
+  flex: none;
+}
+
+.group .chip {
+  border-radius: 0;
+  padding: 0 8px;
+}
+
+.group .chip.name {
+  padding: 0 4px;
+}
+
+.group .chip + .chip {
+  border-left: 0;
+}
+
+.group .chip:first-child {
+  border-radius: 999px 0 0 999px;
+  padding-left: 10px;
+}
+
+.group .chip:last-child {
+  border-radius: 0 999px 999px 0;
+  padding-right: 10px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: -1px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+/* Noise gate: shown while the mic is on */
+.gate {
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
   text-shadow: var(--text-shadow);
 }
 
-.slider input {
-  flex: 0 1 150px;
+.gate input {
+  flex: 0 1 130px;
   accent-color: #fff;
-}
-
-/* Input level meter; the red mark is the noise gate. */
-.meter {
-  position: relative;
-  width: 84px;
-  height: 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.18);
-  overflow: hidden;
-}
-
-#meterFill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  background: #fff;
-}
-
-#meterGate {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: #ff3d6e;
 }
 
 .link {
@@ -5758,7 +5529,7 @@ input:focus-visible {
 
 .status {
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
   min-height: 1.3em;
   text-shadow: var(--text-shadow);
@@ -5831,6 +5602,61 @@ input:focus-visible {
   background: var(--chip);
 }
 
+/* Phones in portrait: smaller chips, and the palette as a colour dot only, so that the row fits. */
+@media (max-width: 440px) {
+  .bar {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .chips {
+    gap: 4px;
+  }
+
+  .chip {
+    height: 30px;
+    padding: 0 9px;
+    font-size: 12px;
+  }
+
+  .chip.name {
+    max-width: 5em;
+  }
+
+  .chip.icon {
+    width: 29px;
+  }
+
+  #palBtn {
+    width: 30px;
+    padding: 0;
+  }
+
+  #palName {
+    display: none;
+  }
+
+  #palBtn .swatch {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    vertical-align: -3px;
+  }
+
+  .group .chip {
+    padding: 0 5px;
+  }
+
+  .group .chip.name {
+    padding: 0 2px;
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   #ui {
     transition: none;
@@ -5848,12 +5674,13 @@ input:focus-visible {
       </div>
 
       <div class="bar bottom">
-        <div class="row">
-          <button class="chip src" data-src="demo" aria-pressed="false">Demo beat</button>
-          <button class="chip src" data-src="mic" aria-pressed="false">Mic</button>
-          <button class="chip src" data-src="file" aria-pressed="false">Open a file</button>
-          <input id="file" type="file" accept="audio/*" hidden />
-        </div>
+        <button class="mic" id="micBtn" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="2" width="6" height="12" rx="3" />
+            <path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8" />
+          </svg>
+          <span>Mic</span>
+        </button>
 
         <!-- Shown when a frame around the page blocks the mic. -->
         <div class="row" id="linkRow" hidden>
@@ -5862,23 +5689,9 @@ input:focus-visible {
           <button class="chip" id="tabBtn">New tab</button>
         </div>
 
-        <div class="row">
-          <button class="chip" id="prevMode" aria-label="Previous mode">‹</button>
-          <button class="chip" id="modeBtn">nebula</button>
-          <button class="chip" id="nextMode" aria-label="Next mode">›</button>
-          <button class="chip" id="palBtn">Palette: void</button>
-          <button class="chip" id="lookBtn">Look: clean</button>
-        </div>
-
-        <div class="row">
-          <button class="chip" id="shuffleBtn">Shuffle</button>
-          <button class="chip" id="autoBtn" aria-pressed="true">Auto-switch on</button>
-          <button class="chip" id="secBtn" aria-pressed="true">Sections on</button>
-          <button class="chip" id="motionBtn" aria-pressed="false">Motion</button>
-        </div>
-
-        <div class="row slider">
-          <label for="gate">Noise gate</label>
+        <!-- Shown while the mic is on. -->
+        <div class="row gate" id="gateRow" hidden>
+          <label for="gate" title="Sounds below the red mark are ignored">Gate</label>
           <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" />
           <div class="meter" aria-hidden="true">
             <div id="meterFill"></div>
@@ -5886,9 +5699,69 @@ input:focus-visible {
           </div>
         </div>
 
+        <!-- Tap a name chip for the next one; hold it for the full list. -->
+        <div class="row chips">
+          <div class="group">
+            <button class="chip" id="prevMode" aria-label="Previous mode">‹</button>
+            <button class="chip name" id="modeBtn" title="Mode: tap for the next, hold for the list">
+              nebula
+            </button>
+            <button class="chip" id="nextMode" aria-label="Next mode">›</button>
+          </div>
+          <button
+            class="chip name"
+            id="palBtn"
+            title="Palette: tap for the next, hold for the list"
+            aria-label="Palette"
+          >
+            <span class="swatch" id="palSwatch"></span><span id="palName">void</span>
+          </button>
+          <button class="chip name" id="lookBtn" title="Look: tap for the next, hold for the list">
+            clean
+          </button>
+          <button class="chip icon" id="shuffleBtn" title="Shuffle" aria-label="Shuffle">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+            </svg>
+          </button>
+          <button
+            class="chip icon on"
+            id="autoBtn"
+            aria-pressed="true"
+            title="Auto-switch: a new scene now and then"
+            aria-label="Auto-switch"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m17 2 4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3" />
+            </svg>
+          </button>
+          <button
+            class="chip icon on"
+            id="secBtn"
+            aria-pressed="true"
+            title="Sections: a new scene when the music changes"
+            aria-label="Sections"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
+          </button>
+          <button
+            class="chip icon"
+            id="motionBtn"
+            aria-pressed="false"
+            title="Motion: tilt, twist and shake the phone"
+            aria-label="Motion"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="8" y="3" width="8" height="18" rx="2" transform="rotate(-15 12 12)" />
+              <path d="M4 9a6 6 0 0 0 0 6M20 9a6 6 0 0 1 0 6" />
+            </svg>
+          </button>
+        </div>
+
         <div class="status" id="status" aria-live="polite">
-          Pick a sound source. Tap the screen to hide the controls; long-press the style, palette or
-          look chip for the full list.
+          Tap Mic and play some music. Hold a chip for the full list.
         </div>
       </div>
     </div>

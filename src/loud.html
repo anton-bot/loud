@@ -23,12 +23,13 @@
       </div>
 
       <div class="bar bottom">
-        <div class="row">
-          <button class="chip src" data-src="demo" aria-pressed="false">Demo beat</button>
-          <button class="chip src" data-src="mic" aria-pressed="false">Mic</button>
-          <button class="chip src" data-src="file" aria-pressed="false">Open a file</button>
-          <input id="file" type="file" accept="audio/*" hidden />
-        </div>
+        <button class="mic" id="micBtn" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="2" width="6" height="12" rx="3" />
+            <path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8" />
+          </svg>
+          <span>Mic</span>
+        </button>
 
         <!-- Shown when a frame around the page blocks the mic. -->
         <div class="row" id="linkRow" hidden>
@@ -37,23 +38,9 @@
           <button class="chip" id="tabBtn">New tab</button>
         </div>
 
-        <div class="row">
-          <button class="chip" id="prevMode" aria-label="Previous mode">‹</button>
-          <button class="chip" id="modeBtn">nebula</button>
-          <button class="chip" id="nextMode" aria-label="Next mode">›</button>
-          <button class="chip" id="palBtn">Palette: void</button>
-          <button class="chip" id="lookBtn">Look: clean</button>
-        </div>
-
-        <div class="row">
-          <button class="chip" id="shuffleBtn">Shuffle</button>
-          <button class="chip" id="autoBtn" aria-pressed="true">Auto-switch on</button>
-          <button class="chip" id="secBtn" aria-pressed="true">Sections on</button>
-          <button class="chip" id="motionBtn" aria-pressed="false">Motion</button>
-        </div>
-
-        <div class="row slider">
-          <label for="gate">Noise gate</label>
+        <!-- Shown while the mic is on. -->
+        <div class="row gate" id="gateRow" hidden>
+          <label for="gate" title="Sounds below the red mark are ignored">Gate</label>
           <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" />
           <div class="meter" aria-hidden="true">
             <div id="meterFill"></div>
@@ -61,9 +48,69 @@
           </div>
         </div>
 
+        <!-- Tap a name chip for the next one; hold it for the full list. -->
+        <div class="row chips">
+          <div class="group">
+            <button class="chip" id="prevMode" aria-label="Previous mode">‹</button>
+            <button class="chip name" id="modeBtn" title="Mode: tap for the next, hold for the list">
+              nebula
+            </button>
+            <button class="chip" id="nextMode" aria-label="Next mode">›</button>
+          </div>
+          <button
+            class="chip name"
+            id="palBtn"
+            title="Palette: tap for the next, hold for the list"
+            aria-label="Palette"
+          >
+            <span class="swatch" id="palSwatch"></span><span id="palName">void</span>
+          </button>
+          <button class="chip name" id="lookBtn" title="Look: tap for the next, hold for the list">
+            clean
+          </button>
+          <button class="chip icon" id="shuffleBtn" title="Shuffle" aria-label="Shuffle">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+            </svg>
+          </button>
+          <button
+            class="chip icon on"
+            id="autoBtn"
+            aria-pressed="true"
+            title="Auto-switch: a new scene now and then"
+            aria-label="Auto-switch"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m17 2 4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3" />
+            </svg>
+          </button>
+          <button
+            class="chip icon on"
+            id="secBtn"
+            aria-pressed="true"
+            title="Sections: a new scene when the music changes"
+            aria-label="Sections"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
+          </button>
+          <button
+            class="chip icon"
+            id="motionBtn"
+            aria-pressed="false"
+            title="Motion: tilt, twist and shake the phone"
+            aria-label="Motion"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="8" y="3" width="8" height="18" rx="2" transform="rotate(-15 12 12)" />
+              <path d="M4 9a6 6 0 0 0 0 6M20 9a6 6 0 0 1 0 6" />
+            </svg>
+          </button>
+        </div>
+
         <div class="status" id="status" aria-live="polite">
-          Pick a sound source. Tap the screen to hide the controls; long-press the style, palette or
-          look chip for the full list.
+          Tap Mic and play some music. Hold a chip for the full list.
         </div>
       </div>
     </div>

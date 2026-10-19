@@ -2,7 +2,7 @@
 import { levels } from '../audio/analysis';
 import { resumeAudio } from '../audio/engine';
 import { sections } from '../audio/sections';
-import { currentSource, playDemo, playFile, toggleMic } from '../audio/sources';
+import { isListening, toggleMic } from '../audio/mic';
 import { byId } from '../core/dom';
 import { clamp } from '../core/math';
 import { motion, scene } from '../core/state';
@@ -13,6 +13,7 @@ import { MODES } from '../modes';
 import { display } from '../render/canvases';
 import { currentMode, onSceneChange, setLook, setMode, setPalette, shuffle } from '../scene';
 import { initDirectLink } from './directLink';
+import { setStatus } from './status';
 import { keepAwake } from './wakeLock';
 
 const HIDE_AFTER_MS = 5000;
@@ -24,7 +25,6 @@ const meterGate = byId('meterGate');
 const menu = byId('menu');
 const menuList = byId('menuList');
 const menuTitle = byId('menuTitle');
-const fileInput = byId<HTMLInputElement>('file');
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
 const controlsHidden = (): boolean => ui.classList.contains('hide');
@@ -34,35 +34,45 @@ function hideControls(): void {
   clearTimeout(hideTimer);
 }
 
-/** Shows the controls. While something plays, they hide again after a few seconds. */
+/** Shows the controls. While the mic is on, they hide again after a few seconds. */
 export function showControls(): void {
   ui.classList.remove('hide');
   clearTimeout(hideTimer);
-  if (currentSource() !== 'none')
-    hideTimer = setTimeout(() => ui.classList.add('hide'), HIDE_AFTER_MS);
+  if (isListening()) hideTimer = setTimeout(() => ui.classList.add('hide'), HIDE_AFTER_MS);
 }
 
 /** Moves the level meter. Call once per frame. */
 export function updateMeter(): void {
   if (controlsHidden()) return;
-  const level = currentSource() === 'none' ? 0 : clamp((levels.inputDb + 80) / 60, 0, 1);
+  const level = isListening() ? clamp((levels.inputDb + 80) / 60, 0, 1) : 0;
   meterFill.style.width = (level * 100).toFixed(1) + '%';
   meterGate.style.left = (clamp((levels.gateDb + 80) / 60, 0, 1) * 100).toFixed(1) + '%';
 }
 
-/** Sets a toggle button's text and pressed state. */
-function setToggle(id: string, on: boolean, onText: string, offText: string): void {
+/** Lights a toggle chip when it is on. `status` says what changed. */
+function setToggle(id: string, on: boolean, status?: string): void {
   const button = byId(id);
-  button.textContent = on ? onText : offText;
+  button.classList.toggle('on', on);
   button.setAttribute('aria-pressed', String(on));
+  if (status) setStatus(status);
+}
+
+/** A small swatch of the palette colours: a rainbow for the palette without colours. */
+function paletteSwatch(): string {
+  const { colors } = scene.palette;
+  return colors?.length
+    ? `linear-gradient(135deg, ${colors.join(', ')})`
+    : 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)';
 }
 
 function updateSceneLabels(): void {
   const name = currentMode().name;
   byId('modeName').textContent = name;
   byId('modeBtn').textContent = name;
-  byId('palBtn').textContent = 'Palette: ' + scene.palette.name;
-  byId('lookBtn').textContent = 'Look: ' + scene.look.name;
+  byId('palName').textContent = scene.palette.name;
+  byId('palBtn').setAttribute('aria-label', 'Palette: ' + scene.palette.name);
+  byId('palSwatch').style.background = paletteSwatch();
+  byId('lookBtn').textContent = scene.look.name;
 }
 
 type MenuKind = 'mode' | 'palette' | 'look';
@@ -149,27 +159,16 @@ function onLongPress(element: HTMLElement, action: () => void): void {
   element.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
-function initSourceButtons(): void {
-  for (const button of document.querySelectorAll<HTMLElement>('.src')) {
-    button.addEventListener('click', () => {
-      const source = button.dataset.src;
-      if (source === 'file') {
-        fileInput.click();
-        return;
-      }
-      if (source === 'demo') playDemo();
-      else void toggleMic();
-      void keepAwake();
-      showControls();
-    });
-  }
-  fileInput.addEventListener('change', async () => {
-    const file = fileInput.files?.[0];
-    if (!file) return;
-    await playFile(file);
-    void keepAwake();
-    showControls();
-    fileInput.value = '';
+async function pressMic(): Promise<void> {
+  await toggleMic();
+  if (isListening()) void keepAwake();
+  showControls();
+}
+
+function initMicButton(): void {
+  byId('micBtn').addEventListener('click', () => void pressMic());
+  byId<HTMLInputElement>('gate').addEventListener('input', (e) => {
+    levels.gateDb = +(e.currentTarget as HTMLInputElement).value;
   });
   // Browsers start audio suspended until the user taps; resume on any tap.
   document.addEventListener('pointerdown', resumeAudio);
@@ -187,17 +186,22 @@ function initSceneButtons(): void {
   byId('shuffleBtn').addEventListener('click', shuffle);
   byId('autoBtn').addEventListener('click', () => {
     scene.autoSwitch = !scene.autoSwitch;
-    setToggle('autoBtn', scene.autoSwitch, 'Auto-switch on', 'Auto-switch off');
+    setToggle(
+      'autoBtn',
+      scene.autoSwitch,
+      scene.autoSwitch ? 'Auto-switch on: a new scene now and then.' : 'Auto-switch off.',
+    );
   });
   byId('secBtn').addEventListener('click', () => {
     sections.enabled = !sections.enabled;
-    setToggle('secBtn', sections.enabled, 'Sections on', 'Sections off');
+    setToggle(
+      'secBtn',
+      sections.enabled,
+      sections.enabled ? 'Sections on: a new scene when the music changes.' : 'Sections off.',
+    );
   });
   byId('motionBtn').addEventListener('click', () => void toggleMotion());
-  onMotionChange(() => setToggle('motionBtn', motion.enabled, 'Motion on', 'Motion off'));
-  byId<HTMLInputElement>('gate').addEventListener('input', (e) => {
-    levels.gateDb = +(e.currentTarget as HTMLInputElement).value;
-  });
+  onMotionChange(() => setToggle('motionBtn', motion.enabled));
   onSceneChange(updateSceneLabels);
   byId('menuBack').addEventListener('click', closeMenu);
 }
@@ -217,7 +221,8 @@ function initKeyboard(): void {
     else if (e.key === ' ') {
       e.preventDefault();
       shuffle();
-    } else if (e.key === 'h') ui.classList.toggle('hide');
+    } else if (e.key === 'm') void pressMic();
+    else if (e.key === 'h') ui.classList.toggle('hide');
   });
 }
 
@@ -248,7 +253,7 @@ export function initControls(): void {
     if (controlsHidden()) showControls();
     else hideControls();
   });
-  initSourceButtons();
+  initMicButton();
   initSceneButtons();
   initKeyboard();
   initFullscreen();

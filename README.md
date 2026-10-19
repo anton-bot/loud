@@ -4,25 +4,25 @@ A music visualizer that runs in the browser. 40 visual modes react to the bass, 
 treble and the beats of the music. There are 28 palettes and 13 looks (film, CRT, stop-motion,
 mirror, glitch and others).
 
-**Open <https://anton-bot.github.io/loud/loud.html> and tap Demo beat, Mic or Open a file.**
+**Open <https://anton-bot.github.io/loud/loud.html>, tap Mic and play some music.**
 
-`loud.html` is one self-contained file. It also works when you download it and open it from disk
-(the demo beat and audio files work; the mic needs an http or https address).
+`loud.html` is one self-contained file. The mic needs an http or https address, so serve the file
+(for example `python -m http.server 8000`) when you use a local copy.
 
 ## Controls
 
-| Control               | What it does                                                     |
-| --------------------- | ---------------------------------------------------------------- |
-| Tap the picture       | Hide or show the controls                                        |
-| ‹ › or the style chip | Previous or next mode. Long-press the chip for the full list     |
-| Palette, Look         | Next palette or look. Long-press for the full list               |
-| Shuffle               | A new random mode, palette and look                              |
-| Auto-switch           | Change the scene every 30 s and on some beats                    |
-| Sections              | Change the scene when the music changes (a drop, a breakdown)    |
-| Motion                | Phone tilt, shake and twist move the picture                     |
-| Noise gate            | With the mic: put the red mark just above the room's quiet level |
+| Control                 | What it does                                             |
+| ----------------------- | -------------------------------------------------------- |
+| Mic                     | Listen to the music around you. Tap again to stop        |
+| Tap the picture         | Hide or show the controls                                |
+| ‹ mode ›, palette, look | Tap for the next one. Hold for the full list             |
+| Shuffle                 | A new random mode, palette and look                      |
+| Auto-switch             | A new scene every 30 s and on some beats                 |
+| Sections                | A new scene when the music changes (a drop, a breakdown) |
+| Motion                  | Phone tilt, shake and twist move the picture             |
+| Gate (with the mic on)  | Put the red mark just above the room noise               |
 
-Keyboard: <kbd>←</kbd> <kbd>→</kbd> mode, <kbd>P</kbd> palette, <kbd>L</kbd> look,
+Keyboard: <kbd>M</kbd> mic, <kbd>←</kbd> <kbd>→</kbd> mode, <kbd>P</kbd> palette, <kbd>L</kbd> look,
 <kbd>Space</kbd> shuffle, <kbd>H</kbd> hide the controls.
 
 ### The mic on Android
@@ -79,9 +79,9 @@ sequence), add the `visual-change` label: the job then only reports the differen
 
 Each frame (`src/loop.ts`):
 
-1. `audio/analysis.ts` reads the analyser: noise gate, automatic gain, bass, mid and high levels
-   and beat detection. `audio/sections.ts` watches for section changes. With no sound source, a
-   synthetic pulse keeps the picture moving.
+1. `audio/analysis.ts` reads the mic analyser: noise gate, automatic gain, bass, mid and high
+   levels and beat detection. `audio/sections.ts` watches for section changes. With the mic off
+   (or a quiet room), a synthetic pulse keeps the picture moving.
 2. `render/renderer.ts` draws the scene canvas. It starts from the last frame (feedback zoom and
    rotation, then a fade toward the background), so trails come for free. Then the current mode
    draws, and the beat rings go on top.
@@ -97,7 +97,7 @@ src/
   loop.ts              the frame loop
   scene.ts             mode, palette and look changes; reaction to beats
   core/                state shared by all modules, math, DOM and colour helpers
-  audio/               Web Audio graph, sound sources, the demo beat, analysis, sections
+  audio/               mic, Web Audio graph, analysis, sections
   input/motion.ts      phone tilt, shake and twist
   look/                the palettes and the looks (data)
   render/              canvases, colours, shapes, renderer, look effects, compositor

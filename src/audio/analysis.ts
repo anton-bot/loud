@@ -8,7 +8,7 @@ import { audio, clock } from '../core/state';
 import { onBeat } from '../scene';
 import { engine } from './engine';
 import { trackSections } from './sections';
-import { currentSource } from './sources';
+import { isListening } from './mic';
 
 /** Input level and noise gate threshold in dBFS, for the meter. */
 export const levels = {
@@ -109,12 +109,10 @@ function applyGateAndGain(
   rawMid: number,
   rawHigh: number,
   rms: number,
-  isMic: boolean,
 ): void {
   const db = 20 * Math.log10(rms + 1e-5);
   levels.inputDb = follow(levels.inputDb, db, 0.5, Math.min(1, dt * 4));
-  const threshold = isMic ? levels.gateDb : -75;
-  const open = clamp((levels.inputDb - threshold + 6) / 12, 0, 1);
+  const open = clamp((levels.inputDb - levels.gateDb + 6) / 12, 0, 1);
   gate = follow(gate, open, 0.35, Math.min(1, dt * 1.5));
 
   const loudest = Math.max(rawBass, rawMid * MID_WEIGHT, rawHigh * HIGH_WEIGHT);
@@ -142,8 +140,7 @@ function applyGateAndGain(
 }
 
 export function analyze(dt: number): void {
-  const source = currentSource();
-  const analyser = source !== 'none' ? engine.graph?.analyser : undefined;
+  const analyser = isListening() ? engine.graph?.analyser : undefined;
   if (analyser) {
     analyser.getByteFrequencyData(audio.freq);
     analyser.getByteTimeDomainData(audio.wave);
@@ -155,7 +152,7 @@ export function analyze(dt: number): void {
   const rawHigh = band(HIGH);
   const rms = waveRms();
   const centroid = brightness();
-  if (analyser) applyGateAndGain(dt, rawBass, rawMid, rawHigh, rms, source === 'mic');
+  if (analyser) applyGateAndGain(dt, rawBass, rawMid, rawHigh, rms);
 
   const bass = Math.min(1, band(BASS));
   const mid = Math.min(1, band(MID) * MID_WEIGHT);

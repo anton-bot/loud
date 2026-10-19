@@ -1,6 +1,6 @@
 /** loud: a music visualizer for the browser. Entry point. */
 import './styles.css';
-import { currentSource, onPageVisibility, releaseAll } from './audio/sources';
+import { isListening, onPageVisibility, releaseMic } from './audio/mic';
 import { initMotion } from './input/motion';
 import { startLoop } from './loop';
 import { MODES } from './modes';
@@ -17,10 +17,11 @@ addEventListener('resize', resize);
 
 document.addEventListener('visibilitychange', () => {
   const visible = document.visibilityState !== 'hidden';
-  if (visible && currentSource() !== 'none') void keepAwake();
-  onPageVisibility(visible);
+  void onPageVisibility(visible).then(() => {
+    if (visible && isListening()) void keepAwake();
+  });
 });
-addEventListener('pagehide', releaseAll);
+addEventListener('pagehide', releaseMic);
 
 initControls();
 initMotion();
