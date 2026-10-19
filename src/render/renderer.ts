@@ -66,7 +66,7 @@ export function renderFrame(mode: Mode, dt: number): void {
     shakeX += (Math.random() - 0.5) * k;
     shakeY += (Math.random() - 0.5) * k;
   }
-  const jitter = mode.plain ? 0 : scene.look.jitter;
+  const jitter = scene.look.jitter;
   if (jitter) {
     ctx.translate(cx, cy);
     ctx.rotate((Math.random() - 0.5) * 0.02 * jitter);
@@ -75,7 +75,7 @@ export function renderFrame(mode: Mode, dt: number): void {
     shakeY += (Math.random() - 0.5) * 5 * jitter;
   }
   ctx.translate(shakeX, shakeY);
-  if (moving && !mode.plain) {
+  if (moving) {
     ctx.translate(cx, cy);
     ctx.rotate(motion.tiltX * 0.12 + motion.spin * 0.3);
     const z = 1 + motion.shake * 0.2;
@@ -89,6 +89,6 @@ export function renderFrame(mode: Mode, dt: number): void {
   drawHeardWords(dt);
   ctx.restore();
 
-  if (!mode.plain) applyLookEffects();
+  applyLookEffects();
   composite(mode, dt);
 }

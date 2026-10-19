@@ -47,7 +47,6 @@ import { smear } from './smear';
 import { solids } from './solids';
 import { spiral } from './spiral';
 import { spiro } from './spiro';
-import { stereo } from './stereo';
 import { splats } from './splats';
 import { sprites } from './sprites';
 import { strings } from './strings';
@@ -111,7 +110,6 @@ export const MODES: readonly Mode[] = [
   neonKnot,
   solids,
   inkMode,
-  stereo,
   parallax,
   smear,
 ];

@@ -1411,7 +1411,7 @@ function paintField(layer, values, ramp, toRamp) {
 *   Clifford:  x' = sin(a·y) + c·cos(a·x)    y' = sin(b·x) + d·cos(b·y)
 */
 /** Parameter sets that give interesting shapes. */
-var SHAPES$2 = [
+var SHAPES$1 = [
 	{
 		map: "dejong",
 		a: 1.641,
@@ -1497,15 +1497,15 @@ var SHAPES$2 = [
 		d: -.9
 	}
 ];
-var layer$8 = new PixelLayer();
+var layer$7 = new PixelLayer();
 var gridW$2 = 0;
 var gridH$2 = 0;
 var density = /* @__PURE__ */ new Float32Array(0);
-var shape$2 = { ...SHAPES$2[0] };
-var target$3 = SHAPES$2[0];
+var shape$1 = { ...SHAPES$1[0] };
+var target$3 = SHAPES$1[0];
 var x = .1;
 var y = .1;
-var beats$5 = 0;
+var beats$4 = 0;
 /** Rotation of the whole shape (radians). */
 var turn$1 = 0;
 /** Smoothed centre and half-size of the shape, after rotation, in attractor units. */
@@ -1521,7 +1521,7 @@ var peak$1 = 1;
 function setUp$7(w, h) {
 	gridW$2 = w;
 	gridH$2 = h;
-	layer$8.setSize(w, h);
+	layer$7.setSize(w, h);
 	density = new Float32Array(w * h);
 }
 var attractor = {
@@ -1540,9 +1540,9 @@ var attractor = {
 		"ice"
 	],
 	beat() {
-		if (++beats$5 % 4 !== 0) return;
-		target$3 = pick(SHAPES$2, target$3);
-		if (target$3.map !== shape$2.map) shape$2 = { ...target$3 };
+		if (++beats$4 % 4 !== 0) return;
+		target$3 = pick(SHAPES$1, target$3);
+		if (target$3.map !== shape$1.map) shape$1 = { ...target$3 };
 	},
 	resize() {
 		gridW$2 = 0;
@@ -1553,15 +1553,15 @@ var attractor = {
 		const h = Math.max(48, Math.round(w * height / width));
 		if (w !== gridW$2 || h !== gridH$2) setUp$7(w, h);
 		const k = Math.min(1, dt * 1.5);
-		shape$2.a += (target$3.a - shape$2.a) * k;
-		shape$2.b += (target$3.b - shape$2.b) * k;
-		shape$2.c += (target$3.c - shape$2.c) * k;
-		shape$2.d += (target$3.d - shape$2.d) * k;
+		shape$1.a += (target$3.a - shape$1.a) * k;
+		shape$1.b += (target$3.b - shape$1.b) * k;
+		shape$1.c += (target$3.c - shape$1.c) * k;
+		shape$1.d += (target$3.d - shape$1.d) * k;
 		const time = clock.time;
-		const a = shape$2.a + Math.sin(time * .23) * .12 + audio.bass * .25;
-		const b = shape$2.b + Math.sin(time * .31 + 1) * .1 - audio.mid * .2;
-		const c = shape$2.c + Math.sin(time * .19 + 2) * .1 + audio.high * .15;
-		const d = shape$2.d + Math.sin(time * .27 + 3) * .1;
+		const a = shape$1.a + Math.sin(time * .23) * .12 + audio.bass * .25;
+		const b = shape$1.b + Math.sin(time * .31 + 1) * .1 - audio.mid * .2;
+		const c = shape$1.c + Math.sin(time * .19 + 2) * .1 + audio.high * .15;
+		const d = shape$1.d + Math.sin(time * .27 + 3) * .1;
 		const steps = Math.min(3, dt * 60);
 		const keep = Math.pow(.86, steps);
 		for (let i = 0; i < density.length; i++) density[i] *= keep;
@@ -1570,7 +1570,7 @@ var attractor = {
 		const cos = Math.cos(turn$1);
 		const sin = Math.sin(turn$1);
 		const points = (quality.level === 2 ? 5e4 : 24e3) * Math.min(2, steps);
-		const dejong = shape$2.map === "dejong";
+		const dejong = shape$1.map === "dejong";
 		let left = Infinity;
 		let right = -Infinity;
 		let top = Infinity;
@@ -1603,17 +1603,17 @@ var attractor = {
 		}
 		collapsed = lit < 40 ? collapsed + 1 : 0;
 		if (collapsed > 20) {
-			target$3 = pick(SHAPES$2, target$3);
-			shape$2 = { ...target$3 };
+			target$3 = pick(SHAPES$1, target$3);
+			shape$1 = { ...target$3 };
 			collapsed = 0;
 		}
 		peak$1 += (max - peak$1) * Math.min(1, dt * 2);
 		const logPeak = Math.log1p(peak$1 * 1.5);
 		const shift = clock.time * .04;
 		const ramp = colorRamp(256, (t) => colorRgb(t * 2.2 + shift, 3 + t * 97));
-		paintField(layer$8, density, ramp, (v) => Math.log1p(v) / logPeak);
+		paintField(layer$7, density, ramp, (v) => Math.log1p(v) / logPeak);
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer$8.canvas, 0, 0, width, height);
+		ctx.drawImage(layer$7.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -2076,7 +2076,7 @@ var PATTERNS$1 = [
 ];
 var DIFFUSION_A = 1;
 var DIFFUSION_B = .5;
-var layer$7 = new PixelLayer();
+var layer$6 = new PixelLayer();
 var gridW$1 = 0;
 var gridH$1 = 0;
 var a = /* @__PURE__ */ new Float32Array(0);
@@ -2102,7 +2102,7 @@ function drop$1(cx, cy, r) {
 function setUp$6(w, h) {
 	gridW$1 = w;
 	gridH$1 = h;
-	layer$7.setSize(w, h);
+	layer$6.setSize(w, h);
 	a = new Float32Array(w * h).fill(1);
 	b = new Float32Array(w * h);
 	nextA = new Float32Array(w * h);
@@ -2211,9 +2211,9 @@ var coral = {
 		if (total < b.length / 7 / 500) drop$1(rndInt(gridW$1), rndInt(gridH$1), 4);
 		const shift = clock.time * .04;
 		const ramp = colorRamp(256, (t) => colorRgb(t * 3 + shift, 6 + t * 88));
-		paintField(layer$7, b, ramp, (v) => v * 3.2);
+		paintField(layer$6, b, ramp, (v) => v * 3.2);
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer$7.canvas, 0, 0, width, height);
+		ctx.drawImage(layer$6.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -2561,7 +2561,7 @@ var MELT_COLUMNS = 96;
 var MELT_S$1 = 3.2;
 var panels = [];
 var layout = "rows";
-var beats$4 = 0;
+var beats$3 = 0;
 var lastInvert = -1;
 /** 1 after a beat, then falls: how wild the glitches are. */
 var glitch$1 = 0;
@@ -2827,8 +2827,8 @@ var datamatics = {
 	beat() {
 		if (!panels.length) return;
 		glitch$1 = 1;
-		beats$4++;
-		if (beats$4 % 8 === 0 && Math.random() < .7) {
+		beats$3++;
+		if (beats$3 % 8 === 0 && Math.random() < .7) {
 			layout = pick(LAYOUTS, layout);
 			panels = makePanels(layout);
 		} else for (const panel of panels) {
@@ -3823,7 +3823,7 @@ var halo = {
 * along itself (advection), project again, then move the ink along the flow.
 */
 var PRESSURE_STEPS = 20;
-var layer$6 = new PixelLayer();
+var layer$5 = new PixelLayer();
 var nx = 0;
 var ny = 0;
 var u = /* @__PURE__ */ new Float32Array(0);
@@ -3835,7 +3835,7 @@ var divergence = /* @__PURE__ */ new Float32Array(0);
 var ink = [];
 var scratch = /* @__PURE__ */ new Float32Array(0);
 var jets = [];
-var beats$3 = 0;
+var beats$2 = 0;
 var lastJet = -1e9;
 function setUp$5(width, height) {
 	nx = width;
@@ -3853,7 +3853,7 @@ function setUp$5(width, height) {
 		new Float32Array(n)
 	];
 	scratch = new Float32Array(n);
-	layer$6.setSize(nx, ny);
+	layer$5.setSize(nx, ny);
 }
 /** Moves `src` along the flow (u0, v0) into `dst`: each cell takes what was `k` steps upstream. */
 function advect(dst, src, k) {
@@ -3890,7 +3890,7 @@ function project$1() {
 function fireJet() {
 	if (!nx) return;
 	lastJet = clock.time;
-	const side = beats$3++ % 4;
+	const side = beats$2++ % 4;
 	const along = rnd(.25, .75);
 	const tilt = rnd(-.35, .35);
 	const jet = side === 0 ? {
@@ -3922,7 +3922,7 @@ function fireJet() {
 		rgb: [],
 		life: 0
 	};
-	jet.rgb = colorRgb(beats$3 * .9, 60).map((c) => c / 255);
+	jet.rgb = colorRgb(beats$2 * .9, 60).map((c) => c / 255);
 	jet.life = .25 + audio.bass * .15;
 	jets.push(jet);
 }
@@ -3990,16 +3990,16 @@ var inkMode = {
 			advect(channel, scratch, k);
 			for (let i = 0; i < channel.length; i++) channel[i] *= keep;
 		}
-		const out = layer$6.pixels;
+		const out = layer$5.pixels;
 		for (let i = 0, p = 0; i < nx * ny; i++, p += 4) {
 			out[p] = ink[0][i] * 255;
 			out[p + 1] = ink[1][i] * 255;
 			out[p + 2] = ink[2][i] * 255;
 			out[p + 3] = 255;
 		}
-		layer$6.flush();
+		layer$5.flush();
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer$6.canvas, 1, 1, nx - 2, ny - 2, 0, 0, width, height);
+		ctx.drawImage(layer$5.canvas, 1, 1, nx - 2, ny - 2, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -5720,7 +5720,7 @@ var parallax = {
 //#region src/modes/pixels.ts
 /** A chunky 32-pixel-wide field; beats sort rows and columns like a pixel-sorting glitch. */
 var COLUMNS = 32;
-var layer$5 = new PixelLayer();
+var layer$4 = new PixelLayer();
 /** Brightness per pixel, 0..1, smoothed over time. */
 var values = null;
 var ascending = (a, b) => a - b;
@@ -5753,16 +5753,16 @@ var pixels = {
 	beat() {
 		if (!values) return;
 		const rows = 1 + Math.floor(audio.bass * 4);
-		for (let r = 0; r < rows; r++) sortRow(values, layer$5.width, layer$5.height);
-		if (Math.random() < .4) sortColumn(values, layer$5.width, layer$5.height);
+		for (let r = 0; r < rows; r++) sortRow(values, layer$4.width, layer$4.height);
+		if (Math.random() < .4) sortColumn(values, layer$4.width, layer$4.height);
 	},
 	draw(dt) {
 		const { width, height } = view;
 		const w = COLUMNS;
 		const h = Math.max(8, Math.round(32 * height / width));
-		if (layer$5.setSize(w, h) || !values) values = new Float32Array(w * h);
+		if (layer$4.setSize(w, h) || !values) values = new Float32Array(w * h);
 		const v = values;
-		const data = layer$5.pixels;
+		const data = layer$4.pixels;
 		const rate = Math.min(1, dt * 6);
 		for (let j = 0; j < h; j++) {
 			const wave = Math.abs(waveAt(j / h));
@@ -5779,10 +5779,10 @@ var pixels = {
 			}
 		}
 		if (audio.high > .6 && Math.random() < .3) v.copyWithin(0, w);
-		layer$5.flush();
+		layer$4.flush();
 		ctx.imageSmoothingEnabled = false;
 		const jolt = audio.beat > .5 ? (Math.random() - .5) * width / w : 0;
-		ctx.drawImage(layer$5.canvas, jolt, 0, width, height);
+		ctx.drawImage(layer$4.canvas, jolt, 0, width, height);
 		ctx.imageSmoothingEnabled = true;
 	}
 };
@@ -5797,7 +5797,7 @@ var pixels = {
 * contour bands and faster colour cycling. Beat: a jolt of bending and colour.
 */
 var RAMP_SIZE = 256;
-var layer$4 = new PixelLayer();
+var layer$3 = new PixelLayer();
 /** Colour cycling position, 0..1 per palette cycle. */
 var cycle = 0;
 /** Extra bending after a beat, 1..0. */
@@ -5827,7 +5827,7 @@ var plasma = {
 		const cell = quality.level === 2 ? 4 : 6;
 		const w = clamp(Math.round(width / cell), 48, 220);
 		const h = Math.max(36, Math.round(w * height / width));
-		layer$4.setSize(w, h);
+		layer$3.setSize(w, h);
 		const time = clock.time * (.5 + audio.mid * .9);
 		cycle += dt * (.05 + audio.high * .25);
 		jolt = Math.max(0, jolt - dt * 2);
@@ -5842,7 +5842,7 @@ var plasma = {
 		const s2y = Math.sin(time * .41) * 1.4;
 		const span = scene.palette.rgb ? scene.palette.rgb.length : 9;
 		const ramp = colorRamp(RAMP_SIZE, (t) => colorRgb(t * span, 58));
-		const pixels = layer$4.pixels;
+		const pixels = layer$3.pixels;
 		const aspect = w / h;
 		let p = 0;
 		for (let j = 0; j < h; j++) {
@@ -5864,9 +5864,9 @@ var plasma = {
 				p += 4;
 			}
 		}
-		layer$4.flush();
+		layer$3.flush();
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer$4.canvas, 0, 0, width, height);
+		ctx.drawImage(layer$3.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -6532,7 +6532,7 @@ var shroom = {
 * Bass: speed and scent strength. Mid: how wide they smell. Treble: how sharply they
 * turn. Beat: a burst of spores somewhere on the screen.
 */
-var layer$3 = new PixelLayer();
+var layer$2 = new PixelLayer();
 var gridW = 0;
 var gridH = 0;
 var trail = /* @__PURE__ */ new Float32Array(0);
@@ -6544,7 +6544,7 @@ var heading = /* @__PURE__ */ new Float32Array(0);
 function setUp$1(w, h) {
 	gridW = w;
 	gridH = h;
-	layer$3.setSize(w, h);
+	layer$2.setSize(w, h);
 	trail = new Float32Array(w * h);
 	spread = new Float32Array(w * h);
 	const count = Math.round(Math.min(quality.level === 2 ? 14e3 : 8e3, w * h * .25));
@@ -6652,9 +6652,9 @@ var slime = {
 		diffuse(steps);
 		const shift = clock.time * .05;
 		const ramp = colorRamp(256, (t) => colorRgb(t * 2.5 + shift, 6 + t * 92));
-		paintField(layer$3, trail, ramp, (v) => 1 - Math.exp(-v * .3));
+		paintField(layer$2, trail, ramp, (v) => 1 - Math.exp(-v * .3));
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer$3.canvas, 0, 0, width, height);
+		ctx.drawImage(layer$2.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -6749,19 +6749,19 @@ var MAPS = [
 	"waves"
 ];
 /** Frames kept: about one second at 60 frames per second. */
-var DEPTH$1 = 64;
+var DEPTH = 64;
 var source = document.createElement("canvas");
 var sourceCtx = context2d(source, { willReadFrequently: true });
-var layer$2 = new PixelLayer();
+var layer$1 = new PixelLayer();
 var frames$1 = [];
 var head = 0;
 var map = 0;
-var beats$2 = 0;
+var beats$1 = 0;
 function setUp(w, h) {
 	source.width = w;
 	source.height = h;
-	layer$2.setSize(w, h);
-	frames$1 = Array.from({ length: DEPTH$1 }, () => new Uint8ClampedArray(w * h * 4));
+	layer$1.setSize(w, h);
+	frames$1 = Array.from({ length: DEPTH }, () => new Uint8ClampedArray(w * h * 4));
 	head = 0;
 }
 /** The camera picture, cut to fill the frame. */
@@ -6848,7 +6848,7 @@ var smear = {
 	beatRings: false,
 	camera: true,
 	beat() {
-		if (++beats$2 % 8 === 0) map = (map + 1) % MAPS.length;
+		if (++beats$1 % 8 === 0) map = (map + 1) % MAPS.length;
 	},
 	resize() {
 		frames$1 = [];
@@ -6864,7 +6864,7 @@ var smear = {
 		frames$1[head].set(sourceCtx.getImageData(0, 0, w, h).data);
 		const kind = MAPS[map];
 		const reach = 63 * (.55 + audio.bass * .45);
-		const out = layer$2.pixels;
+		const out = layer$1.pixels;
 		const t = clock.time;
 		for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
 			let f;
@@ -6872,17 +6872,17 @@ var smear = {
 			else if (kind === "columns") f = x / w;
 			else if (kind === "rings") f = Math.min(1, Math.hypot(x - w / 2, (y - h / 2) * 1.6) / (w * .55));
 			else f = .5 + .5 * Math.sin(x / w * TAU * 1.5 + t) * (y / h);
-			const frame = frames$1[(head - Math.floor(f * reach) + DEPTH$1) % DEPTH$1];
+			const frame = frames$1[(head - Math.floor(f * reach) + DEPTH) % DEPTH];
 			const i = (y * w + x) * 4;
 			out[i] = frame[i];
 			out[i + 1] = frame[i + 1];
 			out[i + 2] = frame[i + 2];
 			out[i + 3] = 255;
 		}
-		head = (head + 1) % DEPTH$1;
-		layer$2.flush();
+		head = (head + 1) % DEPTH;
+		layer$1.flush();
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer$2.canvas, 0, 0, width, height);
+		ctx.drawImage(layer$1.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -7030,7 +7030,7 @@ var DODECA = [...signs([
 	1 / PHI,
 	PHI
 ]).flatMap(signs)];
-var SHAPES$1 = [
+var SHAPES = [
 	{
 		outer: solid(DODECA, ICOSA),
 		inner: solid(ICOSA, DODECA)
@@ -7072,8 +7072,8 @@ var TESSERACT = Array.from({ length: 16 }, (_, i) => [
 ].map((bit) => i >> bit & 1 ? 1 : -1));
 var TESSERACT_EDGES = [];
 for (let i = 0; i < 16; i++) for (let bit = 0; bit < 4; bit++) if (!(i & 1 << bit)) TESSERACT_EDGES.push([i, i | 1 << bit]);
-var shape$1 = 0;
-var beats$1 = 0;
+var shape = 0;
+var beats = 0;
 var angles = {
 	x: .4,
 	y: .2,
@@ -7232,13 +7232,13 @@ var solids = {
 	],
 	beat() {
 		explode = Math.max(explode, .35 + audio.bass * .5);
-		if (++beats$1 % 8 === 0) {
+		if (++beats % 8 === 0) {
 			explode = 1.1;
-			shape$1 = (shape$1 + 1 + rndInt(2)) % SHAPES$1.length;
+			shape = (shape + 1 + rndInt(2)) % SHAPES.length;
 		}
 		if (Math.random() < .3) {
 			glitchUntil = clock.time + rnd(.1, .25);
-			const count = SHAPES$1[shape$1] === "tesseract" ? 16 : 20;
+			const count = SHAPES[shape] === "tesseract" ? 16 : 20;
 			broken = Array.from({ length: 1 + rndInt(3) }, () => ({
 				index: rndInt(count),
 				offset: [
@@ -7259,7 +7259,7 @@ var solids = {
 		if (clock.time > glitchUntil) broken = [];
 		const radius = view.min * .3 * (1 + audio.bass * .15 + audio.beat * .06);
 		const k = clock.time * .2;
-		const current = SHAPES$1[shape$1];
+		const current = SHAPES[shape];
 		if (current === "tesseract") drawTesseract(radius, k);
 		else {
 			if (current.inner) drawSolid(current.inner, radius * .5, -1.4, k + 2, false);
@@ -7339,1390 +7339,6 @@ var spiro = {
 			}
 			ctx.stroke();
 		}
-	}
-};
-//#endregion
-//#region src/render/words/show.ts
-/** Shared types and helpers for the heard-words styles. */
-var CJK$2 = "\"Noto Sans SC\", sans-serif";
-var FACES = [
-	{
-		name: "bold",
-		family: `Unbounded, ${CJK$2}`,
-		weight: 700,
-		chance: 3
-	},
-	{
-		name: "pixel",
-		family: `"Press Start 2P", ${CJK$2}`,
-		weight: 400,
-		chance: 1.6
-	},
-	{
-		name: "glitch",
-		family: `"Rubik Glitch", ${CJK$2}`,
-		weight: 400,
-		chance: 1
-	},
-	{
-		name: "horror",
-		family: `Creepster, "Rubik Wet Paint", ${CJK$2}`,
-		weight: 400,
-		chance: 1
-	},
-	{
-		name: "drip",
-		family: `"Rubik Wet Paint", ${CJK$2}`,
-		weight: 400,
-		chance: .8
-	},
-	{
-		name: "beast",
-		family: `"Rubik Beastly", ${CJK$2}`,
-		weight: 400,
-		chance: .8
-	},
-	{
-		name: "neon",
-		family: `Monoton, Unbounded, ${CJK$2}`,
-		weight: 400,
-		chance: .8
-	}
-];
-var MONOSPACE = "\"JetBrains Mono\", ui-monospace, Menlo, Consolas, monospace";
-var face$1 = FACES[0];
-/** Makes `next` the face of the styles drawn from now on. */
-function useFace(next) {
-	face$1 = next;
-}
-function currentFace() {
-	return face$1;
-}
-/** A random face, by chance, that is not `not`. */
-function pickFace(not) {
-	const options = FACES.filter((f) => f !== not);
-	let roll = Math.random() * options.reduce((sum, f) => sum + f.chance, 0);
-	for (const f of options) {
-		roll -= f.chance;
-		if (roll <= 0) return f;
-	}
-	return options[options.length - 1];
-}
-/** CSS font of `size` px: the current face, or `family` (bold) when given. */
-function font(size, family) {
-	return family ? `700 ${size}px ${family}` : `${face$1.weight} ${size}px ${face$1.family}`;
-}
-/** Font size at which `text` takes `share` of the screen width, but at most `max` px. */
-function fitFont(text, share, max, family) {
-	ctx.font = font(100, family);
-	const measured = Math.max(1, ctx.measureText(text).width);
-	return Math.min(max, 100 * view.width * share / measured);
-}
-/**
-* A soft dark copy of `text` under where it will be drawn, so that a glowing word
-* stays readable over a bright picture.
-*/
-function shadowText(text, x, y, size, alpha) {
-	const blend = ctx.globalCompositeOperation;
-	ctx.globalCompositeOperation = "source-over";
-	ctx.fillStyle = `rgba(0,0,0,${alpha * .55})`;
-	ctx.fillText(text, x + size * .035, y + size * .05);
-	ctx.globalCompositeOperation = blend;
-}
-/** Glowing blend on dark palettes; normal drawing on light ones. */
-function glowBlend() {
-	return scene.palette.light ? "source-over" : "lighter";
-}
-//#endregion
-//#region src/render/words/anagram.ts
-/**
-* Hero: the letters of the text change places on beats, hopping over each other in arcs;
-* every other beat they go back to the right order, so the text stays readable.
-*/
-/** Longest text that is shuffled; a longer text is cut after a word. */
-var MAX_LETTERS = 16;
-var HOP_S = .35;
-var letters = [];
-var order = [];
-var previous = [];
-var movedAt = 0;
-var scrambled = false;
-function shortText(phrase) {
-	let text = "";
-	for (const word of phrase.split(" ")) {
-		if ((text + " " + word).trim().length > MAX_LETTERS && text) break;
-		text = (text + " " + word).trim();
-	}
-	return [...text].slice(0, MAX_LETTERS).join("");
-}
-function shuffled(n) {
-	const result = Array.from({ length: n }, (_, i) => i);
-	for (let i = n - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[result[i], result[j]] = [result[j], result[i]];
-	}
-	return result;
-}
-var anagram = {
-	name: "anagram",
-	role: "hero",
-	weight: 1.5,
-	start(show) {
-		letters = [...shortText(show.phrase)];
-		order = letters.map((_, i) => i);
-		previous = [...order];
-		movedAt = show.age;
-		scrambled = false;
-	},
-	draw(show) {
-		if (show.beat) {
-			previous = order;
-			scrambled = !scrambled;
-			order = scrambled ? shuffled(letters.length) : letters.map((_, i) => i);
-			movedAt = show.age;
-		}
-		const { cx, cy, height } = view;
-		const size = fitFont(letters.join(""), .86, height * .24);
-		ctx.font = font(size);
-		const widths = letters.map((letter) => ctx.measureText(letter).width);
-		const slots = [];
-		let x = cx - widths.reduce((sum, w) => sum + w, 0) / 2;
-		for (const w of widths) {
-			slots.push(x + w / 2);
-			x += w;
-		}
-		const p = clamp((show.age - movedAt) / HOP_S, 0, 1);
-		const ease = p * p * (3 - 2 * p);
-		letters.forEach((letter, i) => {
-			const fromX = slots[previous[i]];
-			const toX = slots[order[i]];
-			const hop = Math.sin(p * Math.PI) * size * .6 * (i % 2 ? 1 : -1);
-			ctx.fillStyle = color(i * .35 + show.age * .3, show.alpha, 82);
-			ctx.fillText(letter, fromX + (toX - fromX) * ease, cy - hop);
-		});
-	}
-};
-//#endregion
-//#region src/render/words/blinds.ts
-/**
-* Hero: the word is cut into horizontal slices. On each beat the slices shoot in one
-* after another from the side (all from one side: a diagonal staircase; from both
-* sides in turn: a comb) and meet to form the word. The treble makes them jitter.
-*/
-var SLICES = 9;
-var state$2 = {
-	since: 1,
-	from: 1,
-	comb: false,
-	k: 0
-};
-function restart() {
-	state$2.since = 0;
-	state$2.from = Math.random() < .5 ? 1 : -1;
-	state$2.comb = Math.random() < .45;
-}
-var blinds = {
-	name: "blinds",
-	role: "hero",
-	weight: 2,
-	start() {
-		restart();
-		state$2.k = Math.random() * 4;
-	},
-	draw(show, dt) {
-		if (show.beat) {
-			restart();
-			state$2.k += .7;
-		}
-		state$2.since += dt;
-		const { width, height, cx, cy } = view;
-		const size = fitFont(show.word, .86, height * .38) * (1 + audio.bass * .1);
-		ctx.font = font(size);
-		const top = cy - size * .62;
-		const sliceHeight = size * 1.24 / SLICES;
-		for (let s = 0; s < SLICES; s++) {
-			const p = clamp((state$2.since - s * .03) / .28, 0, 1);
-			const eased = 1 - Math.pow(1 - p, 3);
-			const side = state$2.comb && s % 2 ? -state$2.from : state$2.from;
-			const jitter = Math.sin(clock.time * 37 + s * 2.1) * audio.high * size * .06;
-			ctx.save();
-			ctx.beginPath();
-			ctx.rect(0, top + s * sliceHeight, width, sliceHeight + .5);
-			ctx.clip();
-			const x = cx + side * (1 - eased) * width + jitter;
-			shadowText(show.word, x, cy, size, show.alpha);
-			ctx.fillStyle = color(state$2.k + s * .25, show.alpha, 76);
-			ctx.fillText(show.word, x, cy);
-			ctx.restore();
-		}
-	}
-};
-//#endregion
-//#region src/render/words/bounce.ts
-/** Ambient: the current word bounces around the screen like the old DVD logo, and changes colour at each wall. */
-var box = {
-	x: 0,
-	y: 0,
-	vx: 1,
-	vy: 1,
-	k: 0,
-	flash: 0
-};
-var bounce = {
-	name: "bounce",
-	role: "ambient",
-	weight: 2,
-	start() {
-		box.x = rnd(.25, .75) * view.width;
-		box.y = rnd(.25, .75) * view.height;
-		box.vx = Math.random() < .5 ? 1 : -1;
-		box.vy = Math.random() < .5 ? 1 : -1;
-		box.k = Math.random() * 4;
-	},
-	draw(show, dt) {
-		const { width, height, min } = view;
-		const size = min * .075 * (1 + box.flash * .6);
-		ctx.font = font(size);
-		const halfW = ctx.measureText(show.word).width / 2;
-		const halfH = size / 2;
-		const speed = (140 + audio.mid * 220) * dt;
-		box.x += box.vx * speed;
-		box.y += box.vy * speed;
-		let walls = 0;
-		if (box.x - halfW < 0 || box.x + halfW > width) {
-			box.vx = box.x - halfW < 0 ? 1 : -1;
-			box.x = Math.min(width - halfW, Math.max(halfW, box.x));
-			walls++;
-		}
-		if (box.y - halfH < 0 || box.y + halfH > height) {
-			box.vy = box.y - halfH < 0 ? 1 : -1;
-			box.y = Math.min(height - halfH, Math.max(halfH, box.y));
-			walls++;
-		}
-		if (walls) box.k += 1.3;
-		if (walls === 2) box.flash = 1;
-		box.flash = Math.max(0, box.flash - dt * 1.5);
-		ctx.fillStyle = color(box.k, show.alpha, 80);
-		ctx.fillText(show.word, box.x, box.y);
-	}
-};
-//#endregion
-//#region src/render/words/crawl.ts
-/**
-* Ambient: the words run away on a floor in perspective, line after line toward the
-* horizon, like the opening of a space film; sometimes on the ceiling instead.
-*/
-var LINES = 10;
-var ceiling = false;
-var crawl = {
-	name: "crawl",
-	role: "ambient",
-	weight: 2,
-	start() {
-		ceiling = Math.random() < .35;
-	},
-	draw(show) {
-		const { height, cx } = view;
-		const horizon = height * (ceiling ? .64 : .36);
-		const span = ceiling ? horizon + height * .05 : height * 1.05 - horizon;
-		const flow = show.age * (.5 + audio.mid * .8);
-		const shift = Math.floor(flow);
-		const lines = show.words.length > 1 ? show.words : [show.phrase];
-		const base = fitFont(show.phrase, .9, height * .12);
-		for (let n = 0; n < LINES; n++) {
-			const z = 1 + n + (flow - shift);
-			const id = n - shift;
-			const near = 1 / z;
-			const y = horizon + (ceiling ? -1 : 1) * span * near;
-			const alpha = show.alpha * Math.min(1, near * 3) * Math.min(1, (z - 1) * 3);
-			if (alpha <= .01) continue;
-			ctx.save();
-			ctx.translate(cx, y);
-			ctx.scale(1, .55);
-			ctx.font = font(base * near * 1.6);
-			ctx.fillStyle = color(id * .5 + show.age * .2, alpha, 80);
-			ctx.fillText(lines[(id % lines.length + lines.length) % lines.length], 0, 0);
-			ctx.restore();
-		}
-	}
-};
-//#endregion
-//#region src/render/words/cutout.ts
-/** Hero: giant letters that invert the picture inside them, slowly zooming in. */
-var shown$1 = "";
-var shownAt$3 = 0;
-var cutout = {
-	name: "cutout",
-	role: "hero",
-	weight: 1.6,
-	draw(show) {
-		if (show.word !== shown$1) {
-			shown$1 = show.word;
-			shownAt$3 = show.age;
-		}
-		const { cx, cy, height } = view;
-		const size = fitFont(shown$1, .96, height * .85) * (1 + (show.age - shownAt$3) * .18 + audio.beat * .04);
-		ctx.translate(cx, cy);
-		ctx.rotate(Math.sin(show.age * .7) * .08);
-		ctx.font = font(size);
-		ctx.globalCompositeOperation = "difference";
-		ctx.fillStyle = `rgba(255,255,255,${show.alpha})`;
-		ctx.fillText(shown$1, 0, 0);
-		ctx.globalCompositeOperation = glowBlend();
-		ctx.lineWidth = 2;
-		ctx.strokeStyle = color(show.age * .5, show.alpha, 80);
-		ctx.strokeText(shown$1, 0, 0);
-	}
-};
-//#endregion
-//#region src/render/words/decode.ts
-/**
-* Hero: each word scrambles through random glyphs and locks letter by letter, like
-* hacker text, with a blinking cursor. Under it, the whole text is typed out.
-*/
-var GLYPHS = "!<>-_\\/[]{}=+*^?#%&ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-/** Seconds between two letters locking. */
-var LOCK_STEP = .06;
-var LATIN = /^[\u0000-ɏ\s]*$/;
-var shown = "";
-var shownAt$2 = 0;
-var decode = {
-	name: "decode",
-	role: "hero",
-	weight: 1.8,
-	start(show) {
-		shown = show.word;
-		shownAt$2 = show.age;
-	},
-	draw(show) {
-		if (show.word !== shown) {
-			shown = show.word;
-			shownAt$2 = show.age;
-		}
-		const { cx, cy, height } = view;
-		const family = LATIN.test(show.phrase) && currentFace().name === "bold" ? MONOSPACE : void 0;
-		const size = fitFont(shown, .82, height * .3, family);
-		ctx.font = font(size, family);
-		ctx.textAlign = "left";
-		const letters = [...shown];
-		const widths = letters.map((letter) => ctx.measureText(letter).width);
-		let x = cx - widths.reduce((sum, w) => sum + w, 0) / 2;
-		const t = show.age - shownAt$2;
-		letters.forEach((letter, i) => {
-			const locked = t > .15 + i * LOCK_STEP;
-			ctx.fillStyle = locked ? color(i * .4, show.alpha, 90) : color(2 + i * .4, show.alpha * .8, 55);
-			ctx.fillText(locked ? letter : GLYPHS[rndInt(55)], x, cy);
-			x += widths[i];
-		});
-		if (Math.floor(show.age * 3) % 2 === 0) {
-			ctx.fillStyle = color(1, show.alpha, 85);
-			ctx.fillRect(x + size * .08, cy - size * .38, size * .45, size * .76);
-		}
-		const typed = [...show.phrase].slice(0, Math.floor(show.age * 14)).join("");
-		ctx.textAlign = "center";
-		ctx.font = `700 ${Math.max(12, size * .22)}px ${family}`;
-		ctx.fillStyle = color(3, show.alpha * .85, 75);
-		ctx.fillText(typed, cx, cy + size * .85);
-	}
-};
-//#endregion
-//#region src/render/words/flap.ts
-/**
-* Hero: a split-flap board, as in old railway stations. On each beat every tile flips
-* through random letters, one tile after another, and lands on the next word.
-*/
-var FLICKER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&?!";
-var MAX_TILES = 12;
-/** Flips per second while a tile spins. */
-var RATE = 16;
-var state$1 = {
-	target: [],
-	settle: [],
-	since: 0,
-	k: 0
-};
-function aim(word) {
-	state$1.target = [...word].slice(0, MAX_TILES);
-	state$1.settle = state$1.target.map((_, i) => .1 + i * .07 + Math.random() * .12);
-	state$1.since = 0;
-}
-var flap = {
-	name: "flap",
-	role: "hero",
-	weight: 2,
-	start(show) {
-		aim(show.word);
-		state$1.k = Math.random() * 4;
-	},
-	draw(show, dt) {
-		if (show.beat) {
-			aim(show.word);
-			state$1.k += .6;
-		}
-		state$1.since += dt;
-		const { width, height, cx, cy } = view;
-		const n = Math.max(1, state$1.target.length);
-		const gap = Math.max(3, width * .008);
-		const tileW = Math.min((width * .9 - gap * (n - 1)) / n, height * .26);
-		const tileH = tileW * 1.4;
-		const left = cx - (n * tileW + (n - 1) * gap) / 2 + tileW / 2;
-		ctx.globalCompositeOperation = "source-over";
-		ctx.font = font(tileH * .6);
-		const flips = Math.floor(state$1.since * RATE);
-		for (let i = 0; i < state$1.target.length; i++) {
-			const x = left + i * (tileW + gap);
-			const settled = state$1.since >= state$1.settle[i];
-			const turn = settled ? Math.min(1, (state$1.since - state$1.settle[i]) / .12) : state$1.since * RATE % 1;
-			const letter = settled ? state$1.target[i] : FLICKER[Math.floor(hash01(flips * 1.7 + i * 7.3) * 41)];
-			ctx.fillStyle = `rgba(16,16,22,${show.alpha * .92})`;
-			ctx.beginPath();
-			ctx.roundRect(x - tileW / 2, cy - tileH / 2, tileW, tileH, tileW * .08);
-			ctx.fill();
-			const measured = Math.max(1, ctx.measureText(letter).width);
-			ctx.save();
-			ctx.translate(x, cy);
-			ctx.scale(Math.min(1, tileW * .86 / measured), Math.max(.05, Math.abs(Math.cos(turn * Math.PI))));
-			ctx.fillStyle = settled ? color(state$1.k + i * .3, show.alpha, 90) : `rgba(235,235,235,${show.alpha * .85})`;
-			ctx.fillText(letter, 0, tileH * .03);
-			ctx.restore();
-			ctx.fillStyle = `rgba(0,0,0,${show.alpha * .85})`;
-			ctx.fillRect(x - tileW / 2, cy - 1, tileW, 2);
-		}
-	}
-};
-//#endregion
-//#region src/render/words/kaleido.ts
-/** Hero: a mandala made of the word: two counter-turning rings of copies, every other one mirrored. */
-var COPIES = 8;
-var kaleido = {
-	name: "kaleido",
-	role: "hero",
-	weight: 1,
-	round: true,
-	draw(show) {
-		const { cx, cy, min, width } = view;
-		const outer = min * .27 * (1 + audio.bass * .2 + audio.beat * .06);
-		for (const ring of [0, 1]) {
-			const radius = ring ? outer * .45 : outer;
-			ctx.font = font(fitFont(show.word, radius * (ring ? 1.1 : .95) / width, min * .16));
-			const spin = show.age * (ring ? -.8 : .45) + audio.bass * .3;
-			for (let c = 0; c < COPIES; c++) {
-				const a = c / COPIES * TAU + spin;
-				ctx.save();
-				ctx.translate(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
-				ctx.rotate(a + Math.PI / 2);
-				if (c % 2) ctx.scale(-1, 1);
-				ctx.fillStyle = color(c * .5 + ring * 2 + show.age * .3, show.alpha * (ring ? .75 : 1), 75);
-				ctx.fillText(show.word, 0, 0);
-				ctx.restore();
-			}
-		}
-	}
-};
-//#endregion
-//#region src/render/words/marquee.ts
-/** Ambient (rare): three bands of the text scrolling left and right, with split colours. */
-var marquee = {
-	name: "marquee",
-	role: "ambient",
-	weight: .4,
-	draw(show) {
-		const { width, height } = view;
-		ctx.font = `700 ${Math.max(14, height * .065)}px ${MONOSPACE}`;
-		const unit = `${show.phrase}  ✦  `;
-		const text = unit.repeat(8);
-		const unitWidth = ctx.measureText(unit).width;
-		[
-			.18,
-			.5,
-			.82
-		].forEach((at, band) => {
-			const direction = band % 2 ? -1 : 1;
-			const shift = (show.age * (60 + audio.mid * 160) * direction % unitWidth + unitWidth) % unitWidth;
-			const x = width / 2 - shift - unitWidth;
-			const y = height * at;
-			const split = 2 + audio.bass * 6;
-			ctx.fillStyle = color(band, show.alpha * .55, 55);
-			ctx.fillText(text, x - split, y);
-			ctx.fillStyle = color(band + 2, show.alpha * .55, 55);
-			ctx.fillText(text, x + split, y);
-			ctx.fillStyle = color(band + 1, show.alpha, 92);
-			ctx.fillText(text, x, y);
-		});
-	}
-};
-//#endregion
-//#region src/render/words/orbit.ts
-/** Ambient: the letters of the text circle the centre. */
-var orbit = {
-	name: "orbit",
-	role: "ambient",
-	weight: 1,
-	round: true,
-	draw(show) {
-		const { cx, cy, min } = view;
-		const letters = [...show.phrase.replace(/\s+/g, " ")].slice(0, 48);
-		const radius = min * .38 * (1 + audio.bass * .2);
-		ctx.font = font(Math.max(14, Math.min(72, TAU * radius / letters.length * .9)));
-		letters.forEach((letter, i) => {
-			const a = i / letters.length * TAU + show.age * .6;
-			ctx.save();
-			ctx.translate(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
-			ctx.rotate(a + Math.PI / 2);
-			ctx.fillStyle = color(i * .3 - show.age, show.alpha, 80);
-			ctx.fillText(letter, 0, 0);
-			ctx.restore();
-		});
-	}
-};
-//#endregion
-//#region src/render/words/particles.ts
-/**
-* Hero: each word is built from hundreds of glowing particles. On every beat they blow
-* apart and fly together into the next word.
-*/
-var MAX$1 = 1100;
-var px = new Float32Array(MAX$1);
-var py = new Float32Array(MAX$1);
-var vx = new Float32Array(MAX$1);
-var vy = new Float32Array(MAX$1);
-var tx = new Float32Array(MAX$1);
-var ty = new Float32Array(MAX$1);
-var count = 0;
-var target = "";
-/** The word is drawn here once, and its pixels become the particle targets. */
-var sampler = createLayer();
-var SAMPLE_W = 360;
-var SAMPLE_H = 110;
-function aimAt(word) {
-	const { width, height, cx, cy } = view;
-	setCanvasSize(sampler.canvas, SAMPLE_W, SAMPLE_H);
-	const g = sampler.ctx;
-	g.clearRect(0, 0, SAMPLE_W, SAMPLE_H);
-	g.fillStyle = "#fff";
-	g.textAlign = "center";
-	g.textBaseline = "middle";
-	g.font = font(90);
-	const measured = g.measureText(word).width;
-	if (measured > SAMPLE_W * .94) g.font = font(90 * SAMPLE_W * .94 / measured);
-	g.fillText(word, SAMPLE_W / 2, SAMPLE_H / 2);
-	const alpha = g.getImageData(0, 0, SAMPLE_W, SAMPLE_H).data;
-	const points = [];
-	for (let y = 0; y < SAMPLE_H; y += 2) for (let x = 0; x < SAMPLE_W; x += 2) if (alpha[(y * SAMPLE_W + x) * 4 + 3] > 128) points.push(x, y);
-	const available = points.length / 2;
-	const step = Math.max(1, available / MAX$1);
-	const scale = Math.min(width * .86 / SAMPLE_W, height * .5 / SAMPLE_H);
-	let n = 0;
-	for (let f = 0; f < available && n < MAX$1; f += step, n++) {
-		const p = Math.floor(f) * 2;
-		tx[n] = cx + (points[p] - SAMPLE_W / 2) * scale;
-		ty[n] = cy + (points[p + 1] - SAMPLE_H / 2) * scale;
-	}
-	for (let i = count; i < n; i++) {
-		const from = count ? rndInt(count) : -1;
-		px[i] = from >= 0 ? px[from] : Math.random() * width;
-		py[i] = from >= 0 ? py[from] : Math.random() * height;
-		vx[i] = 0;
-		vy[i] = 0;
-	}
-	count = n;
-	target = word;
-}
-var particles = {
-	name: "particles",
-	role: "hero",
-	weight: 2.2,
-	start(show) {
-		count = 0;
-		aimAt(show.word);
-	},
-	draw(show, dt) {
-		const { cx, cy, min } = view;
-		if (show.beat) for (let i = 0; i < count; i++) {
-			const a = Math.atan2(py[i] - cy, px[i] - cx) + rnd(-.6, .6);
-			const speed = rnd(250, 800) * (.6 + audio.bass);
-			vx[i] += Math.cos(a) * speed;
-			vy[i] += Math.sin(a) * speed;
-		}
-		if (show.word !== target) aimAt(show.word);
-		const step = Math.min(dt, 1 / 30);
-		for (let i = 0; i < count; i++) {
-			vx[i] += ((tx[i] - px[i]) * 55 - vx[i] * 8.5) * step;
-			vy[i] += ((ty[i] - py[i]) * 55 - vy[i] * 8.5) * step;
-			px[i] += vx[i] * step;
-			py[i] += vy[i] * step;
-		}
-		const size = Math.max(2.5, min / 160);
-		for (let g = 0; g < 3; g++) {
-			ctx.fillStyle = color(g * 1.2 + show.age * .4, show.alpha, 82);
-			ctx.beginPath();
-			for (let i = g; i < count; i += 3) ctx.rect(px[i] - size / 2, py[i] - size / 2, size, size);
-			ctx.fill();
-		}
-	}
-};
-//#endregion
-//#region src/render/words/rain.ts
-/** Ambient: letters fall from the top, bounce on the floor and tumble; each beat drops the whole word. */
-var drops = [];
-function drop(letter, x) {
-	drops.push({
-		letter,
-		x,
-		y: -20,
-		vx: rnd(-40, 40),
-		vy: rnd(0, 120),
-		turn: rnd(-.5, .5),
-		spin: rnd(-3, 3),
-		life: 3.5,
-		k: Math.random() * 4
-	});
-	if (drops.length > 160) drops.shift();
-}
-var rain = {
-	name: "rain",
-	role: "ambient",
-	weight: 2,
-	start() {
-		drops.length = 0;
-	},
-	draw(show, dt) {
-		const { width, height, min } = view;
-		const letters = [...show.phrase.replace(/\s+/g, "")];
-		if (show.beat) {
-			const word = [...show.word];
-			word.forEach((letter, i) => drop(letter, width * (.15 + .7 * (i + .5) / word.length)));
-		}
-		if (Math.random() < dt * (5 + audio.high * 20)) drop(letters[Math.floor(Math.random() * letters.length)], Math.random() * width);
-		const size = min * .06;
-		ctx.font = font(size);
-		for (let i = drops.length - 1; i >= 0; i--) {
-			const d = drops[i];
-			d.life -= dt;
-			if (d.life <= 0) {
-				drops.splice(i, 1);
-				continue;
-			}
-			d.vy += 900 * dt;
-			d.x += d.vx * dt;
-			d.y += d.vy * dt;
-			d.turn += d.spin * dt;
-			if (d.y > height - size / 2) {
-				d.y = height - size / 2;
-				d.vy *= -.45;
-				d.vx *= .8;
-				d.spin *= .6;
-			}
-			ctx.save();
-			ctx.translate(d.x, d.y);
-			ctx.rotate(d.turn);
-			ctx.fillStyle = color(d.k, show.alpha * Math.min(1, d.life), 80);
-			ctx.fillText(d.letter, 0, 0);
-			ctx.restore();
-		}
-	}
-};
-//#endregion
-//#region src/render/words/slam.ts
-/** Hero: one word per beat, slammed in with a stacked shadow and a split-colour echo. */
-var pose = {
-	turn: 0,
-	x: 0,
-	y: 0,
-	k: 0
-};
-function newPose() {
-	pose.turn = rnd(-.3, .3);
-	pose.x = rnd(-.1, .1);
-	pose.y = rnd(-.15, .15);
-	pose.k = Math.random() * 4;
-}
-var slam = {
-	name: "slam",
-	role: "hero",
-	weight: 2,
-	start: newPose,
-	draw(show) {
-		if (show.beat) newPose();
-		const { width, height, cx, cy } = view;
-		const size = fitFont(show.word, .82, height * .42) * (.9 + audio.bass * .25 + audio.beat * .15);
-		ctx.font = font(size);
-		ctx.translate(cx + pose.x * width, cy + pose.y * height);
-		ctx.rotate(pose.turn + Math.sin(clock.time * 3) * audio.high * .1);
-		for (let i = 5; i >= 0; i--) {
-			const o = i * size * .045 * (1 + audio.mid);
-			ctx.fillStyle = i ? color(pose.k + i, show.alpha * .9, 50) : color(pose.k, show.alpha, 90);
-			ctx.fillText(show.word, o, o);
-		}
-		if (audio.beat > .5) {
-			const split = size * .04 * audio.beat;
-			ctx.fillStyle = `rgba(255,0,80,${show.alpha * .5 * audio.beat})`;
-			ctx.fillText(show.word, -split, 0);
-			ctx.fillStyle = `rgba(0,230,255,${show.alpha * .5 * audio.beat})`;
-			ctx.fillText(show.word, split, 0);
-		}
-	}
-};
-//#endregion
-//#region src/render/words/slide.ts
-/**
-* Hero: each word slides in along a diagonal from a corner and brakes hard in the
-* middle, with a wobble; the word before shoots on out of the far corner. Both leave
-* a trail of fading copies and lean into the motion.
-*/
-var IN_S = .32;
-var TRAIL = 5;
-/** The corners, as steps from the centre. */
-var CORNERS = [
-	[1, 1],
-	[1, -1],
-	[-1, 1],
-	[-1, -1]
-];
-var state = {
-	corner: 0,
-	lastCorner: 0,
-	word: "",
-	last: "",
-	since: 1,
-	k: 0
-};
-/** Where a word is at `p` (0..1 of its slide): coming in from `corner`, or going out. */
-function place(corner, p, coming) {
-	const [dx, dy] = CORNERS[corner];
-	const { cx, cy, width, height } = view;
-	const away = coming ? Math.pow(1 - p, 4) : -(p * p);
-	return [cx + dx * width * .75 * away, cy + dy * height * .75 * away];
-}
-function drawWord(text, corner, p, coming, k, alpha) {
-	const [x, y] = place(corner, p, coming);
-	const [bx, by] = place(corner, Math.max(0, p - .05), coming);
-	const speed = Math.hypot(x - bx, y - by) / view.min;
-	const lean = Math.sign(bx - x) * Math.min(.6, speed * 3);
-	for (let j = TRAIL; j >= 0; j--) {
-		const [tx, ty] = j ? place(corner, Math.max(0, p - j * .04), coming) : [x, y];
-		if (j && Math.hypot(tx - x, ty - y) < 2) continue;
-		ctx.save();
-		ctx.translate(tx, ty);
-		ctx.transform(1, 0, lean, 1, 0, 0);
-		if (!j) shadowText(text, 0, 0, view.min * .1, alpha);
-		ctx.fillStyle = j ? color(k + j * .4, alpha * .3 * (1 - j / 6), 55) : color(k, alpha, 78);
-		ctx.fillText(text, 0, 0);
-		ctx.restore();
-	}
-}
-var slide = {
-	name: "slide",
-	role: "hero",
-	weight: 2,
-	start(show) {
-		state.word = show.word;
-		state.last = "";
-		state.corner = rndInt(4);
-		state.since = 0;
-		state.k = Math.random() * 4;
-	},
-	draw(show, dt) {
-		if (show.beat) {
-			state.last = state.word;
-			state.lastCorner = state.corner;
-			state.word = show.word;
-			state.corner = (state.corner + 1 + rndInt(3)) % 4;
-			state.since = 0;
-			state.k += .9;
-		}
-		state.since += dt;
-		ctx.font = font(fitFont(show.word, .7, view.height * .34) * (1 + audio.bass * .12));
-		const p = Math.min(1, state.since / IN_S);
-		if (state.last && p < 1) drawWord(state.last, state.lastCorner, p, false, state.k - .9, show.alpha);
-		const settle = state.since - IN_S;
-		const wobble = settle > 0 ? Math.sin(settle * 28) * Math.exp(-settle * 7) * .12 : 0;
-		ctx.save();
-		ctx.translate(view.cx, view.cy);
-		ctx.scale(1 + wobble, 1 - wobble);
-		ctx.translate(-view.cx, -view.cy);
-		drawWord(state.word, state.corner, p, true, state.k, show.alpha);
-		ctx.restore();
-	}
-};
-//#endregion
-//#region src/render/words/spiral.ts
-/** Ambient: the text is pulled into a turning vortex, letters shrinking toward the centre. */
-var LETTERS = 72;
-var spiral = {
-	name: "spiral",
-	role: "ambient",
-	weight: 1,
-	round: true,
-	draw(show) {
-		const { cx, cy, min } = view;
-		const text = [...`${show.phrase.replace(/\s+/g, " ")} · `];
-		const flow = show.age * (1.5 + audio.mid * 3);
-		const shift = Math.floor(flow);
-		const maxR = Math.hypot(cx, cy) * .95;
-		for (let n = 0; n < LETTERS; n++) {
-			const t = (n + (flow - shift)) / LETTERS;
-			const size = 6 + Math.pow(1 - t, 1.2) * min * .075;
-			if (size < 7) continue;
-			const a = t * TAU * 2.6 + show.age * .5;
-			const r = maxR * Math.pow(1 - t, 1.3);
-			const letter = text[((n - shift) % text.length + text.length) % text.length];
-			ctx.save();
-			ctx.translate(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-			ctx.rotate(a + Math.PI / 2);
-			ctx.font = font(size);
-			ctx.fillStyle = color(n * .12 + show.age, show.alpha * (1 - t * .6), 78);
-			ctx.fillText(letter, 0, 0);
-			ctx.restore();
-		}
-	}
-};
-//#endregion
-//#region src/render/words/stickers.ts
-/**
-* Ambient: on each beat the word is slapped on the screen as a sticker: a tilted label
-* with a white edge and a shadow, popping in with an overshoot. The oldest fade away.
-*/
-var MAX = 7;
-var stickers = [];
-var stickersStyle = {
-	name: "stickers",
-	role: "ambient",
-	weight: 2,
-	start() {
-		stickers.length = 0;
-	},
-	draw(show, dt) {
-		const { width, height, min } = view;
-		if (show.beat || !stickers.length) {
-			stickers.push({
-				x: rnd(.15, .85) * width,
-				y: rnd(.12, .88) * height,
-				turn: rnd(-.45, .45),
-				word: show.word,
-				k: Math.random() * 6,
-				age: 0
-			});
-			while (stickers.length > MAX) stickers.shift();
-		}
-		ctx.globalCompositeOperation = "source-over";
-		const size = min * .05;
-		ctx.font = font(size);
-		const edge = size * .18;
-		stickers.forEach((s, i) => {
-			s.age += dt;
-			const p = Math.min(1, s.age / .22) - 1;
-			const pop = 1 + 2.70158 * p * p * p + 1.70158 * p * p;
-			const w = ctx.measureText(s.word).width + size * 1.2;
-			const h = size * 1.7;
-			ctx.save();
-			ctx.translate(s.x, s.y);
-			ctx.rotate(s.turn);
-			ctx.scale(pop, pop);
-			ctx.globalAlpha = show.alpha * (.45 + .55 * (i + 1) / stickers.length);
-			ctx.fillStyle = "rgba(0,0,0,0.35)";
-			ctx.beginPath();
-			ctx.roundRect(-w / 2 - edge + size * .15, -h / 2 - edge + size * .2, w + edge * 2, h + edge * 2, h * .3);
-			ctx.fill();
-			ctx.fillStyle = "#fff";
-			ctx.beginPath();
-			ctx.roundRect(-w / 2 - edge, -h / 2 - edge, w + edge * 2, h + edge * 2, h * .3);
-			ctx.fill();
-			ctx.fillStyle = color(s.k, 1, 55);
-			ctx.beginPath();
-			ctx.roundRect(-w / 2, -h / 2, w, h, h * .25);
-			ctx.fill();
-			ctx.fillStyle = "#fff";
-			ctx.fillText(s.word, 0, size * .04);
-			ctx.restore();
-		});
-	}
-};
-//#endregion
-//#region src/render/words/stretch.ts
-/**
-* Hero: a rubber word, as big as the screen allows. The beat squashes and stretches it
-* (tall and thin, or wide and flat), and it wobbles back like jelly. Now and then it
-* turns on its side.
-*/
-var STIFFNESS = 160;
-var DAMPING = 9;
-var jelly = {
-	sx: 1,
-	sy: 1,
-	vx: 0,
-	vy: 0,
-	turn: 0,
-	targetTurn: 0,
-	k: 0
-};
-var stretch = {
-	name: "stretch",
-	role: "hero",
-	weight: 1.8,
-	start() {
-		jelly.k = Math.random() * 4;
-	},
-	draw(show, dt) {
-		if (show.beat) {
-			const kick = (4 + audio.bass * 4) * (Math.random() < .5 ? 1 : -1);
-			jelly.vx += kick;
-			jelly.vy -= kick;
-			if (Math.random() < .25) jelly.targetTurn = jelly.targetTurn ? 0 : (Math.random() < .5 ? 1 : -1) * (Math.PI / 2);
-			jelly.k += .8;
-		}
-		const step = Math.min(dt, 1 / 30);
-		jelly.vx += ((1 - jelly.sx) * STIFFNESS - jelly.vx * DAMPING) * step;
-		jelly.vy += ((1 - jelly.sy) * STIFFNESS - jelly.vy * DAMPING) * step;
-		jelly.sx = clamp(jelly.sx + jelly.vx * step, .25, 3);
-		jelly.sy = clamp(jelly.sy + jelly.vy * step, .25, 3);
-		jelly.turn += (jelly.targetTurn - jelly.turn) * Math.min(1, dt * 6);
-		const { width, height, cx, cy } = view;
-		const size = Math.abs(Math.sin(jelly.turn)) > .5 ? fitFont(show.word, height / width * .75, width * .36) : fitFont(show.word, .72, height * .4);
-		ctx.font = font(size);
-		ctx.translate(cx, cy);
-		ctx.rotate(jelly.turn);
-		ctx.scale(jelly.sx, jelly.sy);
-		shadowText(show.word, 0, 0, size, show.alpha);
-		const split = size * .05 * audio.beat;
-		if (split > .5) {
-			ctx.fillStyle = color(jelly.k + 2, show.alpha * .6, 55);
-			ctx.fillText(show.word, -split, 0);
-			ctx.fillStyle = color(jelly.k + 4, show.alpha * .6, 55);
-			ctx.fillText(show.word, split, 0);
-		}
-		ctx.fillStyle = color(jelly.k, show.alpha, 80);
-		ctx.fillText(show.word, 0, 0);
-	}
-};
-//#endregion
-//#region src/render/words/tape.ts
-/**
-* Ambient: two diagonal tapes cross the screen, like caution tape. The text runs along
-* each tape, the tapes run opposite ways, and the beat makes them shudder.
-*/
-var TAPES = [{
-	angle: -.38,
-	at: -.16,
-	direction: 1
-}, {
-	angle: .33,
-	at: .2,
-	direction: -1
-}];
-var tape = {
-	name: "tape",
-	role: "ambient",
-	weight: 2,
-	draw(show) {
-		const { width, height, cx, cy, min } = view;
-		const size = Math.max(13, min * .045);
-		ctx.font = font(size);
-		const unit = `${show.phrase}  ///  `;
-		const unitWidth = Math.max(1, ctx.measureText(unit).width);
-		const long = Math.hypot(width, height) * 1.1;
-		const text = unit.repeat(Math.ceil(long / unitWidth) + 2);
-		const band = size * 1.7;
-		ctx.globalCompositeOperation = "source-over";
-		ctx.textAlign = "left";
-		TAPES.forEach((tape, i) => {
-			ctx.save();
-			ctx.translate(cx, cy + tape.at * height);
-			const shudder = Math.sin(clock.time * 53 + i * 3) * audio.beat * .025;
-			ctx.rotate(tape.angle + Math.sin(clock.time * .4 + i) * .04 + shudder);
-			ctx.fillStyle = color(i * 2 + show.age * .2, show.alpha * .9, 58);
-			ctx.fillRect(-long / 2, -band / 2, long, band);
-			ctx.fillStyle = `rgba(0,0,0,${show.alpha * .85})`;
-			ctx.fillRect(-long / 2, -band / 2, long, band * .08);
-			ctx.fillRect(-long / 2, band / 2 - band * .08, long, band * .08);
-			const shift = (show.age * (90 + audio.mid * 200) * tape.direction % unitWidth + unitWidth) % unitWidth;
-			ctx.fillText(text, -long / 2 - shift, size * .04);
-			ctx.restore();
-		});
-	}
-};
-//#endregion
-//#region src/render/words/tunnel.ts
-/** Ambient: copies of the text fly out of the centre, turning, and grow past the viewer. */
-var tunnel$1 = {
-	name: "tunnel",
-	role: "ambient",
-	weight: 2,
-	draw(show) {
-		const { cx, cy } = view;
-		const copies = 7;
-		const base = fitFont(show.phrase, .5, view.height * .2);
-		for (let i = 0; i < copies; i++) {
-			const p = (show.age * (.25 + audio.mid * .3) + i / copies) % 1;
-			ctx.save();
-			ctx.translate(cx, cy);
-			ctx.rotate((i % 2 ? 1 : -1) * p * .7);
-			ctx.font = font(base * (.12 + p * p * 2.8));
-			ctx.fillStyle = color(i * .6 + show.age * .5, show.alpha * Math.sin(p * Math.PI) * .75, 70);
-			ctx.fillText(show.phrase, 0, 0);
-			ctx.restore();
-		}
-	}
-};
-//#endregion
-//#region src/render/words/wave.ts
-/** Ambient: rainbow letters on a sine wave near the bottom, wobbling like jelly. */
-var wave = {
-	name: "wave",
-	role: "ambient",
-	weight: 2,
-	draw(show) {
-		const { cx, height } = view;
-		const size = fitFont(show.phrase, .9, height * .1);
-		ctx.font = font(size);
-		const letters = [...show.phrase];
-		const widths = letters.map((letter) => ctx.measureText(letter).width);
-		let x = cx - widths.reduce((sum, w) => sum + w, 0) / 2;
-		const baseY = height * .84;
-		letters.forEach((letter, i) => {
-			const y = baseY + Math.sin(i * .55 - show.age * 5) * size * .6 * (.4 + audio.bass);
-			const squash = 1 + .35 * Math.sin(show.age * 7 + i * .8) * (.3 + audio.mid);
-			ctx.save();
-			ctx.translate(x + widths[i] / 2, y);
-			ctx.scale(1 / Math.sqrt(squash), squash);
-			ctx.fillStyle = color(i * .25 + show.age, show.alpha, 80);
-			ctx.fillText(letter, 0, 0);
-			ctx.restore();
-			x += widths[i];
-		});
-	}
-};
-//#endregion
-//#region src/render/words/index.ts
-/**
-* Words heard by the mic (audio/speech.ts), shown over any mode for a while. Each text
-* gets one big "hero" style in the middle and one or two "ambient" styles around it;
-* the hero changes every 8 beats, so one text can go through several heroes. Each text
-* also gets a typeface for the ambients and one for the hero, which can change with it.
-*/
-var SHOW_S = 16;
-var HERO_BEATS = 8;
-/** Without beats, the next word comes after this long anyway. */
-var WORD_MAX_S = 1.2;
-/** The longest wait for the text's fonts before it shows anyway. */
-var FONT_WAIT_S = 1.5;
-var HEROES = [
-	slam,
-	particles,
-	decode,
-	kaleido,
-	cutout,
-	anagram,
-	slide,
-	blinds,
-	flap,
-	stretch
-];
-var AMBIENTS = [
-	tunnel$1,
-	orbit,
-	wave,
-	bounce,
-	rain,
-	spiral,
-	marquee,
-	tape,
-	stickersStyle,
-	crawl
-];
-var show$1 = null;
-/** False while the fonts load; the text starts when they are ready. */
-var started = false;
-var shownAt$1 = 0;
-var lastBeats = 0;
-var lastWordAt = 0;
-var heroStyle = slam;
-var ambients = [];
-var heroBeats = 0;
-var heroFace = FACES[0];
-var ambientFace = FACES[0];
-/** The longest word of the last text, kept after the text is gone. */
-var lastWord = "";
-/** The longest word of the last heard text, or '' before any. */
-function lastHeardWord() {
-	return lastWord;
-}
-/** A random style, by weight, that is not in `not` (and not round, if `noRound`). */
-function pickStyle(styles, not, noRound = false) {
-	const options = styles.filter((s) => !not.includes(s) && !(noRound && s.round));
-	let roll = Math.random() * options.reduce((sum, s) => sum + s.weight, 0);
-	for (const style of options) {
-		roll -= style.weight;
-		if (roll <= 0) return style;
-	}
-	return options[options.length - 1];
-}
-/** Chinese, Japanese and Korean characters. */
-var CJK$1 = /[぀-ヿ㐀-鿿가-힯豈-﫿]/;
-/** The words of the text. Text without spaces (Chinese, Japanese) is cut into short chunks. */
-function splitWords(phrase) {
-	const words = [];
-	for (const token of phrase.split(/\s+/).filter(Boolean)) {
-		const characters = [...token];
-		if (!CJK$1.test(token) || characters.length <= 4) {
-			words.push(token);
-			continue;
-		}
-		for (let i = 0; i < characters.length; i += 3) words.push(characters.slice(i, i + 3).join(""));
-	}
-	return words;
-}
-function fontReady(face, phrase) {
-	try {
-		return document.fonts?.check?.(`${face.weight} 60px ${face.family}`, phrase) ?? true;
-	} catch {
-		return true;
-	}
-}
-/** Calls each style's `start`, in its own face. */
-function startStyles() {
-	if (!show$1) return;
-	for (const style of [heroStyle, ...ambients]) {
-		useFace(style.role === "hero" ? heroFace : ambientFace);
-		style.start?.(show$1);
-	}
-}
-/**
-* Shows `text`. Styles and faces are picked at random, unless `hero` and `ambient`
-* name styles (for trying them from the console). A face can be named too, as
-* "face:pixel" among `ambient`.
-*/
-function showHeardWords(text, hero, ...ambient) {
-	const phrase = text.toUpperCase().trim();
-	const words = splitWords(phrase);
-	if (!words.length) return;
-	for (const face of FACES) document.fonts?.load?.(`${face.weight} 60px ${face.family}`, phrase).catch(() => {});
-	const named = FACES.find((f) => ambient.includes(`face:${f.name}`));
-	ambientFace = named ?? pickFace();
-	heroFace = named ?? (Math.random() < .5 ? ambientFace : pickFace());
-	lastWord = words.reduce((a, w) => [...w].length > [...a].length ? w : a, "");
-	show$1 = {
-		phrase,
-		words,
-		age: 0,
-		alpha: 0,
-		beats: 0,
-		beat: false,
-		word: words[0]
-	};
-	started = false;
-	shownAt$1 = clock.time;
-	heroStyle = HEROES.find((s) => s.name === hero) ?? pickStyle(HEROES, []);
-	heroBeats = 0;
-	const chosen = AMBIENTS.filter((s) => ambient.includes(s.name));
-	ambients = chosen.length ? chosen : [pickStyle(AMBIENTS, [], heroStyle.round)];
-	if (!chosen.length && Math.random() < .45) ambients.push(pickStyle(AMBIENTS, ambients, heroStyle.round || ambients[0].round));
-}
-/** Draws the heard words, if there are any to show now. */
-function drawHeardWords(dt) {
-	if (!show$1) return;
-	if (!started) {
-		if (!(fontReady(heroFace, show$1.phrase) && fontReady(ambientFace, show$1.phrase)) && clock.time - shownAt$1 < FONT_WAIT_S) return;
-		started = true;
-		shownAt$1 = clock.time;
-		lastBeats = audio.beats;
-		lastWordAt = 0;
-		startStyles();
-	}
-	const age = clock.time - shownAt$1;
-	if (age > SHOW_S) {
-		show$1 = null;
-		return;
-	}
-	show$1.age = age;
-	show$1.alpha = Math.max(0, Math.min(1, age / .4, (SHOW_S - age) / 1.5));
-	show$1.beat = audio.beats !== lastBeats || age - lastWordAt > WORD_MAX_S;
-	if (show$1.beat) {
-		lastBeats = audio.beats;
-		lastWordAt = age;
-		show$1.beats++;
-		show$1.word = show$1.words[show$1.beats % show$1.words.length];
-		if (++heroBeats >= HERO_BEATS) {
-			heroStyle = pickStyle(HEROES, [heroStyle], ambients.some((s) => s.round));
-			if (Math.random() < .6) heroFace = pickFace(heroFace);
-			useFace(heroFace);
-			heroStyle.start?.(show$1);
-			heroBeats = 0;
-		}
-	}
-	for (const style of [...ambients, heroStyle]) {
-		useFace(style.role === "hero" ? heroFace : ambientFace);
-		ctx.save();
-		ctx.globalCompositeOperation = glowBlend();
-		ctx.textAlign = "center";
-		ctx.textBaseline = "middle";
-		style.draw(show$1, dt);
-		ctx.restore();
-	}
-}
-//#endregion
-//#region src/modes/stereo.ts
-/**
-* Magic eye: a random-dot stereogram. Look through the screen until the two white dots
-* at the top become three, and a shape floats out in 3D: the last word the mic heard
-* (or LOUD), rings, a dome or a wavy sea, pulsing toward you with the kick.
-*
-* How: each row is built left to right. Where the hidden surface is near, a pixel
-* copies the pixel a little less than one pattern width to its left; where it is far,
-* a full width. The two eyes then match pixels at different distances, and the brain
-* reads that as depth.
-*/
-var SHAPES = [
-	"word",
-	"rings",
-	"word",
-	"dome",
-	"sea"
-];
-/** Depth range in pattern pixels: near points copy from this much closer. */
-var DEPTH = 12;
-var layer$1 = new PixelLayer();
-var depthCanvas = document.createElement("canvas");
-var depthCtx = context2d(depthCanvas, { willReadFrequently: true });
-/** Depth per pixel, 0 far .. 255 near. */
-var depth = /* @__PURE__ */ new Uint8Array(0);
-var waveX = /* @__PURE__ */ new Float32Array(0);
-var waveY = /* @__PURE__ */ new Float32Array(0);
-var pattern = /* @__PURE__ */ new Uint8Array(0);
-var patternWidth = 0;
-var patternFor = null;
-var shape = 0;
-var beats = 0;
-/** A fixed random dot pattern in the palette's colours. */
-function makePattern(width, height) {
-	patternWidth = width;
-	pattern = new Uint8Array(width * height * 3);
-	const colors = [
-		0,
-		1,
-		2,
-		3,
-		4
-	].map((k) => colorRgb(k * 1.3, 35 + k * 12));
-	for (let i = 0; i < width * height; i++) {
-		const c = colors[Math.floor(Math.random() * colors.length)];
-		pattern[i * 3] = c[0];
-		pattern[i * 3 + 1] = c[1];
-		pattern[i * 3 + 2] = c[2];
-	}
-	patternFor = scene.palette;
-}
-/** Fills `depth` with the hidden surface. */
-function makeDepth(w, h, pulse, shift) {
-	const kind = SHAPES[shape];
-	if (kind === "sea") {
-		if (waveX.length !== w) waveX = new Float32Array(w);
-		if (waveY.length !== h) waveY = new Float32Array(h);
-		for (let x = 0; x < w; x++) waveX[x] = Math.sin(x * .06 + clock.time * 1.5);
-		for (let y = 0; y < h; y++) waveY[y] = Math.sin(y * .08 - clock.time);
-		for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) depth[y * w + x] = 255 * pulse * (.45 + .45 * waveX[x] * waveY[y]);
-		return;
-	}
-	const g = depthCtx;
-	g.fillStyle = "#000";
-	g.fillRect(0, 0, w, h);
-	const level = (v) => {
-		const n = Math.round(255 * v * pulse);
-		return `rgb(${n},${n},${n})`;
-	};
-	const cx = w / 2 + shift;
-	const cy = h / 2;
-	if (kind === "word") {
-		const text = lastHeardWord() || "LOUD";
-		g.font = `700 100px ${FACES[0].family}`;
-		g.font = `700 ${Math.min(h * .55, 100 * (w - shift * 2) * .82 / g.measureText(text).width)}px ${FACES[0].family}`;
-		g.textAlign = "center";
-		g.textBaseline = "middle";
-		g.lineWidth = h * .03;
-		g.strokeStyle = level(.45);
-		g.beginPath();
-		g.ellipse(cx, cy, w * .4, h * .42, 0, 0, Math.PI * 2);
-		g.stroke();
-		g.fillStyle = level(1);
-		g.fillText(text, cx, cy);
-	} else if (kind === "rings") for (let i = 5; i >= 1; i--) {
-		g.fillStyle = level(i % 2 ? 1 - i * .12 : .15);
-		fillCircle(g, cx, cy, h * .45 * i / 5);
-	}
-	else if (kind === "dome") {
-		const dome = g.createRadialGradient(cx, cy, 0, cx, cy, h * .45);
-		dome.addColorStop(0, level(1));
-		dome.addColorStop(.7, level(.6));
-		dome.addColorStop(1, level(0));
-		g.fillStyle = dome;
-		fillCircle(g, cx, cy, h * .45);
-	}
-	const grey = g.getImageData(0, 0, w, h).data;
-	for (let i = 0; i < w * h; i++) depth[i] = grey[i * 4];
-}
-var stereo = {
-	name: "magic-eye",
-	fade: 1,
-	bloom: 0,
-	blend: "source-over",
-	beatRings: false,
-	plain: true,
-	palettes: [
-		"candy",
-		"technicolor",
-		"vapor",
-		"acid",
-		"neon",
-		"sunset",
-		"mint"
-	],
-	beat() {
-		if (++beats % 16 === 0) shape = (shape + 1) % SHAPES.length;
-	},
-	resize() {
-		patternWidth = 0;
-	},
-	draw() {
-		const { width, height } = view;
-		const w = Math.max(160, Math.min(420, Math.round(width / 2)));
-		const h = Math.max(100, Math.round(w * height / width));
-		layer$1.setSize(w, h);
-		const p = Math.round(w / 8);
-		if (patternWidth !== p || patternFor !== scene.palette) makePattern(p, h);
-		if (depthCanvas.width !== w || depthCanvas.height !== h) {
-			depthCanvas.width = w;
-			depthCanvas.height = h;
-			depth = new Uint8Array(w * h);
-		}
-		makeDepth(w, h, .72 + audio.beat * .2 + audio.bass * .08, p / 2);
-		const out = layer$1.pixels;
-		for (let y = 0; y < h; y++) {
-			const row = y * w;
-			for (let x = 0; x < w; x++) {
-				const i = (row + x) * 4;
-				const shift = p - Math.round(depth[row + x] / 255 * DEPTH);
-				if (x < shift) {
-					const s = (y * p + x % p) * 3;
-					out[i] = pattern[s];
-					out[i + 1] = pattern[s + 1];
-					out[i + 2] = pattern[s + 2];
-				} else {
-					const j = i - shift * 4;
-					out[i] = out[j];
-					out[i + 1] = out[j + 1];
-					out[i + 2] = out[j + 2];
-				}
-				out[i + 3] = 255;
-			}
-		}
-		layer$1.flush();
-		ctx.imageSmoothingEnabled = false;
-		ctx.drawImage(layer$1.canvas, 0, 0, width, height);
-		ctx.imageSmoothingEnabled = true;
-		const dotGap = p * width / w;
-		ctx.fillStyle = "#fff";
-		fillCircle(ctx, width / 2 - dotGap / 2, height * .05, Math.max(3, height * .008));
-		fillCircle(ctx, width / 2 + dotGap / 2, height * .05, Math.max(3, height * .008));
 	}
 };
 //#endregion
@@ -9051,7 +7667,7 @@ var tree = {
 //#region src/modes/tunnel.ts
 /** Polygon rings fly toward the viewer; sparks stream along the spokes. */
 var rings$1 = [];
-var tunnel = {
+var tunnel$1 = {
 	name: "tunnel",
 	fade: .07,
 	zoom: 1.025,
@@ -9107,6 +7723,98 @@ var tunnel = {
 	}
 };
 //#endregion
+//#region src/render/words/show.ts
+/** Shared types and helpers for the heard-words styles. */
+var CJK$2 = "\"Noto Sans SC\", sans-serif";
+var FACES = [
+	{
+		name: "bold",
+		family: `Unbounded, ${CJK$2}`,
+		weight: 700,
+		chance: 3
+	},
+	{
+		name: "pixel",
+		family: `"Press Start 2P", ${CJK$2}`,
+		weight: 400,
+		chance: 1.6
+	},
+	{
+		name: "glitch",
+		family: `"Rubik Glitch", ${CJK$2}`,
+		weight: 400,
+		chance: 1
+	},
+	{
+		name: "horror",
+		family: `Creepster, "Rubik Wet Paint", ${CJK$2}`,
+		weight: 400,
+		chance: 1
+	},
+	{
+		name: "drip",
+		family: `"Rubik Wet Paint", ${CJK$2}`,
+		weight: 400,
+		chance: .8
+	},
+	{
+		name: "beast",
+		family: `"Rubik Beastly", ${CJK$2}`,
+		weight: 400,
+		chance: .8
+	},
+	{
+		name: "neon",
+		family: `Monoton, Unbounded, ${CJK$2}`,
+		weight: 400,
+		chance: .8
+	}
+];
+var MONOSPACE = "\"JetBrains Mono\", ui-monospace, Menlo, Consolas, monospace";
+var face$1 = FACES[0];
+/** Makes `next` the face of the styles drawn from now on. */
+function useFace(next) {
+	face$1 = next;
+}
+function currentFace() {
+	return face$1;
+}
+/** A random face, by chance, that is not `not`. */
+function pickFace(not) {
+	const options = FACES.filter((f) => f !== not);
+	let roll = Math.random() * options.reduce((sum, f) => sum + f.chance, 0);
+	for (const f of options) {
+		roll -= f.chance;
+		if (roll <= 0) return f;
+	}
+	return options[options.length - 1];
+}
+/** CSS font of `size` px: the current face, or `family` (bold) when given. */
+function font(size, family) {
+	return family ? `700 ${size}px ${family}` : `${face$1.weight} ${size}px ${face$1.family}`;
+}
+/** Font size at which `text` takes `share` of the screen width, but at most `max` px. */
+function fitFont(text, share, max, family) {
+	ctx.font = font(100, family);
+	const measured = Math.max(1, ctx.measureText(text).width);
+	return Math.min(max, 100 * view.width * share / measured);
+}
+/**
+* A soft dark copy of `text` under where it will be drawn, so that a glowing word
+* stays readable over a bright picture.
+*/
+function shadowText(text, x, y, size, alpha) {
+	const blend = ctx.globalCompositeOperation;
+	ctx.globalCompositeOperation = "source-over";
+	ctx.fillStyle = `rgba(0,0,0,${alpha * .55})`;
+	ctx.fillText(text, x + size * .035, y + size * .05);
+	ctx.globalCompositeOperation = blend;
+}
+/** Glowing blend on dark palettes; normal drawing on light ones. */
+function glowBlend() {
+	return scene.palette.light ? "source-over" : "lighter";
+}
+//#endregion
 //#region src/modes/words.ts
 /**
 * A big word with a stacked 3D shadow. A new word on each beat, and now and then a new
@@ -9147,7 +7855,7 @@ for (const f of FACES) document.fonts?.load?.(`${f.weight} 40px ${f.family}`, WO
 var MODES = [
 	nebula,
 	halo,
-	tunnel,
+	tunnel$1,
 	kaleido$1,
 	grid,
 	flow$1,
@@ -9228,7 +7936,6 @@ var MODES = [
 	neonKnot,
 	solids,
 	inkMode,
-	stereo,
 	parallax,
 	smear
 ];
@@ -9498,7 +8205,7 @@ function composite(mode, dt) {
 	const dh = display.height;
 	const x = (dw - dw * zoom) / 2 + driftX * dpr;
 	const y = (dh - dh * zoom) / 2 + driftY * dpr;
-	const split = quality.level >= 2 && beat > .3 && !mode.plain ? ((beat - .3) * 7 + audio.high * 1.2) * dpr : 0;
+	const split = quality.level >= 2 && beat > .3 ? ((beat - .3) * 7 + audio.high * 1.2) * dpr : 0;
 	d.save();
 	d.translate(dw / 2, dh / 2);
 	d.rotate(roll);
@@ -9528,7 +8235,7 @@ function composite(mode, dt) {
 	}
 	if (audio.build > .02) drawBuildUp(d, dw, dh, light);
 	if (audio.drop > .02) drawDrop(d, dw, dh, light);
-	if (scene.look.ledWall && !mode.plain) drawLedWall();
+	if (scene.look.ledWall) drawLedWall();
 	if (transition.t > 0) drawTransition(dt, light);
 	d.globalCompositeOperation = "source-over";
 	const R = Math.hypot(dw, dh) / 2;
@@ -10219,7 +8926,7 @@ var layer = new PixelLayer();
 var fit = document.createElement("canvas");
 var fitCtx = context2d(fit, { willReadFrequently: true });
 var base = null;
-var shownAt = 0;
+var shownAt$3 = 0;
 var dreams = 0;
 var packed = /* @__PURE__ */ new Uint32Array(1024);
 /** Asks for a picture of `text`; it shows when it arrives (usually 5 to 20 s). */
@@ -10234,10 +8941,10 @@ function load(url) {
 	fetch(url).then((response) => {
 		if (!response.ok) throw new Error(`HTTP ${response.status}`);
 		return response.blob();
-	}).then((blob) => createImageBitmap(blob)).then(show).catch(() => {}).finally(() => {});
+	}).then((blob) => createImageBitmap(blob)).then(show$1).catch(() => {}).finally(() => {});
 }
 /** Cuts the picture to the screen's shape at a small size and starts the show. */
-function show(picture) {
+function show$1(picture) {
 	const h = Math.max(80, Math.round(W * view.height / view.width));
 	fit.width = W;
 	fit.height = h;
@@ -10248,7 +8955,7 @@ function show(picture) {
 	picture.close();
 	base = fitCtx.getImageData(0, 0, W, h).data;
 	layer.setSize(W, h);
-	shownAt = clock.time;
+	shownAt$3 = clock.time;
 	dreams++;
 }
 var luma = (data, i) => data[i] * .3 + data[i + 1] * .59 + data[i + 2] * .11;
@@ -10272,7 +8979,7 @@ function sortRun(source, out, x, from, to) {
 /** Draws the dream picture, if one is showing. */
 function drawDream() {
 	if (!base) return;
-	const age = clock.time - shownAt;
+	const age = clock.time - shownAt$3;
 	if (age > TOTAL_S) {
 		base = null;
 		return;
@@ -10314,6 +9021,1126 @@ function drawDream() {
 	ctx.imageSmoothingEnabled = true;
 	ctx.drawImage(layer.canvas, 0, 0, view.width, view.height);
 	ctx.restore();
+}
+//#endregion
+//#region src/render/words/anagram.ts
+/**
+* Hero: the letters of the text change places on beats, hopping over each other in arcs;
+* every other beat they go back to the right order, so the text stays readable.
+*/
+/** Longest text that is shuffled; a longer text is cut after a word. */
+var MAX_LETTERS = 16;
+var HOP_S = .35;
+var letters = [];
+var order = [];
+var previous = [];
+var movedAt = 0;
+var scrambled = false;
+function shortText(phrase) {
+	let text = "";
+	for (const word of phrase.split(" ")) {
+		if ((text + " " + word).trim().length > MAX_LETTERS && text) break;
+		text = (text + " " + word).trim();
+	}
+	return [...text].slice(0, MAX_LETTERS).join("");
+}
+function shuffled(n) {
+	const result = Array.from({ length: n }, (_, i) => i);
+	for (let i = n - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[result[i], result[j]] = [result[j], result[i]];
+	}
+	return result;
+}
+var anagram = {
+	name: "anagram",
+	role: "hero",
+	weight: 1.5,
+	start(show) {
+		letters = [...shortText(show.phrase)];
+		order = letters.map((_, i) => i);
+		previous = [...order];
+		movedAt = show.age;
+		scrambled = false;
+	},
+	draw(show) {
+		if (show.beat) {
+			previous = order;
+			scrambled = !scrambled;
+			order = scrambled ? shuffled(letters.length) : letters.map((_, i) => i);
+			movedAt = show.age;
+		}
+		const { cx, cy, height } = view;
+		const size = fitFont(letters.join(""), .86, height * .24);
+		ctx.font = font(size);
+		const widths = letters.map((letter) => ctx.measureText(letter).width);
+		const slots = [];
+		let x = cx - widths.reduce((sum, w) => sum + w, 0) / 2;
+		for (const w of widths) {
+			slots.push(x + w / 2);
+			x += w;
+		}
+		const p = clamp((show.age - movedAt) / HOP_S, 0, 1);
+		const ease = p * p * (3 - 2 * p);
+		letters.forEach((letter, i) => {
+			const fromX = slots[previous[i]];
+			const toX = slots[order[i]];
+			const hop = Math.sin(p * Math.PI) * size * .6 * (i % 2 ? 1 : -1);
+			ctx.fillStyle = color(i * .35 + show.age * .3, show.alpha, 82);
+			ctx.fillText(letter, fromX + (toX - fromX) * ease, cy - hop);
+		});
+	}
+};
+//#endregion
+//#region src/render/words/blinds.ts
+/**
+* Hero: the word is cut into horizontal slices. On each beat the slices shoot in one
+* after another from the side (all from one side: a diagonal staircase; from both
+* sides in turn: a comb) and meet to form the word. The treble makes them jitter.
+*/
+var SLICES = 9;
+var state$2 = {
+	since: 1,
+	from: 1,
+	comb: false,
+	k: 0
+};
+function restart() {
+	state$2.since = 0;
+	state$2.from = Math.random() < .5 ? 1 : -1;
+	state$2.comb = Math.random() < .45;
+}
+var blinds = {
+	name: "blinds",
+	role: "hero",
+	weight: 2,
+	start() {
+		restart();
+		state$2.k = Math.random() * 4;
+	},
+	draw(show, dt) {
+		if (show.beat) {
+			restart();
+			state$2.k += .7;
+		}
+		state$2.since += dt;
+		const { width, height, cx, cy } = view;
+		const size = fitFont(show.word, .86, height * .38) * (1 + audio.bass * .1);
+		ctx.font = font(size);
+		const top = cy - size * .62;
+		const sliceHeight = size * 1.24 / SLICES;
+		for (let s = 0; s < SLICES; s++) {
+			const p = clamp((state$2.since - s * .03) / .28, 0, 1);
+			const eased = 1 - Math.pow(1 - p, 3);
+			const side = state$2.comb && s % 2 ? -state$2.from : state$2.from;
+			const jitter = Math.sin(clock.time * 37 + s * 2.1) * audio.high * size * .06;
+			ctx.save();
+			ctx.beginPath();
+			ctx.rect(0, top + s * sliceHeight, width, sliceHeight + .5);
+			ctx.clip();
+			const x = cx + side * (1 - eased) * width + jitter;
+			shadowText(show.word, x, cy, size, show.alpha);
+			ctx.fillStyle = color(state$2.k + s * .25, show.alpha, 76);
+			ctx.fillText(show.word, x, cy);
+			ctx.restore();
+		}
+	}
+};
+//#endregion
+//#region src/render/words/bounce.ts
+/** Ambient: the current word bounces around the screen like the old DVD logo, and changes colour at each wall. */
+var box = {
+	x: 0,
+	y: 0,
+	vx: 1,
+	vy: 1,
+	k: 0,
+	flash: 0
+};
+var bounce = {
+	name: "bounce",
+	role: "ambient",
+	weight: 2,
+	start() {
+		box.x = rnd(.25, .75) * view.width;
+		box.y = rnd(.25, .75) * view.height;
+		box.vx = Math.random() < .5 ? 1 : -1;
+		box.vy = Math.random() < .5 ? 1 : -1;
+		box.k = Math.random() * 4;
+	},
+	draw(show, dt) {
+		const { width, height, min } = view;
+		const size = min * .075 * (1 + box.flash * .6);
+		ctx.font = font(size);
+		const halfW = ctx.measureText(show.word).width / 2;
+		const halfH = size / 2;
+		const speed = (140 + audio.mid * 220) * dt;
+		box.x += box.vx * speed;
+		box.y += box.vy * speed;
+		let walls = 0;
+		if (box.x - halfW < 0 || box.x + halfW > width) {
+			box.vx = box.x - halfW < 0 ? 1 : -1;
+			box.x = Math.min(width - halfW, Math.max(halfW, box.x));
+			walls++;
+		}
+		if (box.y - halfH < 0 || box.y + halfH > height) {
+			box.vy = box.y - halfH < 0 ? 1 : -1;
+			box.y = Math.min(height - halfH, Math.max(halfH, box.y));
+			walls++;
+		}
+		if (walls) box.k += 1.3;
+		if (walls === 2) box.flash = 1;
+		box.flash = Math.max(0, box.flash - dt * 1.5);
+		ctx.fillStyle = color(box.k, show.alpha, 80);
+		ctx.fillText(show.word, box.x, box.y);
+	}
+};
+//#endregion
+//#region src/render/words/crawl.ts
+/**
+* Ambient: the words run away on a floor in perspective, line after line toward the
+* horizon, like the opening of a space film; sometimes on the ceiling instead.
+*/
+var LINES = 10;
+var ceiling = false;
+var crawl = {
+	name: "crawl",
+	role: "ambient",
+	weight: 2,
+	start() {
+		ceiling = Math.random() < .35;
+	},
+	draw(show) {
+		const { height, cx } = view;
+		const horizon = height * (ceiling ? .64 : .36);
+		const span = ceiling ? horizon + height * .05 : height * 1.05 - horizon;
+		const flow = show.age * (.5 + audio.mid * .8);
+		const shift = Math.floor(flow);
+		const lines = show.words.length > 1 ? show.words : [show.phrase];
+		const base = fitFont(show.phrase, .9, height * .12);
+		for (let n = 0; n < LINES; n++) {
+			const z = 1 + n + (flow - shift);
+			const id = n - shift;
+			const near = 1 / z;
+			const y = horizon + (ceiling ? -1 : 1) * span * near;
+			const alpha = show.alpha * Math.min(1, near * 3) * Math.min(1, (z - 1) * 3);
+			if (alpha <= .01) continue;
+			ctx.save();
+			ctx.translate(cx, y);
+			ctx.scale(1, .55);
+			ctx.font = font(base * near * 1.6);
+			ctx.fillStyle = color(id * .5 + show.age * .2, alpha, 80);
+			ctx.fillText(lines[(id % lines.length + lines.length) % lines.length], 0, 0);
+			ctx.restore();
+		}
+	}
+};
+//#endregion
+//#region src/render/words/cutout.ts
+/** Hero: giant letters that invert the picture inside them, slowly zooming in. */
+var shown$1 = "";
+var shownAt$2 = 0;
+var cutout = {
+	name: "cutout",
+	role: "hero",
+	weight: 1.6,
+	draw(show) {
+		if (show.word !== shown$1) {
+			shown$1 = show.word;
+			shownAt$2 = show.age;
+		}
+		const { cx, cy, height } = view;
+		const size = fitFont(shown$1, .96, height * .85) * (1 + (show.age - shownAt$2) * .18 + audio.beat * .04);
+		ctx.translate(cx, cy);
+		ctx.rotate(Math.sin(show.age * .7) * .08);
+		ctx.font = font(size);
+		ctx.globalCompositeOperation = "difference";
+		ctx.fillStyle = `rgba(255,255,255,${show.alpha})`;
+		ctx.fillText(shown$1, 0, 0);
+		ctx.globalCompositeOperation = glowBlend();
+		ctx.lineWidth = 2;
+		ctx.strokeStyle = color(show.age * .5, show.alpha, 80);
+		ctx.strokeText(shown$1, 0, 0);
+	}
+};
+//#endregion
+//#region src/render/words/decode.ts
+/**
+* Hero: each word scrambles through random glyphs and locks letter by letter, like
+* hacker text, with a blinking cursor. Under it, the whole text is typed out.
+*/
+var GLYPHS = "!<>-_\\/[]{}=+*^?#%&ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+/** Seconds between two letters locking. */
+var LOCK_STEP = .06;
+var LATIN = /^[\u0000-ɏ\s]*$/;
+var shown = "";
+var shownAt$1 = 0;
+var decode = {
+	name: "decode",
+	role: "hero",
+	weight: 1.8,
+	start(show) {
+		shown = show.word;
+		shownAt$1 = show.age;
+	},
+	draw(show) {
+		if (show.word !== shown) {
+			shown = show.word;
+			shownAt$1 = show.age;
+		}
+		const { cx, cy, height } = view;
+		const family = LATIN.test(show.phrase) && currentFace().name === "bold" ? MONOSPACE : void 0;
+		const size = fitFont(shown, .82, height * .3, family);
+		ctx.font = font(size, family);
+		ctx.textAlign = "left";
+		const letters = [...shown];
+		const widths = letters.map((letter) => ctx.measureText(letter).width);
+		let x = cx - widths.reduce((sum, w) => sum + w, 0) / 2;
+		const t = show.age - shownAt$1;
+		letters.forEach((letter, i) => {
+			const locked = t > .15 + i * LOCK_STEP;
+			ctx.fillStyle = locked ? color(i * .4, show.alpha, 90) : color(2 + i * .4, show.alpha * .8, 55);
+			ctx.fillText(locked ? letter : GLYPHS[rndInt(55)], x, cy);
+			x += widths[i];
+		});
+		if (Math.floor(show.age * 3) % 2 === 0) {
+			ctx.fillStyle = color(1, show.alpha, 85);
+			ctx.fillRect(x + size * .08, cy - size * .38, size * .45, size * .76);
+		}
+		const typed = [...show.phrase].slice(0, Math.floor(show.age * 14)).join("");
+		ctx.textAlign = "center";
+		ctx.font = `700 ${Math.max(12, size * .22)}px ${family}`;
+		ctx.fillStyle = color(3, show.alpha * .85, 75);
+		ctx.fillText(typed, cx, cy + size * .85);
+	}
+};
+//#endregion
+//#region src/render/words/flap.ts
+/**
+* Hero: a split-flap board, as in old railway stations. On each beat every tile flips
+* through random letters, one tile after another, and lands on the next word.
+*/
+var FLICKER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&?!";
+var MAX_TILES = 12;
+/** Flips per second while a tile spins. */
+var RATE = 16;
+var state$1 = {
+	target: [],
+	settle: [],
+	since: 0,
+	k: 0
+};
+function aim(word) {
+	state$1.target = [...word].slice(0, MAX_TILES);
+	state$1.settle = state$1.target.map((_, i) => .1 + i * .07 + Math.random() * .12);
+	state$1.since = 0;
+}
+var flap = {
+	name: "flap",
+	role: "hero",
+	weight: 2,
+	start(show) {
+		aim(show.word);
+		state$1.k = Math.random() * 4;
+	},
+	draw(show, dt) {
+		if (show.beat) {
+			aim(show.word);
+			state$1.k += .6;
+		}
+		state$1.since += dt;
+		const { width, height, cx, cy } = view;
+		const n = Math.max(1, state$1.target.length);
+		const gap = Math.max(3, width * .008);
+		const tileW = Math.min((width * .9 - gap * (n - 1)) / n, height * .26);
+		const tileH = tileW * 1.4;
+		const left = cx - (n * tileW + (n - 1) * gap) / 2 + tileW / 2;
+		ctx.globalCompositeOperation = "source-over";
+		ctx.font = font(tileH * .6);
+		const flips = Math.floor(state$1.since * RATE);
+		for (let i = 0; i < state$1.target.length; i++) {
+			const x = left + i * (tileW + gap);
+			const settled = state$1.since >= state$1.settle[i];
+			const turn = settled ? Math.min(1, (state$1.since - state$1.settle[i]) / .12) : state$1.since * RATE % 1;
+			const letter = settled ? state$1.target[i] : FLICKER[Math.floor(hash01(flips * 1.7 + i * 7.3) * 41)];
+			ctx.fillStyle = `rgba(16,16,22,${show.alpha * .92})`;
+			ctx.beginPath();
+			ctx.roundRect(x - tileW / 2, cy - tileH / 2, tileW, tileH, tileW * .08);
+			ctx.fill();
+			const measured = Math.max(1, ctx.measureText(letter).width);
+			ctx.save();
+			ctx.translate(x, cy);
+			ctx.scale(Math.min(1, tileW * .86 / measured), Math.max(.05, Math.abs(Math.cos(turn * Math.PI))));
+			ctx.fillStyle = settled ? color(state$1.k + i * .3, show.alpha, 90) : `rgba(235,235,235,${show.alpha * .85})`;
+			ctx.fillText(letter, 0, tileH * .03);
+			ctx.restore();
+			ctx.fillStyle = `rgba(0,0,0,${show.alpha * .85})`;
+			ctx.fillRect(x - tileW / 2, cy - 1, tileW, 2);
+		}
+	}
+};
+//#endregion
+//#region src/render/words/kaleido.ts
+/** Hero: a mandala made of the word: two counter-turning rings of copies, every other one mirrored. */
+var COPIES = 8;
+var kaleido = {
+	name: "kaleido",
+	role: "hero",
+	weight: 1,
+	round: true,
+	draw(show) {
+		const { cx, cy, min, width } = view;
+		const outer = min * .27 * (1 + audio.bass * .2 + audio.beat * .06);
+		for (const ring of [0, 1]) {
+			const radius = ring ? outer * .45 : outer;
+			ctx.font = font(fitFont(show.word, radius * (ring ? 1.1 : .95) / width, min * .16));
+			const spin = show.age * (ring ? -.8 : .45) + audio.bass * .3;
+			for (let c = 0; c < COPIES; c++) {
+				const a = c / COPIES * TAU + spin;
+				ctx.save();
+				ctx.translate(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
+				ctx.rotate(a + Math.PI / 2);
+				if (c % 2) ctx.scale(-1, 1);
+				ctx.fillStyle = color(c * .5 + ring * 2 + show.age * .3, show.alpha * (ring ? .75 : 1), 75);
+				ctx.fillText(show.word, 0, 0);
+				ctx.restore();
+			}
+		}
+	}
+};
+//#endregion
+//#region src/render/words/marquee.ts
+/** Ambient (rare): three bands of the text scrolling left and right, with split colours. */
+var marquee = {
+	name: "marquee",
+	role: "ambient",
+	weight: .4,
+	draw(show) {
+		const { width, height } = view;
+		ctx.font = `700 ${Math.max(14, height * .065)}px ${MONOSPACE}`;
+		const unit = `${show.phrase}  ✦  `;
+		const text = unit.repeat(8);
+		const unitWidth = ctx.measureText(unit).width;
+		[
+			.18,
+			.5,
+			.82
+		].forEach((at, band) => {
+			const direction = band % 2 ? -1 : 1;
+			const shift = (show.age * (60 + audio.mid * 160) * direction % unitWidth + unitWidth) % unitWidth;
+			const x = width / 2 - shift - unitWidth;
+			const y = height * at;
+			const split = 2 + audio.bass * 6;
+			ctx.fillStyle = color(band, show.alpha * .55, 55);
+			ctx.fillText(text, x - split, y);
+			ctx.fillStyle = color(band + 2, show.alpha * .55, 55);
+			ctx.fillText(text, x + split, y);
+			ctx.fillStyle = color(band + 1, show.alpha, 92);
+			ctx.fillText(text, x, y);
+		});
+	}
+};
+//#endregion
+//#region src/render/words/orbit.ts
+/** Ambient: the letters of the text circle the centre. */
+var orbit = {
+	name: "orbit",
+	role: "ambient",
+	weight: 1,
+	round: true,
+	draw(show) {
+		const { cx, cy, min } = view;
+		const letters = [...show.phrase.replace(/\s+/g, " ")].slice(0, 48);
+		const radius = min * .38 * (1 + audio.bass * .2);
+		ctx.font = font(Math.max(14, Math.min(72, TAU * radius / letters.length * .9)));
+		letters.forEach((letter, i) => {
+			const a = i / letters.length * TAU + show.age * .6;
+			ctx.save();
+			ctx.translate(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
+			ctx.rotate(a + Math.PI / 2);
+			ctx.fillStyle = color(i * .3 - show.age, show.alpha, 80);
+			ctx.fillText(letter, 0, 0);
+			ctx.restore();
+		});
+	}
+};
+//#endregion
+//#region src/render/words/particles.ts
+/**
+* Hero: each word is built from hundreds of glowing particles. On every beat they blow
+* apart and fly together into the next word.
+*/
+var MAX$1 = 1100;
+var px = new Float32Array(MAX$1);
+var py = new Float32Array(MAX$1);
+var vx = new Float32Array(MAX$1);
+var vy = new Float32Array(MAX$1);
+var tx = new Float32Array(MAX$1);
+var ty = new Float32Array(MAX$1);
+var count = 0;
+var target = "";
+/** The word is drawn here once, and its pixels become the particle targets. */
+var sampler = createLayer();
+var SAMPLE_W = 360;
+var SAMPLE_H = 110;
+function aimAt(word) {
+	const { width, height, cx, cy } = view;
+	setCanvasSize(sampler.canvas, SAMPLE_W, SAMPLE_H);
+	const g = sampler.ctx;
+	g.clearRect(0, 0, SAMPLE_W, SAMPLE_H);
+	g.fillStyle = "#fff";
+	g.textAlign = "center";
+	g.textBaseline = "middle";
+	g.font = font(90);
+	const measured = g.measureText(word).width;
+	if (measured > SAMPLE_W * .94) g.font = font(90 * SAMPLE_W * .94 / measured);
+	g.fillText(word, SAMPLE_W / 2, SAMPLE_H / 2);
+	const alpha = g.getImageData(0, 0, SAMPLE_W, SAMPLE_H).data;
+	const points = [];
+	for (let y = 0; y < SAMPLE_H; y += 2) for (let x = 0; x < SAMPLE_W; x += 2) if (alpha[(y * SAMPLE_W + x) * 4 + 3] > 128) points.push(x, y);
+	const available = points.length / 2;
+	const step = Math.max(1, available / MAX$1);
+	const scale = Math.min(width * .86 / SAMPLE_W, height * .5 / SAMPLE_H);
+	let n = 0;
+	for (let f = 0; f < available && n < MAX$1; f += step, n++) {
+		const p = Math.floor(f) * 2;
+		tx[n] = cx + (points[p] - SAMPLE_W / 2) * scale;
+		ty[n] = cy + (points[p + 1] - SAMPLE_H / 2) * scale;
+	}
+	for (let i = count; i < n; i++) {
+		const from = count ? rndInt(count) : -1;
+		px[i] = from >= 0 ? px[from] : Math.random() * width;
+		py[i] = from >= 0 ? py[from] : Math.random() * height;
+		vx[i] = 0;
+		vy[i] = 0;
+	}
+	count = n;
+	target = word;
+}
+var particles = {
+	name: "particles",
+	role: "hero",
+	weight: 2.2,
+	start(show) {
+		count = 0;
+		aimAt(show.word);
+	},
+	draw(show, dt) {
+		const { cx, cy, min } = view;
+		if (show.beat) for (let i = 0; i < count; i++) {
+			const a = Math.atan2(py[i] - cy, px[i] - cx) + rnd(-.6, .6);
+			const speed = rnd(250, 800) * (.6 + audio.bass);
+			vx[i] += Math.cos(a) * speed;
+			vy[i] += Math.sin(a) * speed;
+		}
+		if (show.word !== target) aimAt(show.word);
+		const step = Math.min(dt, 1 / 30);
+		for (let i = 0; i < count; i++) {
+			vx[i] += ((tx[i] - px[i]) * 55 - vx[i] * 8.5) * step;
+			vy[i] += ((ty[i] - py[i]) * 55 - vy[i] * 8.5) * step;
+			px[i] += vx[i] * step;
+			py[i] += vy[i] * step;
+		}
+		const size = Math.max(2.5, min / 160);
+		for (let g = 0; g < 3; g++) {
+			ctx.fillStyle = color(g * 1.2 + show.age * .4, show.alpha, 82);
+			ctx.beginPath();
+			for (let i = g; i < count; i += 3) ctx.rect(px[i] - size / 2, py[i] - size / 2, size, size);
+			ctx.fill();
+		}
+	}
+};
+//#endregion
+//#region src/render/words/rain.ts
+/** Ambient: letters fall from the top, bounce on the floor and tumble; each beat drops the whole word. */
+var drops = [];
+function drop(letter, x) {
+	drops.push({
+		letter,
+		x,
+		y: -20,
+		vx: rnd(-40, 40),
+		vy: rnd(0, 120),
+		turn: rnd(-.5, .5),
+		spin: rnd(-3, 3),
+		life: 3.5,
+		k: Math.random() * 4
+	});
+	if (drops.length > 160) drops.shift();
+}
+var rain = {
+	name: "rain",
+	role: "ambient",
+	weight: 2,
+	start() {
+		drops.length = 0;
+	},
+	draw(show, dt) {
+		const { width, height, min } = view;
+		const letters = [...show.phrase.replace(/\s+/g, "")];
+		if (show.beat) {
+			const word = [...show.word];
+			word.forEach((letter, i) => drop(letter, width * (.15 + .7 * (i + .5) / word.length)));
+		}
+		if (Math.random() < dt * (5 + audio.high * 20)) drop(letters[Math.floor(Math.random() * letters.length)], Math.random() * width);
+		const size = min * .06;
+		ctx.font = font(size);
+		for (let i = drops.length - 1; i >= 0; i--) {
+			const d = drops[i];
+			d.life -= dt;
+			if (d.life <= 0) {
+				drops.splice(i, 1);
+				continue;
+			}
+			d.vy += 900 * dt;
+			d.x += d.vx * dt;
+			d.y += d.vy * dt;
+			d.turn += d.spin * dt;
+			if (d.y > height - size / 2) {
+				d.y = height - size / 2;
+				d.vy *= -.45;
+				d.vx *= .8;
+				d.spin *= .6;
+			}
+			ctx.save();
+			ctx.translate(d.x, d.y);
+			ctx.rotate(d.turn);
+			ctx.fillStyle = color(d.k, show.alpha * Math.min(1, d.life), 80);
+			ctx.fillText(d.letter, 0, 0);
+			ctx.restore();
+		}
+	}
+};
+//#endregion
+//#region src/render/words/slam.ts
+/** Hero: one word per beat, slammed in with a stacked shadow and a split-colour echo. */
+var pose = {
+	turn: 0,
+	x: 0,
+	y: 0,
+	k: 0
+};
+function newPose() {
+	pose.turn = rnd(-.3, .3);
+	pose.x = rnd(-.1, .1);
+	pose.y = rnd(-.15, .15);
+	pose.k = Math.random() * 4;
+}
+var slam = {
+	name: "slam",
+	role: "hero",
+	weight: 2,
+	start: newPose,
+	draw(show) {
+		if (show.beat) newPose();
+		const { width, height, cx, cy } = view;
+		const size = fitFont(show.word, .82, height * .42) * (.9 + audio.bass * .25 + audio.beat * .15);
+		ctx.font = font(size);
+		ctx.translate(cx + pose.x * width, cy + pose.y * height);
+		ctx.rotate(pose.turn + Math.sin(clock.time * 3) * audio.high * .1);
+		for (let i = 5; i >= 0; i--) {
+			const o = i * size * .045 * (1 + audio.mid);
+			ctx.fillStyle = i ? color(pose.k + i, show.alpha * .9, 50) : color(pose.k, show.alpha, 90);
+			ctx.fillText(show.word, o, o);
+		}
+		if (audio.beat > .5) {
+			const split = size * .04 * audio.beat;
+			ctx.fillStyle = `rgba(255,0,80,${show.alpha * .5 * audio.beat})`;
+			ctx.fillText(show.word, -split, 0);
+			ctx.fillStyle = `rgba(0,230,255,${show.alpha * .5 * audio.beat})`;
+			ctx.fillText(show.word, split, 0);
+		}
+	}
+};
+//#endregion
+//#region src/render/words/slide.ts
+/**
+* Hero: each word slides in along a diagonal from a corner and brakes hard in the
+* middle, with a wobble; the word before shoots on out of the far corner. Both leave
+* a trail of fading copies and lean into the motion.
+*/
+var IN_S = .32;
+var TRAIL = 5;
+/** The corners, as steps from the centre. */
+var CORNERS = [
+	[1, 1],
+	[1, -1],
+	[-1, 1],
+	[-1, -1]
+];
+var state = {
+	corner: 0,
+	lastCorner: 0,
+	word: "",
+	last: "",
+	since: 1,
+	k: 0
+};
+/** Where a word is at `p` (0..1 of its slide): coming in from `corner`, or going out. */
+function place(corner, p, coming) {
+	const [dx, dy] = CORNERS[corner];
+	const { cx, cy, width, height } = view;
+	const away = coming ? Math.pow(1 - p, 4) : -(p * p);
+	return [cx + dx * width * .75 * away, cy + dy * height * .75 * away];
+}
+function drawWord(text, corner, p, coming, k, alpha) {
+	const [x, y] = place(corner, p, coming);
+	const [bx, by] = place(corner, Math.max(0, p - .05), coming);
+	const speed = Math.hypot(x - bx, y - by) / view.min;
+	const lean = Math.sign(bx - x) * Math.min(.6, speed * 3);
+	for (let j = TRAIL; j >= 0; j--) {
+		const [tx, ty] = j ? place(corner, Math.max(0, p - j * .04), coming) : [x, y];
+		if (j && Math.hypot(tx - x, ty - y) < 2) continue;
+		ctx.save();
+		ctx.translate(tx, ty);
+		ctx.transform(1, 0, lean, 1, 0, 0);
+		if (!j) shadowText(text, 0, 0, view.min * .1, alpha);
+		ctx.fillStyle = j ? color(k + j * .4, alpha * .3 * (1 - j / 6), 55) : color(k, alpha, 78);
+		ctx.fillText(text, 0, 0);
+		ctx.restore();
+	}
+}
+var slide = {
+	name: "slide",
+	role: "hero",
+	weight: 2,
+	start(show) {
+		state.word = show.word;
+		state.last = "";
+		state.corner = rndInt(4);
+		state.since = 0;
+		state.k = Math.random() * 4;
+	},
+	draw(show, dt) {
+		if (show.beat) {
+			state.last = state.word;
+			state.lastCorner = state.corner;
+			state.word = show.word;
+			state.corner = (state.corner + 1 + rndInt(3)) % 4;
+			state.since = 0;
+			state.k += .9;
+		}
+		state.since += dt;
+		ctx.font = font(fitFont(show.word, .7, view.height * .34) * (1 + audio.bass * .12));
+		const p = Math.min(1, state.since / IN_S);
+		if (state.last && p < 1) drawWord(state.last, state.lastCorner, p, false, state.k - .9, show.alpha);
+		const settle = state.since - IN_S;
+		const wobble = settle > 0 ? Math.sin(settle * 28) * Math.exp(-settle * 7) * .12 : 0;
+		ctx.save();
+		ctx.translate(view.cx, view.cy);
+		ctx.scale(1 + wobble, 1 - wobble);
+		ctx.translate(-view.cx, -view.cy);
+		drawWord(state.word, state.corner, p, true, state.k, show.alpha);
+		ctx.restore();
+	}
+};
+//#endregion
+//#region src/render/words/spiral.ts
+/** Ambient: the text is pulled into a turning vortex, letters shrinking toward the centre. */
+var LETTERS = 72;
+var spiral = {
+	name: "spiral",
+	role: "ambient",
+	weight: 1,
+	round: true,
+	draw(show) {
+		const { cx, cy, min } = view;
+		const text = [...`${show.phrase.replace(/\s+/g, " ")} · `];
+		const flow = show.age * (1.5 + audio.mid * 3);
+		const shift = Math.floor(flow);
+		const maxR = Math.hypot(cx, cy) * .95;
+		for (let n = 0; n < LETTERS; n++) {
+			const t = (n + (flow - shift)) / LETTERS;
+			const size = 6 + Math.pow(1 - t, 1.2) * min * .075;
+			if (size < 7) continue;
+			const a = t * TAU * 2.6 + show.age * .5;
+			const r = maxR * Math.pow(1 - t, 1.3);
+			const letter = text[((n - shift) % text.length + text.length) % text.length];
+			ctx.save();
+			ctx.translate(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+			ctx.rotate(a + Math.PI / 2);
+			ctx.font = font(size);
+			ctx.fillStyle = color(n * .12 + show.age, show.alpha * (1 - t * .6), 78);
+			ctx.fillText(letter, 0, 0);
+			ctx.restore();
+		}
+	}
+};
+//#endregion
+//#region src/render/words/stickers.ts
+/**
+* Ambient: on each beat the word is slapped on the screen as a sticker: a tilted label
+* with a white edge and a shadow, popping in with an overshoot. The oldest fade away.
+*/
+var MAX = 7;
+var stickers = [];
+var stickersStyle = {
+	name: "stickers",
+	role: "ambient",
+	weight: 2,
+	start() {
+		stickers.length = 0;
+	},
+	draw(show, dt) {
+		const { width, height, min } = view;
+		if (show.beat || !stickers.length) {
+			stickers.push({
+				x: rnd(.15, .85) * width,
+				y: rnd(.12, .88) * height,
+				turn: rnd(-.45, .45),
+				word: show.word,
+				k: Math.random() * 6,
+				age: 0
+			});
+			while (stickers.length > MAX) stickers.shift();
+		}
+		ctx.globalCompositeOperation = "source-over";
+		const size = min * .05;
+		ctx.font = font(size);
+		const edge = size * .18;
+		stickers.forEach((s, i) => {
+			s.age += dt;
+			const p = Math.min(1, s.age / .22) - 1;
+			const pop = 1 + 2.70158 * p * p * p + 1.70158 * p * p;
+			const w = ctx.measureText(s.word).width + size * 1.2;
+			const h = size * 1.7;
+			ctx.save();
+			ctx.translate(s.x, s.y);
+			ctx.rotate(s.turn);
+			ctx.scale(pop, pop);
+			ctx.globalAlpha = show.alpha * (.45 + .55 * (i + 1) / stickers.length);
+			ctx.fillStyle = "rgba(0,0,0,0.35)";
+			ctx.beginPath();
+			ctx.roundRect(-w / 2 - edge + size * .15, -h / 2 - edge + size * .2, w + edge * 2, h + edge * 2, h * .3);
+			ctx.fill();
+			ctx.fillStyle = "#fff";
+			ctx.beginPath();
+			ctx.roundRect(-w / 2 - edge, -h / 2 - edge, w + edge * 2, h + edge * 2, h * .3);
+			ctx.fill();
+			ctx.fillStyle = color(s.k, 1, 55);
+			ctx.beginPath();
+			ctx.roundRect(-w / 2, -h / 2, w, h, h * .25);
+			ctx.fill();
+			ctx.fillStyle = "#fff";
+			ctx.fillText(s.word, 0, size * .04);
+			ctx.restore();
+		});
+	}
+};
+//#endregion
+//#region src/render/words/stretch.ts
+/**
+* Hero: a rubber word, as big as the screen allows. The beat squashes and stretches it
+* (tall and thin, or wide and flat), and it wobbles back like jelly. Now and then it
+* turns on its side.
+*/
+var STIFFNESS = 160;
+var DAMPING = 9;
+var jelly = {
+	sx: 1,
+	sy: 1,
+	vx: 0,
+	vy: 0,
+	turn: 0,
+	targetTurn: 0,
+	k: 0
+};
+var stretch = {
+	name: "stretch",
+	role: "hero",
+	weight: 1.8,
+	start() {
+		jelly.k = Math.random() * 4;
+	},
+	draw(show, dt) {
+		if (show.beat) {
+			const kick = (4 + audio.bass * 4) * (Math.random() < .5 ? 1 : -1);
+			jelly.vx += kick;
+			jelly.vy -= kick;
+			if (Math.random() < .25) jelly.targetTurn = jelly.targetTurn ? 0 : (Math.random() < .5 ? 1 : -1) * (Math.PI / 2);
+			jelly.k += .8;
+		}
+		const step = Math.min(dt, 1 / 30);
+		jelly.vx += ((1 - jelly.sx) * STIFFNESS - jelly.vx * DAMPING) * step;
+		jelly.vy += ((1 - jelly.sy) * STIFFNESS - jelly.vy * DAMPING) * step;
+		jelly.sx = clamp(jelly.sx + jelly.vx * step, .25, 3);
+		jelly.sy = clamp(jelly.sy + jelly.vy * step, .25, 3);
+		jelly.turn += (jelly.targetTurn - jelly.turn) * Math.min(1, dt * 6);
+		const { width, height, cx, cy } = view;
+		const size = Math.abs(Math.sin(jelly.turn)) > .5 ? fitFont(show.word, height / width * .75, width * .36) : fitFont(show.word, .72, height * .4);
+		ctx.font = font(size);
+		ctx.translate(cx, cy);
+		ctx.rotate(jelly.turn);
+		ctx.scale(jelly.sx, jelly.sy);
+		shadowText(show.word, 0, 0, size, show.alpha);
+		const split = size * .05 * audio.beat;
+		if (split > .5) {
+			ctx.fillStyle = color(jelly.k + 2, show.alpha * .6, 55);
+			ctx.fillText(show.word, -split, 0);
+			ctx.fillStyle = color(jelly.k + 4, show.alpha * .6, 55);
+			ctx.fillText(show.word, split, 0);
+		}
+		ctx.fillStyle = color(jelly.k, show.alpha, 80);
+		ctx.fillText(show.word, 0, 0);
+	}
+};
+//#endregion
+//#region src/render/words/tape.ts
+/**
+* Ambient: two diagonal tapes cross the screen, like caution tape. The text runs along
+* each tape, the tapes run opposite ways, and the beat makes them shudder.
+*/
+var TAPES = [{
+	angle: -.38,
+	at: -.16,
+	direction: 1
+}, {
+	angle: .33,
+	at: .2,
+	direction: -1
+}];
+var tape = {
+	name: "tape",
+	role: "ambient",
+	weight: 2,
+	draw(show) {
+		const { width, height, cx, cy, min } = view;
+		const size = Math.max(13, min * .045);
+		ctx.font = font(size);
+		const unit = `${show.phrase}  ///  `;
+		const unitWidth = Math.max(1, ctx.measureText(unit).width);
+		const long = Math.hypot(width, height) * 1.1;
+		const text = unit.repeat(Math.ceil(long / unitWidth) + 2);
+		const band = size * 1.7;
+		ctx.globalCompositeOperation = "source-over";
+		ctx.textAlign = "left";
+		TAPES.forEach((tape, i) => {
+			ctx.save();
+			ctx.translate(cx, cy + tape.at * height);
+			const shudder = Math.sin(clock.time * 53 + i * 3) * audio.beat * .025;
+			ctx.rotate(tape.angle + Math.sin(clock.time * .4 + i) * .04 + shudder);
+			ctx.fillStyle = color(i * 2 + show.age * .2, show.alpha * .9, 58);
+			ctx.fillRect(-long / 2, -band / 2, long, band);
+			ctx.fillStyle = `rgba(0,0,0,${show.alpha * .85})`;
+			ctx.fillRect(-long / 2, -band / 2, long, band * .08);
+			ctx.fillRect(-long / 2, band / 2 - band * .08, long, band * .08);
+			const shift = (show.age * (90 + audio.mid * 200) * tape.direction % unitWidth + unitWidth) % unitWidth;
+			ctx.fillText(text, -long / 2 - shift, size * .04);
+			ctx.restore();
+		});
+	}
+};
+//#endregion
+//#region src/render/words/tunnel.ts
+/** Ambient: copies of the text fly out of the centre, turning, and grow past the viewer. */
+var tunnel = {
+	name: "tunnel",
+	role: "ambient",
+	weight: 2,
+	draw(show) {
+		const { cx, cy } = view;
+		const copies = 7;
+		const base = fitFont(show.phrase, .5, view.height * .2);
+		for (let i = 0; i < copies; i++) {
+			const p = (show.age * (.25 + audio.mid * .3) + i / copies) % 1;
+			ctx.save();
+			ctx.translate(cx, cy);
+			ctx.rotate((i % 2 ? 1 : -1) * p * .7);
+			ctx.font = font(base * (.12 + p * p * 2.8));
+			ctx.fillStyle = color(i * .6 + show.age * .5, show.alpha * Math.sin(p * Math.PI) * .75, 70);
+			ctx.fillText(show.phrase, 0, 0);
+			ctx.restore();
+		}
+	}
+};
+//#endregion
+//#region src/render/words/wave.ts
+/** Ambient: rainbow letters on a sine wave near the bottom, wobbling like jelly. */
+var wave = {
+	name: "wave",
+	role: "ambient",
+	weight: 2,
+	draw(show) {
+		const { cx, height } = view;
+		const size = fitFont(show.phrase, .9, height * .1);
+		ctx.font = font(size);
+		const letters = [...show.phrase];
+		const widths = letters.map((letter) => ctx.measureText(letter).width);
+		let x = cx - widths.reduce((sum, w) => sum + w, 0) / 2;
+		const baseY = height * .84;
+		letters.forEach((letter, i) => {
+			const y = baseY + Math.sin(i * .55 - show.age * 5) * size * .6 * (.4 + audio.bass);
+			const squash = 1 + .35 * Math.sin(show.age * 7 + i * .8) * (.3 + audio.mid);
+			ctx.save();
+			ctx.translate(x + widths[i] / 2, y);
+			ctx.scale(1 / Math.sqrt(squash), squash);
+			ctx.fillStyle = color(i * .25 + show.age, show.alpha, 80);
+			ctx.fillText(letter, 0, 0);
+			ctx.restore();
+			x += widths[i];
+		});
+	}
+};
+//#endregion
+//#region src/render/words/index.ts
+/**
+* Words heard by the mic (audio/speech.ts), shown over any mode for a while. Each text
+* gets one big "hero" style in the middle and one or two "ambient" styles around it;
+* the hero changes every 8 beats, so one text can go through several heroes. Each text
+* also gets a typeface for the ambients and one for the hero, which can change with it.
+*/
+var SHOW_S = 16;
+var HERO_BEATS = 8;
+/** Without beats, the next word comes after this long anyway. */
+var WORD_MAX_S = 1.2;
+/** The longest wait for the text's fonts before it shows anyway. */
+var FONT_WAIT_S = 1.5;
+var HEROES = [
+	slam,
+	particles,
+	decode,
+	kaleido,
+	cutout,
+	anagram,
+	slide,
+	blinds,
+	flap,
+	stretch
+];
+var AMBIENTS = [
+	tunnel,
+	orbit,
+	wave,
+	bounce,
+	rain,
+	spiral,
+	marquee,
+	tape,
+	stickersStyle,
+	crawl
+];
+var show = null;
+/** False while the fonts load; the text starts when they are ready. */
+var started = false;
+var shownAt = 0;
+var lastBeats = 0;
+var lastWordAt = 0;
+var heroStyle = slam;
+var ambients = [];
+var heroBeats = 0;
+var heroFace = FACES[0];
+var ambientFace = FACES[0];
+/** A random style, by weight, that is not in `not` (and not round, if `noRound`). */
+function pickStyle(styles, not, noRound = false) {
+	const options = styles.filter((s) => !not.includes(s) && !(noRound && s.round));
+	let roll = Math.random() * options.reduce((sum, s) => sum + s.weight, 0);
+	for (const style of options) {
+		roll -= style.weight;
+		if (roll <= 0) return style;
+	}
+	return options[options.length - 1];
+}
+/** Chinese, Japanese and Korean characters. */
+var CJK$1 = /[぀-ヿ㐀-鿿가-힯豈-﫿]/;
+/** The words of the text. Text without spaces (Chinese, Japanese) is cut into short chunks. */
+function splitWords(phrase) {
+	const words = [];
+	for (const token of phrase.split(/\s+/).filter(Boolean)) {
+		const characters = [...token];
+		if (!CJK$1.test(token) || characters.length <= 4) {
+			words.push(token);
+			continue;
+		}
+		for (let i = 0; i < characters.length; i += 3) words.push(characters.slice(i, i + 3).join(""));
+	}
+	return words;
+}
+function fontReady(face, phrase) {
+	try {
+		return document.fonts?.check?.(`${face.weight} 60px ${face.family}`, phrase) ?? true;
+	} catch {
+		return true;
+	}
+}
+/** Calls each style's `start`, in its own face. */
+function startStyles() {
+	if (!show) return;
+	for (const style of [heroStyle, ...ambients]) {
+		useFace(style.role === "hero" ? heroFace : ambientFace);
+		style.start?.(show);
+	}
+}
+/**
+* Shows `text`. Styles and faces are picked at random, unless `hero` and `ambient`
+* name styles (for trying them from the console). A face can be named too, as
+* "face:pixel" among `ambient`.
+*/
+function showHeardWords(text, hero, ...ambient) {
+	const phrase = text.toUpperCase().trim();
+	const words = splitWords(phrase);
+	if (!words.length) return;
+	for (const face of FACES) document.fonts?.load?.(`${face.weight} 60px ${face.family}`, phrase).catch(() => {});
+	const named = FACES.find((f) => ambient.includes(`face:${f.name}`));
+	ambientFace = named ?? pickFace();
+	heroFace = named ?? (Math.random() < .5 ? ambientFace : pickFace());
+	show = {
+		phrase,
+		words,
+		age: 0,
+		alpha: 0,
+		beats: 0,
+		beat: false,
+		word: words[0]
+	};
+	started = false;
+	shownAt = clock.time;
+	heroStyle = HEROES.find((s) => s.name === hero) ?? pickStyle(HEROES, []);
+	heroBeats = 0;
+	const chosen = AMBIENTS.filter((s) => ambient.includes(s.name));
+	ambients = chosen.length ? chosen : [pickStyle(AMBIENTS, [], heroStyle.round)];
+	if (!chosen.length && Math.random() < .45) ambients.push(pickStyle(AMBIENTS, ambients, heroStyle.round || ambients[0].round));
+}
+/** Draws the heard words, if there are any to show now. */
+function drawHeardWords(dt) {
+	if (!show) return;
+	if (!started) {
+		if (!(fontReady(heroFace, show.phrase) && fontReady(ambientFace, show.phrase)) && clock.time - shownAt < FONT_WAIT_S) return;
+		started = true;
+		shownAt = clock.time;
+		lastBeats = audio.beats;
+		lastWordAt = 0;
+		startStyles();
+	}
+	const age = clock.time - shownAt;
+	if (age > SHOW_S) {
+		show = null;
+		return;
+	}
+	show.age = age;
+	show.alpha = Math.max(0, Math.min(1, age / .4, (SHOW_S - age) / 1.5));
+	show.beat = audio.beats !== lastBeats || age - lastWordAt > WORD_MAX_S;
+	if (show.beat) {
+		lastBeats = audio.beats;
+		lastWordAt = age;
+		show.beats++;
+		show.word = show.words[show.beats % show.words.length];
+		if (++heroBeats >= HERO_BEATS) {
+			heroStyle = pickStyle(HEROES, [heroStyle], ambients.some((s) => s.round));
+			if (Math.random() < .6) heroFace = pickFace(heroFace);
+			useFace(heroFace);
+			heroStyle.start?.(show);
+			heroBeats = 0;
+		}
+	}
+	for (const style of [...ambients, heroStyle]) {
+		useFace(style.role === "hero" ? heroFace : ambientFace);
+		ctx.save();
+		ctx.globalCompositeOperation = glowBlend();
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		style.draw(show, dt);
+		ctx.restore();
+	}
 }
 //#endregion
 //#region src/render/lookEffects.ts
@@ -10440,7 +10267,7 @@ function renderFrame(mode, dt) {
 		shakeX += (Math.random() - .5) * k;
 		shakeY += (Math.random() - .5) * k;
 	}
-	const jitter = mode.plain ? 0 : scene.look.jitter;
+	const jitter = scene.look.jitter;
 	if (jitter) {
 		ctx.translate(cx, cy);
 		ctx.rotate((Math.random() - .5) * .02 * jitter);
@@ -10449,7 +10276,7 @@ function renderFrame(mode, dt) {
 		shakeY += (Math.random() - .5) * 5 * jitter;
 	}
 	ctx.translate(shakeX, shakeY);
-	if (moving && !mode.plain) {
+	if (moving) {
 		ctx.translate(cx, cy);
 		ctx.rotate(motion.tiltX * .12 + motion.spin * .3);
 		const z = 1 + motion.shake * .2;
@@ -10462,7 +10289,7 @@ function renderFrame(mode, dt) {
 	drawDream();
 	drawHeardWords(dt);
 	ctx.restore();
-	if (!mode.plain) applyLookEffects();
+	applyLookEffects();
 	composite(mode, dt);
 }
 //#endregion

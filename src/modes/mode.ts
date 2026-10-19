@@ -25,11 +25,6 @@ export interface Mode {
   readonly blend?: GlobalCompositeOperation;
   /** Draw the beat rings over this mode. Default true. */
   readonly beatRings?: boolean;
-  /**
-   * The picture must reach the screen as drawn (a stereogram): no look effects, no
-   * colour split, no tilt or jitter turns.
-   */
-  readonly plain?: boolean;
   /** Uses the camera: auto-switch picks it only after the camera was allowed. */
   readonly camera?: boolean;
   /** Frame-rate cap for a stop-motion feel. */

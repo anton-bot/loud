@@ -58,13 +58,6 @@ let ambients: WordStyle[] = [];
 let heroBeats = 0;
 let heroFace: Face = FACES[0];
 let ambientFace: Face = FACES[0];
-/** The longest word of the last text, kept after the text is gone. */
-let lastWord = '';
-
-/** The longest word of the last heard text, or '' before any. */
-export function lastHeardWord(): string {
-  return lastWord;
-}
 
 /** A random style, by weight, that is not in `not` (and not round, if `noRound`). */
 function pickStyle(
@@ -131,7 +124,6 @@ export function showHeardWords(text: string, hero?: string, ...ambient: string[]
   const named = FACES.find((f) => ambient.includes(`face:${f.name}`));
   ambientFace = named ?? pickFace();
   heroFace = named ?? (Math.random() < 0.5 ? ambientFace : pickFace());
-  lastWord = words.reduce((a, w) => ([...w].length > [...a].length ? w : a), '');
   show = { phrase, words, age: 0, alpha: 0, beats: 0, beat: false, word: words[0] };
   started = false;
   shownAt = clock.time;

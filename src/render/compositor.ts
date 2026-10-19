@@ -264,10 +264,7 @@ export function composite(mode: Mode, dt: number): void {
   const y = (dh - dh * zoom) / 2 + driftY * dpr;
 
   // Chromatic aberration on hits: red and cyan copies, offset and added back together.
-  const split =
-    quality.level >= 2 && beat > 0.3 && !mode.plain
-      ? ((beat - 0.3) * 7 + audio.high * 1.2) * dpr
-      : 0;
+  const split = quality.level >= 2 && beat > 0.3 ? ((beat - 0.3) * 7 + audio.high * 1.2) * dpr : 0;
   d.save();
   d.translate(dw / 2, dh / 2);
   d.rotate(roll);
@@ -304,7 +301,7 @@ export function composite(mode: Mode, dt: number): void {
 
   if (audio.build > 0.02) drawBuildUp(d, dw, dh, light);
   if (audio.drop > 0.02) drawDrop(d, dw, dh, light);
-  if (scene.look.ledWall && !mode.plain) drawLedWall();
+  if (scene.look.ledWall) drawLedWall();
   if (transition.t > 0) drawTransition(dt, light);
 
   // Grade: a soft vignette and fine dither, so gradients never band.
