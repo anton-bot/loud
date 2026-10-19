@@ -1,8 +1,8 @@
 /**
  * A strange attractor (Peter de Jong and Clifford Pickover maps): one point jumps
  * around by a simple formula, and the places it lands, plotted as a glowing density,
- * draw a smoky shape. The music bends the four parameters a little all the time;
- * every 8 beats the shape morphs into another one.
+ * draw a smoky shape. The four parameters never rest: they wander in slow waves, the
+ * music pushes them, and every 4 beats the shape morphs into another one.
  *
  *   de Jong:   x' = sin(a·y) − cos(b·x)      y' = sin(c·x) − cos(d·y)
  *   Clifford:  x' = sin(a·y) + c·cos(a·x)    y' = sin(b·x) + d·cos(b·y)
@@ -49,6 +49,12 @@ let target: Shape = SHAPES[0];
 let x = 0.1;
 let y = 0.1;
 let beats = 0;
+/** Rotation of the whole shape (radians). */
+let turn = 0;
+/** Smoothed centre and half-size of the shape, after rotation, in attractor units. */
+const fit = { x: 0, y: 0, half: 2 };
+/** Frames in a row with almost nothing lit. */
+let collapsed = 0;
 /** Recent highest density, for the tone curve. */
 let peak = 1;
 
@@ -57,11 +63,6 @@ function setUp(w: number, h: number): void {
   gridH = h;
   layer.setSize(w, h);
   density = new Float32Array(w * h);
-}
-
-/** Half the width of the area that the shape fills. */
-function extent(s: Shape): number {
-  return s.map === 'dejong' ? 2.1 : 1.05 + Math.max(Math.abs(s.c), Math.abs(s.d));
 }
 
 export const attractor: Mode = {
@@ -73,7 +74,7 @@ export const attractor: Mode = {
   palettes: ['void', 'ultraviolet', 'deep sea', 'lava', 'sepia', 'acid', 'ice'],
 
   beat() {
-    if (++beats % 8 !== 0) return;
+    if (++beats % 4 !== 0) return;
     target = pick(SHAPES, target);
     // Shapes of the other map cannot morph into each other: jump.
     if (target.map !== shape.map) shape = { ...target };
@@ -90,39 +91,70 @@ export const attractor: Mode = {
     if (w !== gridW || h !== gridH) setUp(w, h);
 
     // Morph toward the target, and let the music bend the shape.
-    const k = Math.min(1, dt * 0.8);
+    const k = Math.min(1, dt * 1.5);
     shape.a += (target.a - shape.a) * k;
     shape.b += (target.b - shape.b) * k;
     shape.c += (target.c - shape.c) * k;
     shape.d += (target.d - shape.d) * k;
-    const a = shape.a + audio.bass * 0.12;
-    const b = shape.b - audio.mid * 0.1;
-    const c = shape.c + audio.high * 0.08;
-    const d = shape.d + Math.sin(clock.time * 0.3) * 0.05;
+    // Slow waves and the music keep the shape moving between morphs.
+    const time = clock.time;
+    const a = shape.a + Math.sin(time * 0.23) * 0.12 + audio.bass * 0.25;
+    const b = shape.b + Math.sin(time * 0.31 + 1) * 0.1 - audio.mid * 0.2;
+    const c = shape.c + Math.sin(time * 0.19 + 2) * 0.1 + audio.high * 0.15;
+    const d = shape.d + Math.sin(time * 0.27 + 3) * 0.1;
 
     const steps = Math.min(3, dt * 60);
     const keep = Math.pow(0.86, steps);
     for (let i = 0; i < density.length; i++) density[i] *= keep;
 
-    const scale = (Math.min(w, h) / 2 / extent(shape)) * (0.92 + audio.beat * 0.05);
-    const turn = clock.time * 0.03;
+    // The view follows the shape's real bounds (from the last frame): centred and filling the screen.
+    const scale =
+      (Math.min(w, h) / 2 / fit.half) * (0.86 + audio.beat * 0.1 + Math.sin(time * 0.5) * 0.04);
+    turn += dt * (0.12 + audio.mid * 0.4);
     const cos = Math.cos(turn);
     const sin = Math.sin(turn);
     const points = (quality.level === 2 ? 50000 : 24000) * Math.min(2, steps);
     const dejong = shape.map === 'dejong';
+    let left = Infinity;
+    let right = -Infinity;
+    let top = Infinity;
+    let bottom = -Infinity;
     for (let i = 0; i < points; i++) {
       const nx = dejong ? Math.sin(a * y) - Math.cos(b * x) : Math.sin(a * y) + c * Math.cos(a * x);
       const ny = dejong ? Math.sin(c * x) - Math.cos(d * y) : Math.sin(b * x) + d * Math.cos(b * y);
       x = nx;
       y = ny;
-      const px = Math.floor(w / 2 + (x * cos - y * sin) * scale);
-      const py = Math.floor(h / 2 + (x * sin + y * cos) * scale);
+      const rx = x * cos - y * sin;
+      const ry = x * sin + y * cos;
+      if (rx < left) left = rx;
+      if (rx > right) right = rx;
+      if (ry < top) top = ry;
+      if (ry > bottom) bottom = ry;
+      const px = Math.floor(w / 2 + (rx - fit.x) * scale);
+      const py = Math.floor(h / 2 + (ry - fit.y) * scale);
       if (px >= 0 && px < w && py >= 0 && py < h) density[py * w + px] += 1;
     }
+    // Grow at once (nothing is cut off), shrink slowly (no jitter).
+    const follow = Math.min(1, dt * 8);
+    fit.x += ((left + right) / 2 - fit.x) * follow;
+    fit.y += ((top + bottom) / 2 - fit.y) * follow;
+    const half = Math.max(0.2, Math.max(right - left, bottom - top) / 2);
+    fit.half = half > fit.half ? half : fit.half + (half - fit.half) * Math.min(1, dt * 2);
 
     // Tone curve: logarithmic, scaled to the recent peak.
     let max = 1;
-    for (let i = 0; i < density.length; i += 11) if (density[i] > max) max = density[i];
+    let lit = 0;
+    for (let i = 0; i < density.length; i += 11) {
+      if (density[i] > max) max = density[i];
+      if (density[i] > 0.5) lit++;
+    }
+    // Collapsed into a few points (a periodic orbit): jump to another shape.
+    collapsed = lit < 40 ? collapsed + 1 : 0;
+    if (collapsed > 20) {
+      target = pick(SHAPES, target);
+      shape = { ...target };
+      collapsed = 0;
+    }
     peak += (max - peak) * Math.min(1, dt * 2);
     const logPeak = Math.log1p(peak * 1.5);
     const shift = clock.time * 0.04;

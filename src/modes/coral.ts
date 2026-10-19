@@ -3,6 +3,7 @@
  * spread at different speeds and one eats the other. Depending on the feed and kill
  * rates they grow coral, spots that divide, or worms. The rates move from one pattern
  * to the next over time; bass feeds the growth, and each beat drops new chemical.
+ * A swirling current carries the chemicals, so the coral streams and curls.
  */
 import { clamp, rnd, rndInt } from '../core/math';
 import { audio, clock, view } from '../core/state';
@@ -34,6 +35,8 @@ let feed: number = PATTERNS[0].feed;
 let kill: number = PATTERNS[0].kill;
 let target = 0;
 let beatsInPattern = 0;
+/** Phase of the current: it slowly changes direction. */
+let currentPhase = 0;
 
 /** Drops chemical B in a disc. */
 function drop(cx: number, cy: number, r: number): void {
@@ -60,6 +63,44 @@ function setUp(w: number, h: number): void {
 }
 
 /** One step of the simulation on the wrapping grid (3×3 Laplacian: 0.2 sides, 0.05 corners). */
+/**
+ * Moves both chemicals along a swirling current (semi-Lagrangian advection: each cell
+ * takes the value from where the current comes from, with bilinear sampling).
+ */
+function advect(strength: number): void {
+  const w = gridW;
+  const h = gridH;
+  const drift = Math.sin(currentPhase) * 0.6;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      // A vortex around the middle, plus a slow drift that turns over time.
+      const vx = (-(y - h / 2) / h) * strength + drift * strength * 0.5;
+      const vy = ((x - w / 2) / w) * strength + Math.cos(currentPhase) * strength * 0.3;
+      let sx = x - vx;
+      let sy = y - vy;
+      sx = ((sx % w) + w) % w;
+      sy = ((sy % h) + h) % h;
+      const x0 = Math.floor(sx);
+      const y0 = Math.floor(sy);
+      const x1 = x0 + 1 === w ? 0 : x0 + 1;
+      const y1 = y0 + 1 === h ? 0 : y0 + 1;
+      const fx = sx - x0;
+      const fy = sy - y0;
+      const i00 = y0 * w + x0;
+      const i10 = y0 * w + x1;
+      const i01 = y1 * w + x0;
+      const i11 = y1 * w + x1;
+      const i = y * w + x;
+      nextA[i] =
+        (a[i00] * (1 - fx) + a[i10] * fx) * (1 - fy) + (a[i01] * (1 - fx) + a[i11] * fx) * fy;
+      nextB[i] =
+        (b[i00] * (1 - fx) + b[i10] * fx) * (1 - fy) + (b[i01] * (1 - fx) + b[i11] * fx) * fy;
+    }
+  }
+  [a, nextA] = [nextA, a];
+  [b, nextB] = [nextB, b];
+}
+
 function react(f: number, k: number): void {
   const w = gridW;
   const h = gridH;
@@ -126,8 +167,10 @@ export const coral: Mode = {
     feed += (goal.feed - feed) * Math.min(1, dt * 0.4);
     kill += (goal.kill - kill) * Math.min(1, dt * 0.4);
     const f = feed + audio.bass * 0.006;
-    const iterations = Math.round((quality.level === 2 ? 8 : 5) * Math.min(2, dt * 60));
+    const iterations = Math.round((quality.level === 2 ? 12 : 7) * Math.min(2, dt * 60));
     for (let n = 0; n < iterations; n++) react(f, kill);
+    currentPhase += dt * 0.15;
+    advect((0.5 + audio.mid * 1.2 + audio.beat * 0.6) * Math.min(2, dt * 60));
     // Some rates can starve the pattern: seed it again when almost nothing is left.
     let total = 0;
     for (let i = 0; i < b.length; i += 7) total += b[i];

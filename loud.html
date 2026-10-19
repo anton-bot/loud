@@ -1323,8 +1323,8 @@ function paintField(layer, values, ramp, toRamp) {
 /**
 * A strange attractor (Peter de Jong and Clifford Pickover maps): one point jumps
 * around by a simple formula, and the places it lands, plotted as a glowing density,
-* draw a smoky shape. The music bends the four parameters a little all the time;
-* every 8 beats the shape morphs into another one.
+* draw a smoky shape. The four parameters never rest: they wander in slow waves, the
+* music pushes them, and every 4 beats the shape morphs into another one.
 *
 *   de Jong:   x' = sin(a·y) − cos(b·x)      y' = sin(c·x) − cos(d·y)
 *   Clifford:  x' = sin(a·y) + c·cos(a·x)    y' = sin(b·x) + d·cos(b·y)
@@ -1424,18 +1424,24 @@ var shape = { ...SHAPES[0] };
 var target$3 = SHAPES[0];
 var x = .1;
 var y = .1;
-var beats = 0;
+var beats$1 = 0;
+/** Rotation of the whole shape (radians). */
+var turn$1 = 0;
+/** Smoothed centre and half-size of the shape, after rotation, in attractor units. */
+var fit = {
+	x: 0,
+	y: 0,
+	half: 2
+};
+/** Frames in a row with almost nothing lit. */
+var collapsed = 0;
 /** Recent highest density, for the tone curve. */
 var peak$1 = 1;
-function setUp$6(w, h) {
+function setUp$5(w, h) {
 	gridW$2 = w;
 	gridH$2 = h;
 	layer$4.setSize(w, h);
 	density = new Float32Array(w * h);
-}
-/** Half the width of the area that the shape fills. */
-function extent(s) {
-	return s.map === "dejong" ? 2.1 : 1.05 + Math.max(Math.abs(s.c), Math.abs(s.d));
 }
 var attractor = {
 	name: "attractor",
@@ -1453,7 +1459,7 @@ var attractor = {
 		"ice"
 	],
 	beat() {
-		if (++beats % 8 !== 0) return;
+		if (++beats$1 % 4 !== 0) return;
 		target$3 = pick(SHAPES, target$3);
 		if (target$3.map !== shape.map) shape = { ...target$3 };
 	},
@@ -1464,36 +1470,62 @@ var attractor = {
 		const { width, height } = view;
 		const w = Math.max(64, Math.min(480, Math.round(width / 2)));
 		const h = Math.max(48, Math.round(w * height / width));
-		if (w !== gridW$2 || h !== gridH$2) setUp$6(w, h);
-		const k = Math.min(1, dt * .8);
+		if (w !== gridW$2 || h !== gridH$2) setUp$5(w, h);
+		const k = Math.min(1, dt * 1.5);
 		shape.a += (target$3.a - shape.a) * k;
 		shape.b += (target$3.b - shape.b) * k;
 		shape.c += (target$3.c - shape.c) * k;
 		shape.d += (target$3.d - shape.d) * k;
-		const a = shape.a + audio.bass * .12;
-		const b = shape.b - audio.mid * .1;
-		const c = shape.c + audio.high * .08;
-		const d = shape.d + Math.sin(clock.time * .3) * .05;
+		const time = clock.time;
+		const a = shape.a + Math.sin(time * .23) * .12 + audio.bass * .25;
+		const b = shape.b + Math.sin(time * .31 + 1) * .1 - audio.mid * .2;
+		const c = shape.c + Math.sin(time * .19 + 2) * .1 + audio.high * .15;
+		const d = shape.d + Math.sin(time * .27 + 3) * .1;
 		const steps = Math.min(3, dt * 60);
 		const keep = Math.pow(.86, steps);
 		for (let i = 0; i < density.length; i++) density[i] *= keep;
-		const scale = Math.min(w, h) / 2 / extent(shape) * (.92 + audio.beat * .05);
-		const turn = clock.time * .03;
-		const cos = Math.cos(turn);
-		const sin = Math.sin(turn);
+		const scale = Math.min(w, h) / 2 / fit.half * (.86 + audio.beat * .1 + Math.sin(time * .5) * .04);
+		turn$1 += dt * (.12 + audio.mid * .4);
+		const cos = Math.cos(turn$1);
+		const sin = Math.sin(turn$1);
 		const points = (quality.level === 2 ? 5e4 : 24e3) * Math.min(2, steps);
 		const dejong = shape.map === "dejong";
+		let left = Infinity;
+		let right = -Infinity;
+		let top = Infinity;
+		let bottom = -Infinity;
 		for (let i = 0; i < points; i++) {
 			const nx = dejong ? Math.sin(a * y) - Math.cos(b * x) : Math.sin(a * y) + c * Math.cos(a * x);
 			const ny = dejong ? Math.sin(c * x) - Math.cos(d * y) : Math.sin(b * x) + d * Math.cos(b * y);
 			x = nx;
 			y = ny;
-			const px = Math.floor(w / 2 + (x * cos - y * sin) * scale);
-			const py = Math.floor(h / 2 + (x * sin + y * cos) * scale);
+			const rx = x * cos - y * sin;
+			const ry = x * sin + y * cos;
+			if (rx < left) left = rx;
+			if (rx > right) right = rx;
+			if (ry < top) top = ry;
+			if (ry > bottom) bottom = ry;
+			const px = Math.floor(w / 2 + (rx - fit.x) * scale);
+			const py = Math.floor(h / 2 + (ry - fit.y) * scale);
 			if (px >= 0 && px < w && py >= 0 && py < h) density[py * w + px] += 1;
 		}
+		const follow = Math.min(1, dt * 8);
+		fit.x += ((left + right) / 2 - fit.x) * follow;
+		fit.y += ((top + bottom) / 2 - fit.y) * follow;
+		const half = Math.max(.2, Math.max(right - left, bottom - top) / 2);
+		fit.half = half > fit.half ? half : fit.half + (half - fit.half) * Math.min(1, dt * 2);
 		let max = 1;
-		for (let i = 0; i < density.length; i += 11) if (density[i] > max) max = density[i];
+		let lit = 0;
+		for (let i = 0; i < density.length; i += 11) {
+			if (density[i] > max) max = density[i];
+			if (density[i] > .5) lit++;
+		}
+		collapsed = lit < 40 ? collapsed + 1 : 0;
+		if (collapsed > 20) {
+			target$3 = pick(SHAPES, target$3);
+			shape = { ...target$3 };
+			collapsed = 0;
+		}
 		peak$1 += (max - peak$1) * Math.min(1, dt * 2);
 		const logPeak = Math.log1p(peak$1 * 1.5);
 		const shift = clock.time * .04;
@@ -1718,6 +1750,7 @@ var bounce$1 = {
 * spread at different speeds and one eats the other. Depending on the feed and kill
 * rates they grow coral, spots that divide, or worms. The rates move from one pattern
 * to the next over time; bass feeds the growth, and each beat drops new chemical.
+* A swirling current carries the chemicals, so the coral streams and curls.
 */
 /** Feed and kill rates of some well-known patterns. */
 var PATTERNS$1 = [
@@ -1760,6 +1793,8 @@ var feed = PATTERNS$1[0].feed;
 var kill = PATTERNS$1[0].kill;
 var target$2 = 0;
 var beatsInPattern = 0;
+/** Phase of the current: it slowly changes direction. */
+var currentPhase = 0;
 /** Drops chemical B in a disc. */
 function drop$1(cx, cy, r) {
 	for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
@@ -1770,7 +1805,7 @@ function drop$1(cx, cy, r) {
 		a[iy * gridW$1 + ix] = .5;
 	}
 }
-function setUp$5(w, h) {
+function setUp$4(w, h) {
 	gridW$1 = w;
 	gridH$1 = h;
 	layer$3.setSize(w, h);
@@ -1781,6 +1816,38 @@ function setUp$5(w, h) {
 	for (let i = 0; i < 12; i++) drop$1(rndInt(w), rndInt(h), 2 + rndInt(4));
 }
 /** One step of the simulation on the wrapping grid (3×3 Laplacian: 0.2 sides, 0.05 corners). */
+/**
+* Moves both chemicals along a swirling current (semi-Lagrangian advection: each cell
+* takes the value from where the current comes from, with bilinear sampling).
+*/
+function advect(strength) {
+	const w = gridW$1;
+	const h = gridH$1;
+	const drift = Math.sin(currentPhase) * .6;
+	for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+		const vx = -(y - h / 2) / h * strength + drift * strength * .5;
+		const vy = (x - w / 2) / w * strength + Math.cos(currentPhase) * strength * .3;
+		let sx = x - vx;
+		let sy = y - vy;
+		sx = (sx % w + w) % w;
+		sy = (sy % h + h) % h;
+		const x0 = Math.floor(sx);
+		const y0 = Math.floor(sy);
+		const x1 = x0 + 1 === w ? 0 : x0 + 1;
+		const y1 = y0 + 1 === h ? 0 : y0 + 1;
+		const fx = sx - x0;
+		const fy = sy - y0;
+		const i00 = y0 * w + x0;
+		const i10 = y0 * w + x1;
+		const i01 = y1 * w + x0;
+		const i11 = y1 * w + x1;
+		const i = y * w + x;
+		nextA[i] = (a[i00] * (1 - fx) + a[i10] * fx) * (1 - fy) + (a[i01] * (1 - fx) + a[i11] * fx) * fy;
+		nextB[i] = (b[i00] * (1 - fx) + b[i10] * fx) * (1 - fy) + (b[i01] * (1 - fx) + b[i11] * fx) * fy;
+	}
+	[a, nextA] = [nextA, a];
+	[b, nextB] = [nextB, b];
+}
 function react(f, k) {
 	const w = gridW$1;
 	const h = gridH$1;
@@ -1836,13 +1903,15 @@ var coral = {
 		const cell = quality.level === 2 ? 5 : 6;
 		const w = Math.max(32, Math.min(170, Math.round(width / cell)));
 		const h = Math.max(24, Math.round(w * height / width));
-		if (w !== gridW$1 || h !== gridH$1) setUp$5(w, h);
+		if (w !== gridW$1 || h !== gridH$1) setUp$4(w, h);
 		const goal = PATTERNS$1[target$2];
 		feed += (goal.feed - feed) * Math.min(1, dt * .4);
 		kill += (goal.kill - kill) * Math.min(1, dt * .4);
 		const f = feed + audio.bass * .006;
-		const iterations = Math.round((quality.level === 2 ? 8 : 5) * Math.min(2, dt * 60));
+		const iterations = Math.round((quality.level === 2 ? 12 : 7) * Math.min(2, dt * 60));
 		for (let n = 0; n < iterations; n++) react(f, kill);
+		currentPhase += dt * .15;
+		advect((.5 + audio.mid * 1.2 + audio.beat * .6) * Math.min(2, dt * 60));
 		let total = 0;
 		for (let i = 0; i < b.length; i += 7) total += b[i];
 		if (total < b.length / 7 / 500) drop$1(rndInt(gridW$1), rndInt(gridH$1), 4);
@@ -2225,8 +2294,15 @@ var cymatics = {
 /**
 * Data as a picture, after Ryoji Ikeda's "test pattern": stacked bands of barcodes,
 * binary digits, spectrum bitmaps and waveforms, scrolling past at high speed in
-* black and white. Every band reads its own part of the spectrum. Beats re-cut the
-* bands; a strong beat inverts the picture (at most about once a second).
+* black and white. Every band reads its own part of the spectrum.
+*
+* The screen is cut into panels (whole, halves or quarters, sometimes tilted and
+* turning), and each panel scrolls its bands its own way: sideways, up or down.
+* Beats re-cut and reverse bands, and now and then re-cut the panels. On top of that:
+*   glitch  strips and blocks of the picture jump sideways, up and down (treble, beats)
+*   melt    on some beats the picture is frozen, tinted, and drips down in columns of
+*           different speeds, sagging and stretching, while the live picture goes on
+* A strong beat inverts the picture (at most about once a second).
 */
 /** Barcodes are the main material; a kind can repeat to make it more likely. */
 var KINDS = [
@@ -2241,10 +2317,36 @@ var KINDS = [
 	"wave",
 	"blank"
 ];
+var LAYOUTS = [
+	"rows",
+	"rows",
+	"columns",
+	"halves",
+	"stack",
+	"quarters",
+	"tilt"
+];
 /** Seconds between two inversions: flashes stay slow (photosensitivity). */
 var INVERT_GAP_S = .9;
-var bands = [];
+var MELT_COLUMNS = 96;
+var MELT_S = 3.2;
+var panels = [];
+var layout = "rows";
+var beats = 0;
 var lastInvert = -1;
+/** 1 after a beat, then falls: how wild the glitches are. */
+var glitch$1 = 0;
+var cuts = [];
+/** Colour strip of the current glitch (y, height), or none. */
+var stripe = null;
+var nextCut = 0;
+/** The frozen picture that melts, and the drop and speed of each of its columns. */
+var frozen = document.createElement("canvas");
+var frozenCtx = context2d(frozen);
+var meltAge = -1;
+var drops$1 = new Float32Array(MELT_COLUMNS);
+var dropSpeeds = new Float32Array(MELT_COLUMNS);
+var weights = new Float32Array(MELT_COLUMNS);
 function newBand(index, count) {
 	return {
 		kind: pick(KINDS),
@@ -2255,25 +2357,59 @@ function newBand(index, count) {
 		bar: 1 + Math.floor(Math.random() * 3)
 	};
 }
-function setUp$4() {
-	const count = Math.max(8, Math.min(18, Math.round(view.height / 46)));
-	bands = Array.from({ length: count }, (_, i) => newBand(i, count));
+/** Length and thickness of the turned box that covers the panel. */
+function span(panel) {
+	const cos = Math.abs(Math.cos(panel.angle));
+	const sin = Math.abs(Math.sin(panel.angle));
+	return [panel.w * cos + panel.h * sin, panel.w * sin + panel.h * cos];
 }
-function drawBarcode(band, y, h, level) {
+function newPanel(x, y, w, h, angle, spin = 0) {
+	const panel = {
+		x,
+		y,
+		w,
+		h,
+		angle,
+		spin,
+		bands: []
+	};
+	const count = clamp(Math.round(span(panel)[1] / 46), 5, 18);
+	panel.bands = Array.from({ length: count }, (_, i) => newBand(i, count));
+	return panel;
+}
+function makePanels(kind) {
+	const { width: w, height: h } = view;
+	const down = Math.PI / 2;
+	const a = Math.random() < .5 ? 0 : down;
+	switch (kind) {
+		case "rows": return [newPanel(0, 0, w, h, 0)];
+		case "columns": return [newPanel(0, 0, w, h, down)];
+		case "halves": return [newPanel(0, 0, w / 2, h, a), newPanel(w / 2, 0, w / 2, h, down - a)];
+		case "stack": return [newPanel(0, 0, w, h / 2, a), newPanel(0, h / 2, w, h / 2, down - a)];
+		case "quarters": return [
+			0,
+			1,
+			2,
+			3
+		].map((i) => newPanel(i % 2 * (w / 2), (i >> 1) * (h / 2), w / 2, h / 2, (i + (i >> 1)) % 2 ? down : 0));
+		case "tilt": return [newPanel(0, 0, w, h, rnd(-.6, .6), rnd(-.15, .15))];
+	}
+}
+function drawBarcode(band, length, y, h, level) {
 	const barWidth = Math.max(2, Math.round(view.min / 220)) * band.bar;
 	const start = Math.floor(band.offset / barWidth);
 	const shift = band.offset - start * barWidth;
-	const columns = Math.ceil(view.width / barWidth) + 1;
+	const columns = Math.ceil(length / barWidth) + 1;
 	const density = .3 + level * .55;
 	ctx.beginPath();
 	for (let c = 0; c < columns; c++) if (hash01((start + c) * .731 + band.seed) < density) ctx.rect(c * barWidth - shift, y, barWidth, h);
 	ctx.fill();
 }
-function drawBinary(band, y, h) {
+function drawBinary(band, length, y, h) {
 	const freq = audio.freq;
 	const size = Math.max(8, Math.floor(h * .62));
 	const charWidth = size * .62;
-	const count = Math.ceil(view.width / charWidth) + 1;
+	const count = Math.ceil(length / charWidth) + 1;
 	const first = Math.floor(band.offset / charWidth);
 	const base = Math.floor(band.bin * freq.length * .5);
 	let text = "";
@@ -2288,31 +2424,162 @@ function drawBinary(band, y, h) {
 	ctx.fillText(text, -(band.offset - first * charWidth), y + h / 2);
 }
 /** Three rows of cells: one cell per spectrum bin, lit when the bin is loud. */
-function drawBitmap(band, y, h) {
+function drawBitmap(band, length, y, h) {
 	const freq = audio.freq;
 	const cell = h / 3;
-	const columns = Math.ceil(view.width / cell) + 1;
+	const columns = Math.ceil(length / cell) + 1;
 	const first = Math.floor(band.offset / cell);
 	const shift = band.offset - first * cell;
 	ctx.beginPath();
 	for (let row = 0; row < 3; row++) for (let c = 0; c < columns; c++) if (freq[Math.abs((first + c) * 3 + row) % (freq.length >> 1)] > 100) ctx.rect(c * cell - shift + 1, y + row * cell + 1, cell - 2, cell - 2);
 	ctx.fill();
 }
-function drawWave(y, h) {
-	const { width } = view;
+function drawWave(length, y, h) {
 	ctx.lineWidth = 1;
 	ctx.beginPath();
 	for (let i = 0; i <= 160; i++) {
 		const t = i / 160;
-		pathPoint(ctx, i, t * width, y + h / 2 + waveAt(t) * h * .45);
+		pathPoint(ctx, i, t * length, y + h / 2 + waveAt(t) * h * .45);
 	}
 	ctx.stroke();
 	ctx.beginPath();
-	for (let x = 0; x < width; x += 8) {
-		const tick = 2 + Math.abs(waveAt(x / width)) * h * .4;
+	for (let x = 0; x < length; x += 8) {
+		const tick = 2 + Math.abs(waveAt(x / length)) * h * .4;
 		ctx.rect(x, y + h - tick, 1, tick);
 	}
 	ctx.fill();
+}
+function drawPanel(panel, ink, pace, dt) {
+	panel.angle += panel.spin * dt * (1 + audio.mid * 2);
+	const [length, thickness] = span(panel);
+	const inset = panels.length > 1 ? 1 : 0;
+	ctx.save();
+	ctx.beginPath();
+	ctx.rect(panel.x + inset, panel.y + inset, panel.w - inset * 2, panel.h - inset * 2);
+	ctx.clip();
+	ctx.translate(panel.x + panel.w / 2, panel.y + panel.h / 2);
+	ctx.rotate(panel.angle);
+	ctx.translate(-length / 2, -thickness / 2);
+	const bands = panel.bands;
+	const gap = 2;
+	const bandHeight = (thickness - gap * (bands.length - 1)) / bands.length;
+	const label = `${Math.max(9, Math.round(bandHeight * .28))}px ${MONOSPACE$1}`;
+	for (let i = 0; i < bands.length; i++) {
+		const band = bands[i];
+		const y = i * (bandHeight + gap);
+		const level = spectrumAt(band.bin, .5, 1.4);
+		band.offset += band.speed * pace;
+		ctx.fillStyle = ink;
+		ctx.strokeStyle = ink;
+		if (band.kind === "barcode") drawBarcode(band, length, y, bandHeight, level);
+		else if (band.kind === "binary") drawBinary(band, length, y, bandHeight);
+		else if (band.kind === "bitmap") drawBitmap(band, length, y, bandHeight);
+		else if (band.kind === "wave") drawWave(length, y, bandHeight);
+		ctx.fillStyle = color(0, .9, 60);
+		ctx.font = label;
+		ctx.textBaseline = "top";
+		ctx.textAlign = "right";
+		const hex = Math.round(level * 255).toString(16).padStart(2, "0");
+		ctx.fillText(`${String(i).padStart(2, "0")}:${hex}`, length - 4, y + 2);
+	}
+	ctx.restore();
+}
+/** Freezes the current picture, tinted, and lets it start to drip. */
+function startMelt() {
+	frozen.width = sceneCanvas.width;
+	frozen.height = sceneCanvas.height;
+	frozenCtx.drawImage(sceneCanvas, 0, 0);
+	frozenCtx.globalCompositeOperation = scene.palette.light ? "screen" : "multiply";
+	frozenCtx.fillStyle = color(rnd(0, 6), 1, 60);
+	frozenCtx.fillRect(0, 0, frozen.width, frozen.height);
+	frozenCtx.globalCompositeOperation = "source-over";
+	for (let i = 0; i < MELT_COLUMNS; i++) weights[i] = Math.random();
+	for (let i = 0; i < MELT_COLUMNS; i++) {
+		const near = (weights[Math.max(0, i - 1)] + weights[Math.min(95, i + 1)]) / 2;
+		dropSpeeds[i] = .05 + Math.pow(weights[i] * .5 + near * .5, 3) * 1.4;
+		drops$1[i] = 0;
+	}
+	meltAge = 0;
+}
+function drawMelt(dt) {
+	if (meltAge < 0) return;
+	meltAge += dt;
+	const alpha = clamp((MELT_S - meltAge) / .8, 0, 1);
+	if (alpha <= 0 || frozen.width !== sceneCanvas.width) {
+		meltAge = -1;
+		return;
+	}
+	const height = frozen.height;
+	const columnWidth = frozen.width / MELT_COLUMNS;
+	ctx.save();
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	ctx.globalAlpha = alpha;
+	ctx.globalCompositeOperation = scene.palette.light ? "darken" : "lighten";
+	for (let i = 0; i < MELT_COLUMNS; i++) {
+		drops$1[i] += dropSpeeds[i] * (1 + audio.bass * 1.5) * meltAge * height * dt;
+		const drop = drops$1[i];
+		const x = Math.floor(i * columnWidth);
+		const w = Math.floor((i + 1) * columnWidth) - x;
+		ctx.drawImage(frozen, x, 0, w, height, x, drop * .35, w, height + drop);
+	}
+	ctx.restore();
+}
+/** Picks new strips and blocks to move. */
+function cutGlitches(amount) {
+	const { width, height } = view;
+	cuts = [];
+	const count = Math.floor(amount * (3 + Math.random() * 7));
+	for (let i = 0; i < count; i++) {
+		const jump = rnd(-1, 1) * (15 + amount * 200);
+		const size = rnd(3, 12 + amount * 50);
+		const kind = Math.random();
+		if (kind < .55) cuts.push({
+			x: 0,
+			y: Math.random() * height,
+			w: width,
+			h: size,
+			dx: jump,
+			dy: 0
+		});
+		else if (kind < .8) cuts.push({
+			x: Math.random() * width,
+			y: 0,
+			w: size,
+			h: height,
+			dx: 0,
+			dy: jump
+		});
+		else {
+			const w = rnd(30, 180);
+			const h = rnd(12, 100);
+			cuts.push({
+				x: Math.random() * (width - w),
+				y: Math.random() * (height - h),
+				w,
+				h,
+				dx: rnd(-80, 80),
+				dy: rnd(-50, 50)
+			});
+		}
+	}
+	stripe = Math.random() < amount * .6 ? [Math.random() * height, rnd(2, 26)] : null;
+}
+function drawGlitches() {
+	const amount = Math.min(1.5, glitch$1 + audio.high * .7);
+	if (clock.time >= nextCut || clock.time < nextCut - 1) {
+		cutGlitches(amount);
+		nextCut = clock.time + rnd(.06, .16);
+	}
+	if (!cuts.length && !stripe) return;
+	const dpr = view.dpr;
+	takeSnapshot();
+	for (const cut of cuts) ctx.drawImage(snapshot, cut.x * dpr, cut.y * dpr, cut.w * dpr, cut.h * dpr, cut.x + cut.dx, cut.y + cut.dy, cut.w, cut.h);
+	if (stripe) {
+		ctx.globalCompositeOperation = "difference";
+		ctx.fillStyle = color(3, 1, 55);
+		ctx.fillRect(0, stripe[0], view.width, stripe[1]);
+		ctx.globalCompositeOperation = "source-over";
+	}
 }
 var datamatics = {
 	name: "datamatics",
@@ -2329,39 +2596,38 @@ var datamatics = {
 		"paper"
 	],
 	beat() {
-		if (!bands.length) return;
-		for (let i = 0; i < bands.length; i++) if (Math.random() < .3) bands[i] = newBand(i, bands.length);
+		if (!panels.length) return;
+		glitch$1 = 1;
+		beats++;
+		if (beats % 8 === 0 && Math.random() < .7) {
+			layout = pick(LAYOUTS, layout);
+			panels = makePanels(layout);
+		} else for (const panel of panels) {
+			const bands = panel.bands;
+			for (let i = 0; i < bands.length; i++) {
+				const r = Math.random();
+				if (r < .25) bands[i] = newBand(i, bands.length);
+				else if (r < .4) bands[i].speed *= -rnd(.7, 1.6);
+				else if (r < .45) bands[i].offset += rnd(-1, 1) * view.width;
+			}
+		}
+		if (meltAge < 0 && Math.random() < .3) startMelt();
 	},
 	resize() {
-		bands = [];
+		panels = [];
+		meltAge = -1;
 	},
 	draw(dt) {
 		const { width, height } = view;
-		if (!bands.length) setUp$4();
+		if (!panels.length) panels = makePanels(layout);
+		glitch$1 = Math.max(0, glitch$1 - dt * 2.5);
 		ctx.fillStyle = background(1);
 		ctx.fillRect(0, 0, width, height);
 		const ink = scene.palette.light ? "rgb(12,12,12)" : "rgb(245,245,245)";
-		const gap = 2;
-		const bandHeight = (height - gap * (bands.length - 1)) / bands.length;
 		const pace = (.4 + audio.mid * 2.2 + audio.beat) * dt * width;
-		for (let i = 0; i < bands.length; i++) {
-			const band = bands[i];
-			const y = i * (bandHeight + gap);
-			const level = spectrumAt(band.bin, .5, 1.4);
-			band.offset += band.speed * pace;
-			ctx.fillStyle = ink;
-			ctx.strokeStyle = ink;
-			if (band.kind === "barcode") drawBarcode(band, y, bandHeight, level);
-			else if (band.kind === "binary") drawBinary(band, y, bandHeight);
-			else if (band.kind === "bitmap") drawBitmap(band, y, bandHeight);
-			else if (band.kind === "wave") drawWave(y, bandHeight);
-			ctx.fillStyle = color(0, .9, 60);
-			ctx.font = `${Math.max(9, Math.round(bandHeight * .28))}px ${MONOSPACE$1}`;
-			ctx.textBaseline = "top";
-			ctx.textAlign = "right";
-			const hex = Math.round(level * 255).toString(16).padStart(2, "0");
-			ctx.fillText(`${String(i).padStart(2, "0")}:${hex}`, width - 4, y + 2);
-		}
+		for (const panel of panels) drawPanel(panel, ink, pace, dt);
+		drawMelt(dt);
+		drawGlitches();
 		if (audio.beat > .9 && audio.bass > .6 && clock.time - lastInvert > INVERT_GAP_S) lastInvert = clock.time;
 		if (clock.time - lastInvert < .07) {
 			ctx.globalCompositeOperation = "difference";
@@ -6189,10 +6455,26 @@ var terrain = {
 };
 //#endregion
 //#region src/modes/tree.ts
-/** A recursive tree that sways with the mids and blossoms with the treble. */
+/**
+* A tree that grows in real time. Branches sprout level by level (faster with the mids,
+* in spurts on beats) up to 11 levels and about two thousand tips, which blossom with
+* the treble. The thin branches sway more in the wind than the trunk. When the tree is
+* full grown it stands for a moment, then a new tree grows while the old one fades.
+*
+* The branches are collected per level and drawn with one stroke per level, so even
+* thousands of branches stay fast.
+*/
+var LEVELS = 11;
 /** Upper limit of branches per frame. */
-var MAX_BRANCHES = 1200;
+var MAX_BRANCHES = 5e3;
+/** Levels of growth per second, and how long a full tree stands before the next one. */
+var GROWTH_SPEED = .9;
 var treeSeed = 1;
+/** Grown levels: 2.5 means two levels are complete and the third is half grown. */
+var growth = 0;
+/** Branch segments per level, as x1, y1, x2, y2. */
+var segments = Array.from({ length: LEVELS }, () => []);
+var tips = [];
 var tree = {
 	name: "tree",
 	fade: .3,
@@ -6200,40 +6482,63 @@ var tree = {
 		"forest",
 		"mushroom",
 		"paper",
-		"toxic"
+		"toxic",
+		"sunset",
+		"technicolor"
 	],
 	beat() {
-		if (Math.random() < .3) treeSeed = Math.random() * 1e3;
+		growth += .4 + audio.bass * .4;
 	},
-	draw() {
-		const { width, height, cx, min } = view;
+	draw(dt) {
+		const { height, cx, min } = view;
 		const time = clock.time;
-		const depth = width > height ? 9 : 8;
-		const sway = Math.sin(time * 1.2) * .15 * (.5 + audio.mid);
-		const spread = .35 + audio.mid * .35 + Math.sin(time * .3) * .1;
+		growth += dt * GROWTH_SPEED * (.8 + audio.mid * 1.5);
+		if (growth > 15) {
+			treeSeed = hash01(treeSeed * 7.13 + time) * 1e3;
+			growth = 0;
+		}
+		const spread = .38 + audio.mid * .3 + Math.sin(time * .3) * .08;
+		for (const list of segments) list.length = 0;
+		tips.length = 0;
 		let branches = 0;
-		ctx.lineCap = "round";
-		function branch(x, y, length, angle, d, seed) {
-			if (d <= 0 || branches++ > MAX_BRANCHES) return;
-			const x2 = x + Math.cos(angle) * length;
-			const y2 = y + Math.sin(angle) * length;
-			ctx.strokeStyle = color(d * .45 + time * .2, .9, 45 + (depth - d) * 5);
-			ctx.lineWidth = Math.max(1, d * d * .25 * (1 + audio.bass * .5));
-			ctx.beginPath();
-			ctx.moveTo(x, y);
-			ctx.lineTo(x2, y2);
-			ctx.stroke();
-			if (d <= 2) {
-				ctx.fillStyle = color(3 + time * .2, .9, 80);
-				fillCircle(ctx, x2, y2, 2 + audio.high * 6);
-			}
+		function branch(x, y, length, angle, level, seed) {
+			if (level >= LEVELS || branches++ > MAX_BRANCHES) return;
+			const grown = clamp(growth - level, 0, 1);
+			if (grown <= 0) return;
+			const sway = Math.sin(time * 1.3 + level * .4 + seed) * .03 * level * (.4 + audio.mid);
+			const a = angle + sway;
+			const x2 = x + Math.cos(a) * length * grown;
+			const y2 = y + Math.sin(a) * length * grown;
+			segments[level].push(x, y, x2, y2);
+			if (grown < 1) return;
+			if (level >= 9) tips.push(x2, y2);
 			const r1 = hash01(seed * 12.9898);
 			const r2 = hash01(seed * 78.233);
-			branch(x2, y2, length * (.62 + r1 * .14), angle - spread * (.7 + r2 * .6) + sway, d - 1, seed * 1.7 + 1);
-			branch(x2, y2, length * (.62 + r2 * .14), angle + spread * (.7 + r1 * .6) + sway, d - 1, seed * 2.3 + 2);
-			if (d > 5 && r1 > .6) branch(x2, y2, length * .5, angle + sway * 2, d - 2, seed * 3.1 + 3);
+			branch(x2, y2, length * (.68 + r1 * .12), a - spread * (.7 + r2 * .6), level + 1, seed * 1.7 + 1);
+			branch(x2, y2, length * (.68 + r2 * .12), a + spread * (.7 + r1 * .6), level + 1, seed * 2.3 + 2);
+			if (level < 8 && r1 > .55) branch(x2, y2, length * .55, a + sway * 2, level + 2, seed * 3.1 + 3);
 		}
-		branch(cx, height, min * .22 * (1 + audio.bass * .2), -Math.PI / 2, depth, treeSeed);
+		branch(cx, height, min * .24 * (1 + audio.bass * .15), -Math.PI / 2, 0, treeSeed);
+		ctx.lineCap = "round";
+		segments.forEach((list, level) => {
+			if (!list.length) return;
+			ctx.beginPath();
+			for (let i = 0; i < list.length; i += 4) {
+				ctx.moveTo(list[i], list[i + 1]);
+				ctx.lineTo(list[i + 2], list[i + 3]);
+			}
+			ctx.strokeStyle = color(level * .45 + time * .2, .9, 40 + level * 4);
+			ctx.lineWidth = Math.max(.8, Math.pow(LEVELS - level, 1.5) * .35 * (1 + audio.bass * .5));
+			ctx.stroke();
+		});
+		const bloom = 1.2 + audio.high * 4 + audio.beat * 1.5;
+		ctx.fillStyle = color(3 + time * .2, .85, 80);
+		ctx.beginPath();
+		for (let i = 0; i < tips.length; i += 2) {
+			ctx.moveTo(tips[i] + bloom, tips[i + 1]);
+			ctx.arc(tips[i], tips[i + 1], bloom, 0, TAU);
+		}
+		ctx.fill();
 	}
 };
 //#endregion
