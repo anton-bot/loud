@@ -1,6 +1,6 @@
 # loud
 
-A music visualizer that runs in the browser. 54 visual modes react to the bass, the mids, the
+A music visualizer that runs in the browser. 55 visual modes react to the bass, the mids, the
 treble and the beats of the music. There are 29 palettes and 14 looks (film, CRT, stop-motion,
 mirror, glitch, LED wall and others).
 

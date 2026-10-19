@@ -11,6 +11,7 @@ import { cymatics } from './cymatics';
 import { datamatics } from './datamatics';
 import { eightBit } from './eightBit';
 import { embers } from './embers';
+import { f1 } from './f1';
 import { film } from './film';
 import { fireworks } from './fireworks';
 import { flow } from './flow';
@@ -112,4 +113,5 @@ export const MODES: readonly Mode[] = [
   inkMode,
   parallax,
   smear,
+  f1,
 ];
