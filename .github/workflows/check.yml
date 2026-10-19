@@ -1,0 +1,45 @@
+name: check
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    # labeled/unlabeled: the visual-change label changes what the visual job does.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm build
+      - name: loud.html is built from the current source
+        run: git diff --exit-code -- loud.html
+
+  visual:
+    # Renders loud.html of the pull request and of its base with the same random numbers
+    # and compares the pictures. With the visual-change label it only reports.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Uses the Google Chrome that the GitHub runner image has.
+      - name: Compare the pictures with the base branch
+        run: >-
+          pnpm test:visual --base ${{ github.event.pull_request.base.sha }}
+          ${{ contains(github.event.pull_request.labels.*.name, 'visual-change') && '--report-only' || '' }}

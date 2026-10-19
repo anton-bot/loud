@@ -1,0 +1,295 @@
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  --bg: #000;
+  --fg: #fbf7ff;
+  --muted: rgba(251, 247, 255, 0.6);
+  --chip: rgba(0, 0, 0, 0.35);
+  --chip-on: rgba(255, 255, 255, 0.3);
+  --line: rgba(255, 255, 255, 0.28);
+  --display: 'Unbounded', ui-sans-serif, system-ui, sans-serif;
+  --ui: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* Keeps light text readable over any picture. */
+  --text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+}
+
+html {
+  scroll-padding-top: env(safe-area-inset-top, 0px);
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--ui);
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+#display {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #000;
+  touch-action: none;
+}
+
+/* Controls */
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: opacity 0.35s;
+}
+
+#ui.hide {
+  opacity: 0;
+}
+
+#ui.hide .bar {
+  pointer-events: none;
+}
+
+.bar {
+  pointer-events: auto;
+  padding: 14px 16px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.bar.top {
+  justify-content: space-between;
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+}
+
+.bar.bottom {
+  flex-direction: column;
+  align-items: stretch;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+}
+
+.brand {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  text-shadow:
+    0 0 14px rgba(0, 0, 0, 0.9),
+    0 0 3px rgba(0, 0, 0, 0.9);
+}
+
+.brand span {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.chip,
+.ic {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--chip);
+  color: var(--fg);
+  font: inherit;
+  font-size: 15px;
+  padding: 10px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition:
+    background 0.15s,
+    transform 0.1s;
+  text-shadow: var(--text-shadow);
+}
+
+.chip {
+  -webkit-touch-callout: none;
+}
+
+.chip:active,
+.ic:active {
+  transform: scale(0.96);
+}
+
+.chip.on {
+  background: var(--chip-on);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.chip:focus-visible,
+.ic:focus-visible,
+input:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.ic {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+}
+
+.slider {
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  text-shadow: var(--text-shadow);
+}
+
+.slider input {
+  flex: 0 1 150px;
+  accent-color: #fff;
+}
+
+/* Input level meter; the red mark is the noise gate. */
+.meter {
+  position: relative;
+  width: 84px;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+#meterFill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  background: #fff;
+}
+
+#meterGate {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ff3d6e;
+}
+
+.link {
+  max-width: 55vw;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.status {
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  min-height: 1.3em;
+  text-shadow: var(--text-shadow);
+}
+
+/* Full list of styles, palettes or looks (long-press a chip) */
+
+#menu {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+}
+
+#menuBack {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+#menu .panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(82vw, 340px);
+  max-height: min(62vh, 520px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(12, 12, 16, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+
+.mt {
+  padding: 12px 16px 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#menuList {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 4px 8px 10px;
+}
+
+.mi {
+  display: block;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.mi.on {
+  background: var(--chip-on);
+}
+
+.mi:active {
+  background: var(--chip);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #ui {
+    transition: none;
+  }
+}

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <title>loud — music visualizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" src="./main.ts"></script>
+  </head>
+  <body>
+    <canvas id="display"></canvas>
+
+    <div id="ui">
+      <div class="bar top">
+        <div class="brand">loud <span id="modeName">nebula</span></div>
+        <button class="ic" id="fsBtn" title="Fullscreen" aria-label="Fullscreen">⤢</button>
+      </div>
+
+      <div class="bar bottom">
+        <div class="row">
+          <button class="chip src" data-src="demo" aria-pressed="false">Demo beat</button>
+          <button class="chip src" data-src="mic" aria-pressed="false">Mic</button>
+          <button class="chip src" data-src="file" aria-pressed="false">Open a file</button>
+          <input id="file" type="file" accept="audio/*" hidden />
+        </div>
+
+        <!-- Shown when a frame around the page blocks the mic. -->
+        <div class="row" id="linkRow" hidden>
+          <input id="linkBox" class="chip link" readonly aria-label="This page's own link" />
+          <button class="chip" id="copyBtn">Copy link</button>
+          <button class="chip" id="tabBtn">New tab</button>
+        </div>
+
+        <div class="row">
+          <button class="chip" id="prevMode" aria-label="Previous mode">‹</button>
+          <button class="chip" id="modeBtn">nebula</button>
+          <button class="chip" id="nextMode" aria-label="Next mode">›</button>
+          <button class="chip" id="palBtn">Palette: void</button>
+          <button class="chip" id="lookBtn">Look: clean</button>
+        </div>
+
+        <div class="row">
+          <button class="chip" id="shuffleBtn">Shuffle</button>
+          <button class="chip" id="autoBtn" aria-pressed="true">Auto-switch on</button>
+          <button class="chip" id="secBtn" aria-pressed="true">Sections on</button>
+          <button class="chip" id="motionBtn" aria-pressed="false">Motion</button>
+        </div>
+
+        <div class="row slider">
+          <label for="gate">Noise gate</label>
+          <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" />
+          <div class="meter" aria-hidden="true">
+            <div id="meterFill"></div>
+            <div id="meterGate"></div>
+          </div>
+        </div>
+
+        <div class="status" id="status" aria-live="polite">
+          Pick a sound source. Tap the screen to hide the controls; long-press the style, palette or
+          look chip for the full list.
+        </div>
+      </div>
+    </div>
+
+    <div id="menu" hidden>
+      <div id="menuBack"></div>
+      <div class="panel">
+        <div id="menuTitle" class="mt">Style</div>
+        <div id="menuList"></div>
+      </div>
+    </div>
+  </body>
+</html>
