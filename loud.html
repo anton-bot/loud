@@ -1421,7 +1421,7 @@ var gridW$2 = 0;
 var gridH$2 = 0;
 var density = /* @__PURE__ */ new Float32Array(0);
 var shape = { ...SHAPES[0] };
-var target$1 = SHAPES[0];
+var target$2 = SHAPES[0];
 var x = .1;
 var y = .1;
 var beats = 0;
@@ -1454,8 +1454,8 @@ var attractor = {
 	],
 	beat() {
 		if (++beats % 8 !== 0) return;
-		target$1 = pick(SHAPES, target$1);
-		if (target$1.map !== shape.map) shape = { ...target$1 };
+		target$2 = pick(SHAPES, target$2);
+		if (target$2.map !== shape.map) shape = { ...target$2 };
 	},
 	resize() {
 		gridW$2 = 0;
@@ -1466,10 +1466,10 @@ var attractor = {
 		const h = Math.max(48, Math.round(w * height / width));
 		if (w !== gridW$2 || h !== gridH$2) setUp$6(w, h);
 		const k = Math.min(1, dt * .8);
-		shape.a += (target$1.a - shape.a) * k;
-		shape.b += (target$1.b - shape.b) * k;
-		shape.c += (target$1.c - shape.c) * k;
-		shape.d += (target$1.d - shape.d) * k;
+		shape.a += (target$2.a - shape.a) * k;
+		shape.b += (target$2.b - shape.b) * k;
+		shape.c += (target$2.c - shape.c) * k;
+		shape.d += (target$2.d - shape.d) * k;
 		const a = shape.a + audio.bass * .12;
 		const b = shape.b - audio.mid * .1;
 		const c = shape.c + audio.high * .08;
@@ -1758,7 +1758,7 @@ var nextA = /* @__PURE__ */ new Float32Array(0);
 var nextB = /* @__PURE__ */ new Float32Array(0);
 var feed = PATTERNS$1[0].feed;
 var kill = PATTERNS$1[0].kill;
-var target = 0;
+var target$1 = 0;
 var beatsInPattern = 0;
 /** Drops chemical B in a disc. */
 function drop(cx, cy, r) {
@@ -1825,7 +1825,7 @@ var coral = {
 		for (let i = 0; i < count; i++) drop(rndInt(gridW$1), rndInt(gridH$1), Math.round(rnd(2, 4 + audio.bass * 4)));
 		if (++beatsInPattern >= 16) {
 			beatsInPattern = 0;
-			target = (target + 1) % PATTERNS$1.length;
+			target$1 = (target$1 + 1) % PATTERNS$1.length;
 		}
 	},
 	resize() {
@@ -1837,7 +1837,7 @@ var coral = {
 		const w = Math.max(32, Math.min(170, Math.round(width / cell)));
 		const h = Math.max(24, Math.round(w * height / width));
 		if (w !== gridW$1 || h !== gridH$1) setUp$5(w, h);
-		const goal = PATTERNS$1[target];
+		const goal = PATTERNS$1[target$1];
 		feed += (goal.feed - feed) * Math.min(1, dt * .4);
 		kill += (goal.kill - kill) * Math.min(1, dt * .4);
 		const f = feed + audio.bass * .006;
@@ -2134,7 +2134,7 @@ var PATTERNS = [
 	[6, 7],
 	[7, 9]
 ];
-var GROUPS$1 = 3;
+var GROUPS$2 = 3;
 var grainX = /* @__PURE__ */ new Float32Array(0);
 var grainY = /* @__PURE__ */ new Float32Array(0);
 var n = 1;
@@ -2212,10 +2212,10 @@ var cymatics = {
 		ctx.lineWidth = 1;
 		ctx.strokeRect(cx - half - 6, cy - half - 6, half * 2 + 12, half * 2 + 12);
 		const size = Math.max(1.2, min / 500);
-		for (let g = 0; g < GROUPS$1; g++) {
+		for (let g = 0; g < GROUPS$2; g++) {
 			ctx.fillStyle = color(g * 1.3, .9, 72 + audio.high * 20);
 			ctx.beginPath();
-			for (let i = g; i < grainX.length; i += GROUPS$1) ctx.rect(cx + grainX[i] * half, cy + grainY[i] * half, size, size);
+			for (let i = g; i < grainX.length; i += GROUPS$2) ctx.rect(cx + grainX[i] * half, cy + grainY[i] * half, size, size);
 			ctx.fill();
 		}
 	}
@@ -3935,7 +3935,7 @@ var mosh = {
 */
 /** Neighbours count within this distance (px); closer than SPACE they push apart. */
 var SIGHT = 46;
-var GROUPS = 3;
+var GROUPS$1 = 3;
 var birdX = /* @__PURE__ */ new Float32Array(0);
 var birdY = /* @__PURE__ */ new Float32Array(0);
 var birdVX = /* @__PURE__ */ new Float32Array(0);
@@ -4114,10 +4114,10 @@ var murmur = {
 		}
 		ctx.lineCap = "round";
 		ctx.lineWidth = Math.max(2, view.min / 300) * (1 + audio.beat * .4);
-		for (let g = 0; g < GROUPS; g++) {
+		for (let g = 0; g < GROUPS$1; g++) {
 			ctx.strokeStyle = color(g * .8, .95, 68 + audio.high * 20);
 			ctx.beginPath();
-			for (let i = g; i < birdX.length; i += GROUPS) {
+			for (let i = g; i < birdX.length; i += GROUPS$1) {
 				ctx.moveTo(birdX[i], birdY[i]);
 				ctx.lineTo(birdX[i] - birdVX[i] * .014, birdY[i] - birdVY[i] * .014);
 			}
@@ -4188,6 +4188,24 @@ var nebula = {
 		fillCircle(ctx, cx, cy, coreR);
 	}
 };
+//#endregion
+//#region src/render/neon.ts
+/** The neon tube look, shared by the neon modes. */
+/**
+* Strokes the current path of `ctx` as a neon tube: a wide faint glow, a softer
+* glow, and a thin bright core. `k` is the palette colour, `width` the tube width.
+*/
+function neonStroke(ctx, k, width, alpha) {
+	ctx.strokeStyle = color(k, alpha * .09, 55);
+	ctx.lineWidth = width * 4;
+	ctx.stroke();
+	ctx.strokeStyle = color(k, alpha * .4, 65);
+	ctx.lineWidth = width * 1.8;
+	ctx.stroke();
+	ctx.strokeStyle = color(k, alpha, 92);
+	ctx.lineWidth = width * .6;
+	ctx.stroke();
+}
 //#endregion
 //#region src/modes/neon.ts
 /** Neon tubes: drifting glowing outlines and a spinning wireframe solid. */
@@ -4356,25 +4374,13 @@ var SOLIDS = (() => {
 })();
 var tubes = [];
 var solidIndex = 0;
-var angles = [
+var angles$1 = [
 	.3,
 	.6,
 	.1
 ];
 /** Extra spin after a beat, 1..0. */
 var kick = 0;
-/** Strokes the current path three times, wide and faint to thin and bright: a neon tube. */
-function neonStroke(k, width, alpha) {
-	ctx.strokeStyle = color(k, alpha * .09, 55);
-	ctx.lineWidth = width * 4;
-	ctx.stroke();
-	ctx.strokeStyle = color(k, alpha * .4, 65);
-	ctx.lineWidth = width * 1.8;
-	ctx.stroke();
-	ctx.strokeStyle = color(k, alpha, 92);
-	ctx.lineWidth = width * .6;
-	ctx.stroke();
-}
 function addTubes(count) {
 	const { width, height, min } = view;
 	for (let i = 0; i < count; i++) tubes.push({
@@ -4428,7 +4434,7 @@ function drawTubes(dt) {
 			ctx.arc(0, 0, r, 0, TAU);
 		} else if (s.sides === 7) starPath(ctx, r, .45);
 		else polygonPath(ctx, s.sides, r);
-		neonStroke(s.k, 2.2, alpha);
+		neonStroke(ctx, s.k, 2.2, alpha);
 		ctx.restore();
 	}
 }
@@ -4437,11 +4443,11 @@ function drawSolid(dt) {
 	const time = clock.time;
 	kick = Math.max(0, kick - dt * 2);
 	const speed = .3 + audio.mid * 1.2 + kick * 3;
-	angles[0] += dt * speed * .7;
-	angles[1] += dt * speed;
-	angles[2] += dt * speed * .35;
+	angles$1[0] += dt * speed * .7;
+	angles$1[1] += dt * speed;
+	angles$1[2] += dt * speed * .35;
 	const solid = SOLIDS[solidIndex];
-	const [ax, ay, az] = angles;
+	const [ax, ay, az] = angles$1;
 	const size = min * .2 * (1 + audio.bass * .45 + audio.beat * .1);
 	const cosX = Math.cos(ax);
 	const sinX = Math.sin(ax);
@@ -4467,7 +4473,7 @@ function drawSolid(dt) {
 		ctx.beginPath();
 		ctx.moveTo(points[i][0], points[i][1]);
 		ctx.lineTo(points[j][0], points[j][1]);
-		neonStroke(n * .37 + time * .2, 2 + (points[i][2] + points[j][2]), .7 + .3 * Math.sin(time * 9 + n));
+		neonStroke(ctx, n * .37 + time * .2, 2 + (points[i][2] + points[j][2]), .7 + .3 * Math.sin(time * 9 + n));
 	});
 	for (const p of points) {
 		ctx.fillStyle = color(1, 1, 95);
@@ -4498,6 +4504,331 @@ var neon = {
 		ctx.lineCap = "round";
 		drawTubes(dt);
 		drawSolid(dt);
+	}
+};
+//#endregion
+//#region src/modes/neonKnot.ts
+/**
+* A torus knot as one glowing neon tube, turning in 3D. The tube is drawn in depth bands,
+* far to near: thin and dim at the back, thick and bright in front. A pulse of light runs
+* along it. On beats it morphs into another (p, q) knot, and halfway through the morph
+* the old and new knots tangle into strange in-between shapes.
+*
+* Torus knot (p, q): r = 2 + cos(qφ), x = r·cos(pφ), y = r·sin(pφ), z = −1.5·sin(qφ).
+*/
+var KNOTS = [
+	[2, 3],
+	[3, 2],
+	[2, 5],
+	[3, 4],
+	[3, 5],
+	[5, 2],
+	[4, 3],
+	[5, 3],
+	[3, 7],
+	[2, 7],
+	[5, 4]
+];
+var BANDS = 6;
+/** Length of the light pulse, in samples. */
+var PULSE = 14;
+var from = KNOTS[0];
+var to = KNOTS[0];
+/** Morph progress from `from` to `to`, 0..1. */
+var morph = 1;
+var angles = {
+	x: .5,
+	y: .2,
+	z: 0
+};
+function knotPoint([p, q], phi, out) {
+	const r = 2 + Math.cos(q * phi);
+	out[0] = r * Math.cos(p * phi) / 3;
+	out[1] = r * Math.sin(p * phi) / 3;
+	out[2] = -Math.sin(q * phi) * 1.5 / 3;
+}
+var neonKnot = {
+	name: "neon-knot",
+	fade: .3,
+	zoom: 1.004,
+	beatRings: false,
+	palettes: [
+		"neon",
+		"void",
+		"ultraviolet",
+		"vapor",
+		"deep sea",
+		"acid",
+		"lava"
+	],
+	beat() {
+		if (morph >= 1 && Math.random() < .5) {
+			from = to;
+			to = pick(KNOTS, to);
+			morph = 0;
+		}
+	},
+	draw(dt) {
+		const { cx, cy, min } = view;
+		const time = clock.time;
+		const samples = quality.level === 2 ? 420 : 280;
+		morph = Math.min(1, morph + dt * 1.2);
+		const blend = morph * morph * (3 - 2 * morph);
+		const spin = dt * (.25 + audio.mid * .9);
+		angles.x += spin * .35;
+		angles.y += spin;
+		angles.z += spin * .3;
+		const cosX = Math.cos(angles.x);
+		const sinX = Math.sin(angles.x);
+		const cosY = Math.cos(angles.y);
+		const sinY = Math.sin(angles.y);
+		const cosZ = Math.cos(angles.z);
+		const sinZ = Math.sin(angles.z);
+		const size = min * .5 * (1 + audio.bass * .12 + audio.beat * .05);
+		const xs = new Float32Array(samples + 1);
+		const ys = new Float32Array(samples + 1);
+		const zs = new Float32Array(samples + 1);
+		const a = [
+			0,
+			0,
+			0
+		];
+		const b = [
+			0,
+			0,
+			0
+		];
+		for (let s = 0; s <= samples; s++) {
+			const phi = s / samples * Math.PI * 2;
+			knotPoint(from, phi, a);
+			knotPoint(to, phi, b);
+			const x = a[0] + (b[0] - a[0]) * blend;
+			const y = a[1] + (b[1] - a[1]) * blend;
+			const z = a[2] + (b[2] - a[2]) * blend;
+			const y1 = y * cosX - z * sinX;
+			const z1 = y * sinX + z * cosX;
+			const x2 = x * cosY + z1 * sinY;
+			const z2 = -x * sinY + z1 * cosY;
+			const x3 = x2 * cosZ - y1 * sinZ;
+			const y3 = x2 * sinZ + y1 * cosZ;
+			const perspective = 2.6 / (2.6 - z2);
+			xs[s] = cx + x3 * size * perspective;
+			ys[s] = cy + y3 * size * perspective;
+			zs[s] = z2;
+		}
+		ctx.lineCap = "round";
+		ctx.lineJoin = "round";
+		for (let band = 0; band < BANDS; band++) {
+			ctx.beginPath();
+			for (let s = 0; s < samples; s++) {
+				const depth = (zs[s] + zs[s + 1]) / 2;
+				if (Math.min(5, Math.max(0, Math.floor((depth + 1) / 2 * BANDS))) !== band) continue;
+				ctx.moveTo(xs[s], ys[s]);
+				ctx.lineTo(xs[s + 1], ys[s + 1]);
+			}
+			const near = band / 5;
+			neonStroke(ctx, band * .4 + time * .1, 1 + near * 2.2 + audio.bass * 1.5, .3 + near * .7);
+		}
+		const head = Math.floor(time * .25 * (1 + audio.mid) % 1 * samples);
+		ctx.beginPath();
+		for (let n = 0; n < PULSE; n++) {
+			const s = (head + n) % samples;
+			if (n === 0) ctx.moveTo(xs[s], ys[s]);
+			else ctx.lineTo(xs[s], ys[s]);
+		}
+		neonStroke(ctx, 3 + time * .1, 3 + audio.beat * 3, 1);
+	}
+};
+//#endregion
+//#region src/modes/neonStrings.ts
+/**
+* Neon string art (the "times table" circle). Points sit on a circle, and a glowing
+* string joins point i to point i × k. As k glides, the strings fold into a cardioid
+* (k = 2), a nephroid (k = 3) and ever more knotted roses; k never stops drifting, so
+* the envelopes keep turning inside out. A smaller, counter-turning circle does the
+* same with another k. Beats send k to a new value; each colour group of strings glows
+* with its part of the spectrum.
+*/
+/** Multipliers with striking shapes. */
+var MULTIPLIERS = [
+	2,
+	3,
+	4,
+	5,
+	7,
+	9,
+	11,
+	13,
+	17,
+	21,
+	26,
+	34,
+	51,
+	68,
+	99
+];
+var GROUPS = 4;
+var k$1 = 2;
+var target = 2;
+var turn = 0;
+function drawCircle(radius, multiplier, spin, points, alpha, shift) {
+	const { cx, cy } = view;
+	for (let g = 0; g < GROUPS; g++) {
+		ctx.beginPath();
+		for (let i = g; i < points; i += GROUPS) {
+			const a = i / points * TAU + spin;
+			const b = i * multiplier / points * TAU + spin;
+			ctx.moveTo(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
+			ctx.lineTo(cx + Math.cos(b) * radius, cy + Math.sin(b) * radius);
+		}
+		const level = spectrumAt((g + .5) / GROUPS, .5, 1.3);
+		neonStroke(ctx, g * .9 + shift + clock.time * .1, .6 + level * 1.1, alpha * (.2 + level * .45));
+	}
+}
+var neonStrings = {
+	name: "neon-strings",
+	fade: .55,
+	zoom: 1.002,
+	beatRings: false,
+	palettes: [
+		"neon",
+		"vapor",
+		"ultraviolet",
+		"acid",
+		"void",
+		"deep sea",
+		"technicolor"
+	],
+	beat() {
+		if (Math.random() < .6) target = pick(MULTIPLIERS, target);
+	},
+	draw(dt) {
+		const { cx, cy, min } = view;
+		const points = quality.level === 2 ? 200 : 140;
+		k$1 += (target - k$1) * Math.min(1, dt * .9);
+		k$1 += dt * (.02 + audio.mid * .06);
+		turn += dt * (.08 + audio.mid * .3);
+		const radius = min * .43 * (1 + audio.bass * .06 + audio.beat * .03);
+		ctx.lineCap = "round";
+		drawCircle(radius, k$1, turn, points, 1, 0);
+		drawCircle(radius * .52, k$1 * .5 + 1, -turn * 1.7, Math.round(points * .6), .6, 2);
+		for (let i = 0; i < points; i += 4) {
+			const a = i / points * TAU + turn;
+			const v = spectrumAt(i / points, .5, 1.3);
+			ctx.fillStyle = color(i * .02, .5 + v * .5, 90);
+			fillCircle(ctx, cx + Math.cos(a) * radius, cy + Math.sin(a) * radius, 1 + v * 3);
+		}
+	}
+};
+//#endregion
+//#region src/modes/neonTesla.ts
+/**
+* A plasma globe. Jagged lightning arcs, redrawn every frame, run from a glowing core to
+* the glass, with short side branches; their ends wander over the glass. Loud mids pull
+* the arcs to one spot, as when a finger touches the globe. On a beat the arcs break out
+* of the globe to the edges of the screen.
+* Bass: more and thicker arcs. Treble: rougher lightning.
+*/
+var MAX_ARCS = 16;
+var arcs = [];
+/** After a beat, 1..0: the arcs break out of the globe. */
+var discharge = 0;
+/** Where the "finger" touches the glass. */
+var finger = 0;
+/** A lightning path from a to b: midpoint displacement, `levels` times. */
+function lightning(a, b, roughness, levels) {
+	let points = [a, b];
+	let jag = roughness;
+	for (let level = 0; level < levels; level++) {
+		const next = [points[0]];
+		for (let i = 1; i < points.length; i++) {
+			const [x0, y0] = points[i - 1];
+			const [x1, y1] = points[i];
+			const length = Math.hypot(x1 - x0, y1 - y0);
+			const offset = (Math.random() - .5) * length * jag;
+			next.push([(x0 + x1) / 2 + -(y1 - y0) / (length || 1) * offset, (y0 + y1) / 2 + (x1 - x0) / (length || 1) * offset]);
+			next.push(points[i]);
+		}
+		points = next;
+		jag *= .6;
+	}
+	return points;
+}
+function trace(points) {
+	ctx.beginPath();
+	ctx.moveTo(points[0][0], points[0][1]);
+	for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+}
+function angleTo(from, to) {
+	return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+}
+var neonTesla = {
+	name: "neon-tesla",
+	fade: .3,
+	beatRings: false,
+	palettes: [
+		"ultraviolet",
+		"deep sea",
+		"void",
+		"vapor",
+		"neon",
+		"noir",
+		"acid"
+	],
+	beat() {
+		discharge = 1;
+		for (const arc of arcs) arc.drift = rnd(-.8, .8);
+	},
+	draw(dt) {
+		const { cx, cy, min } = view;
+		const time = clock.time;
+		discharge = Math.max(0, discharge - dt * 4);
+		const globeR = min * .44;
+		const coreR = min * (.05 + audio.bass * .03);
+		const count = Math.min(MAX_ARCS, Math.round(5 + audio.bass * 7 + discharge * 4));
+		while (arcs.length < count) arcs.push({
+			angle: Math.random() * TAU,
+			drift: rnd(-.6, .6),
+			k: Math.random() * 4
+		});
+		finger += dt * (.3 + Math.sin(time * .37) * .4);
+		const roughness = .35 + audio.high * .25;
+		ctx.lineCap = "round";
+		ctx.lineJoin = "round";
+		for (let i = 0; i < count; i++) {
+			const arc = arcs[i];
+			arc.drift = clamp(arc.drift + rnd(-1, 1) * dt * 3, -.8, .8);
+			arc.angle += arc.drift * dt;
+			if (audio.mid > .6) arc.angle += angleTo(arc.angle, finger) * dt * (audio.mid - .6) * 6;
+			const cos = Math.cos(arc.angle);
+			const sin = Math.sin(arc.angle);
+			const breakOut = discharge > .05 && i % 2 === 0;
+			const reach = breakOut ? Math.hypot(cx, cy) * 1.05 : globeR;
+			const start = [cx + cos * coreR, cy + sin * coreR];
+			const end = [cx + cos * reach, cy + sin * reach];
+			const bolt = lightning(start, end, roughness, 5);
+			trace(bolt);
+			const width = 1.1 + audio.bass * 1.5 + (breakOut ? discharge * 2 : 0);
+			neonStroke(ctx, arc.k + time * .2, width, .65 + .35 * Math.random());
+			for (let b = 0; b < 2; b++) {
+				const from = bolt[8 + Math.floor(Math.random() * (bolt.length - 12))];
+				const side = arc.angle + rnd(-.9, .9);
+				const length = reach * rnd(.12, .25);
+				trace(lightning(from, [from[0] + Math.cos(side) * length, from[1] + Math.sin(side) * length], roughness, 3));
+				neonStroke(ctx, arc.k + time * .2, width * .5, .5);
+			}
+			ctx.fillStyle = color(arc.k, .8, 92);
+			fillCircle(ctx, end[0], end[1], 2 + audio.bass * 3);
+		}
+		ctx.lineWidth = 1.5;
+		ctx.strokeStyle = color(4, .18 + discharge * .2, 70);
+		strokeCircle(ctx, cx, cy, globeR);
+		const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 2.4);
+		core.addColorStop(0, color(1, 1, 97));
+		core.addColorStop(.4, color(0, .8, 70));
+		core.addColorStop(1, color(0, 0, 50));
+		ctx.fillStyle = core;
+		fillCircle(ctx, cx, cy, coreR * 2.4);
 	}
 };
 //#endregion
@@ -6075,7 +6406,10 @@ var MODES = [
 	datamatics,
 	attractor,
 	murmur,
-	eightBit
+	eightBit,
+	neonStrings,
+	neonTesla,
+	neonKnot
 ];
 //#endregion
 //#region src/render/beatRings.ts

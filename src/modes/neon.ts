@@ -3,6 +3,7 @@ import { rnd, rndInt, TAU } from '../core/math';
 import { audio, clock, view } from '../core/state';
 import { ctx } from '../render/canvases';
 import { color } from '../render/color';
+import { neonStroke } from '../render/neon';
 import { fillCircle, polygonPath, starPath } from '../render/shapes';
 import type { Mode } from './mode';
 
@@ -83,19 +84,6 @@ const angles: [number, number, number] = [0.3, 0.6, 0.1];
 /** Extra spin after a beat, 1..0. */
 let kick = 0;
 
-/** Strokes the current path three times, wide and faint to thin and bright: a neon tube. */
-function neonStroke(k: number, width: number, alpha: number): void {
-  ctx.strokeStyle = color(k, alpha * 0.09, 55);
-  ctx.lineWidth = width * 4;
-  ctx.stroke();
-  ctx.strokeStyle = color(k, alpha * 0.4, 65);
-  ctx.lineWidth = width * 1.8;
-  ctx.stroke();
-  ctx.strokeStyle = color(k, alpha, 92);
-  ctx.lineWidth = width * 0.6;
-  ctx.stroke();
-}
-
 function addTubes(count: number): void {
   const { width, height, min } = view;
   for (let i = 0; i < count; i++) {
@@ -149,7 +137,7 @@ function drawTubes(dt: number): void {
       ctx.arc(0, 0, r, 0, TAU);
     } else if (s.sides === 7) starPath(ctx, r, 0.45);
     else polygonPath(ctx, s.sides, r);
-    neonStroke(s.k, 2.2, alpha);
+    neonStroke(ctx, s.k, 2.2, alpha);
     ctx.restore();
   }
 }
@@ -188,6 +176,7 @@ function drawSolid(dt: number): void {
     ctx.moveTo(points[i][0], points[i][1]);
     ctx.lineTo(points[j][0], points[j][1]);
     neonStroke(
+      ctx,
       n * 0.37 + time * 0.2,
       2 + (points[i][2] + points[j][2]),
       0.7 + 0.3 * Math.sin(time * 9 + n),

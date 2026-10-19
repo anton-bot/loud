@@ -29,6 +29,9 @@ import { mosh } from './mosh';
 import { murmur } from './murmur';
 import { nebula } from './nebula';
 import { neon } from './neon';
+import { neonKnot } from './neonKnot';
+import { neonStrings } from './neonStrings';
+import { neonTesla } from './neonTesla';
 import { orb } from './orb';
 import { pixels } from './pixels';
 import { plasma } from './plasma';
@@ -98,4 +101,7 @@ export const MODES: readonly Mode[] = [
   attractor,
   murmur,
   eightBit,
+  neonStrings,
+  neonTesla,
+  neonKnot,
 ];
