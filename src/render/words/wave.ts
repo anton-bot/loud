@@ -2,7 +2,7 @@
 import { audio, view } from '../../core/state';
 import { ctx } from '../canvases';
 import { color } from '../color';
-import { fitFont, FONT, type WordStyle } from './show';
+import { fitFont, font, type WordStyle } from './show';
 
 export const wave: WordStyle = {
   name: 'wave',
@@ -11,7 +11,7 @@ export const wave: WordStyle = {
   draw(show) {
     const { cx, height } = view;
     const size = fitFont(show.phrase, 0.9, height * 0.1);
-    ctx.font = `700 ${size}px ${FONT}`;
+    ctx.font = font(size);
     const letters = [...show.phrase];
     const widths = letters.map((letter) => ctx.measureText(letter).width);
     let x = cx - widths.reduce((sum, w) => sum + w, 0) / 2;

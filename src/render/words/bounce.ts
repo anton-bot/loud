@@ -3,7 +3,7 @@ import { rnd } from '../../core/math';
 import { audio, view } from '../../core/state';
 import { ctx } from '../canvases';
 import { color } from '../color';
-import { FONT, type WordStyle } from './show';
+import { font, type WordStyle } from './show';
 
 const box = { x: 0, y: 0, vx: 1, vy: 1, k: 0, flash: 0 };
 
@@ -21,7 +21,7 @@ export const bounce: WordStyle = {
   draw(show, dt) {
     const { width, height, min } = view;
     const size = min * 0.075 * (1 + box.flash * 0.6);
-    ctx.font = `700 ${size}px ${FONT}`;
+    ctx.font = font(size);
     const halfW = ctx.measureText(show.word).width / 2;
     const halfH = size / 2;
     const speed = (140 + audio.mid * 220) * dt;

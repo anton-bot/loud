@@ -3,7 +3,7 @@ import { rnd } from '../../core/math';
 import { audio, view } from '../../core/state';
 import { ctx } from '../canvases';
 import { color } from '../color';
-import { FONT, type WordStyle } from './show';
+import { font, type WordStyle } from './show';
 
 interface Drop {
   letter: string;
@@ -51,7 +51,7 @@ export const rain: WordStyle = {
     if (Math.random() < dt * (5 + audio.high * 20))
       drop(letters[Math.floor(Math.random() * letters.length)], Math.random() * width);
     const size = min * 0.06;
-    ctx.font = `700 ${size}px ${FONT}`;
+    ctx.font = font(size);
     for (let i = drops.length - 1; i >= 0; i--) {
       const d = drops[i];
       d.life -= dt;

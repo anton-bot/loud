@@ -6,7 +6,7 @@ import { clamp } from '../../core/math';
 import { view } from '../../core/state';
 import { ctx } from '../canvases';
 import { color } from '../color';
-import { fitFont, FONT, type WordStyle } from './show';
+import { fitFont, font, type WordStyle } from './show';
 
 /** Longest text that is shuffled; a longer text is cut after a word. */
 const MAX_LETTERS = 16;
@@ -57,7 +57,7 @@ export const anagram: WordStyle = {
     const { cx, cy, height } = view;
     const text = letters.join('');
     const size = fitFont(text, 0.86, height * 0.24);
-    ctx.font = `700 ${size}px ${FONT}`;
+    ctx.font = font(size);
     // Slot positions: where the letters of the text would stand in the right order.
     const widths = letters.map((letter) => ctx.measureText(letter).width);
     const slots: number[] = [];

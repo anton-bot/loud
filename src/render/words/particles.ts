@@ -7,7 +7,7 @@ import { rnd, rndInt } from '../../core/math';
 import { audio, view } from '../../core/state';
 import { ctx } from '../canvases';
 import { color } from '../color';
-import { FONT, type WordStyle } from './show';
+import { font, type WordStyle } from './show';
 
 const MAX = 1100;
 const px = new Float32Array(MAX);
@@ -31,9 +31,9 @@ function aimAt(word: string): void {
   g.fillStyle = '#fff';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.font = `700 90px ${FONT}`;
+  g.font = font(90);
   const measured = g.measureText(word).width;
-  if (measured > SAMPLE_W * 0.94) g.font = `700 ${(90 * SAMPLE_W * 0.94) / measured}px ${FONT}`;
+  if (measured > SAMPLE_W * 0.94) g.font = font((90 * SAMPLE_W * 0.94) / measured);
   g.fillText(word, SAMPLE_W / 2, SAMPLE_H / 2);
   const alpha = g.getImageData(0, 0, SAMPLE_W, SAMPLE_H).data;
   const points: number[] = [];

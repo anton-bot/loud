@@ -3,7 +3,7 @@ import { rnd } from '../../core/math';
 import { audio, clock, view } from '../../core/state';
 import { ctx } from '../canvases';
 import { color } from '../color';
-import { fitFont, FONT, type WordStyle } from './show';
+import { fitFont, font, type WordStyle } from './show';
 
 const pose = { turn: 0, x: 0, y: 0, k: 0 };
 
@@ -24,7 +24,7 @@ export const slam: WordStyle = {
     const { width, height, cx, cy } = view;
     const size =
       fitFont(show.word, 0.82, height * 0.42) * (0.9 + audio.bass * 0.25 + audio.beat * 0.15);
-    ctx.font = `700 ${size}px ${FONT}`;
+    ctx.font = font(size);
     ctx.translate(cx + pose.x * width, cy + pose.y * height);
     ctx.rotate(pose.turn + Math.sin(clock.time * 3) * audio.high * 0.1);
     for (let i = 5; i >= 0; i--) {

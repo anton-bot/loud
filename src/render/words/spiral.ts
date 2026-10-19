@@ -3,14 +3,15 @@ import { TAU } from '../../core/math';
 import { audio, view } from '../../core/state';
 import { ctx } from '../canvases';
 import { color } from '../color';
-import { FONT, type WordStyle } from './show';
+import { font, type WordStyle } from './show';
 
 const LETTERS = 72;
 
 export const spiral: WordStyle = {
   name: 'spiral',
   role: 'ambient',
-  weight: 2,
+  weight: 1,
+  round: true,
   draw(show) {
     const { cx, cy, min } = view;
     const text = [...`${show.phrase.replace(/\s+/g, ' ')} · `];
@@ -28,7 +29,7 @@ export const spiral: WordStyle = {
       ctx.save();
       ctx.translate(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
       ctx.rotate(a + Math.PI / 2);
-      ctx.font = `700 ${size}px ${FONT}`;
+      ctx.font = font(size);
       ctx.fillStyle = color(n * 0.12 + show.age, show.alpha * (1 - t * 0.6), 78);
       ctx.fillText(letter, 0, 0);
       ctx.restore();

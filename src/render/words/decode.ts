@@ -6,7 +6,7 @@ import { rndInt } from '../../core/math';
 import { view } from '../../core/state';
 import { ctx } from '../canvases';
 import { color } from '../color';
-import { fitFont, FONT, MONOSPACE, type WordStyle } from './show';
+import { currentFace, fitFont, font, MONOSPACE, type WordStyle } from './show';
 
 const GLYPHS = '!<>-_\\/[]{}=+*^?#%&ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 /** Seconds between two letters locking. */
@@ -30,10 +30,10 @@ export const decode: WordStyle = {
       shownAt = show.age;
     }
     const { cx, cy, height } = view;
-    // Monospace for Latin text; the display font (with Cyrillic and Chinese) for the rest.
-    const family = LATIN.test(show.phrase) ? MONOSPACE : FONT;
+    // Monospace for Latin text in the plain face; the current face for the rest.
+    const family = LATIN.test(show.phrase) && currentFace().name === 'bold' ? MONOSPACE : undefined;
     const size = fitFont(shown, 0.82, height * 0.3, family);
-    ctx.font = `700 ${size}px ${family}`;
+    ctx.font = font(size, family);
     ctx.textAlign = 'left';
     const letters = [...shown];
     const widths = letters.map((letter) => ctx.measureText(letter).width);

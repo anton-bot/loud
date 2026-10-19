@@ -12,6 +12,11 @@ let input: MediaStreamAudioSourceNode | null = null;
 let request = 0;
 /** The mic was on when the page was hidden: turn it on again when the page is visible. */
 let micWanted = false;
+/** A forgotten mic (and speech recognition, which uses it) turns off after this long. */
+const MIC_LIMIT_MS = 60 * 60 * 1000;
+/** When the mic turns off by itself (Date.now() time), counted from the tap on Mic. */
+let deadline = 0;
+let deadlineTimer = 0;
 
 export function isListening(): boolean {
   return micStream !== null;
@@ -155,6 +160,15 @@ function explainMicError(error: unknown): void {
   else setStatus(`Mic failed: ${name}`);
 }
 
+/** Turns the mic off when its hour is over. */
+function checkDeadline(): void {
+  if (!micStream || Date.now() < deadline) return;
+  request++;
+  micWanted = false;
+  stopMic();
+  setStatus('Mic and speech turned off after 1 hour. Tap Mic to listen again.');
+}
+
 async function startMic(): Promise<void> {
   const myRequest = ++request;
   if (!micCanWork()) return;
@@ -185,6 +199,8 @@ async function startMic(): Promise<void> {
     });
   }
   micWanted = true;
+  clearTimeout(deadlineTimer);
+  deadlineTimer = window.setTimeout(checkDeadline, Math.max(0, deadline - Date.now()) + 50);
   showMicState(true);
   setStatus("Listening. Put the gate just above the red mark when it's quiet.");
 }
@@ -198,6 +214,7 @@ export async function toggleMic(): Promise<void> {
     setStatus('Mic off.');
     return;
   }
+  deadline = Date.now() + MIC_LIMIT_MS;
   await startMic();
 }
 
@@ -212,7 +229,11 @@ export async function onPageVisibility(visible: boolean): Promise<void> {
       stopMic();
     }
   } else if (micWanted && !micStream) {
-    await startMic();
+    if (Date.now() < deadline) await startMic();
+    else {
+      micWanted = false;
+      setStatus('Mic and speech turned off after 1 hour. Tap Mic to listen again.');
+    }
   }
 }
 

@@ -41,6 +41,7 @@ import { ripples } from './ripples';
 import { scope } from './scope';
 import { shroom } from './shroom';
 import { slime } from './slime';
+import { solids } from './solids';
 import { spiral } from './spiral';
 import { spiro } from './spiro';
 import { splats } from './splats';
@@ -104,4 +105,5 @@ export const MODES: readonly Mode[] = [
   neonStrings,
   neonTesla,
   neonKnot,
+  solids,
 ];

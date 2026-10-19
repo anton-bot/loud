@@ -2,7 +2,7 @@
 import { audio, view } from '../../core/state';
 import { ctx } from '../canvases';
 import { color } from '../color';
-import { fitFont, FONT, type WordStyle } from './show';
+import { fitFont, font, type WordStyle } from './show';
 
 export const tunnel: WordStyle = {
   name: 'tunnel',
@@ -17,7 +17,7 @@ export const tunnel: WordStyle = {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate((i % 2 ? 1 : -1) * p * 0.7);
-      ctx.font = `700 ${base * (0.12 + p * p * 2.8)}px ${FONT}`;
+      ctx.font = font(base * (0.12 + p * p * 2.8));
       ctx.fillStyle = color(
         i * 0.6 + show.age * 0.5,
         show.alpha * Math.sin(p * Math.PI) * 0.75,
