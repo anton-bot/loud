@@ -1,6 +1,6 @@
 # loud
 
-A music visualizer that runs in the browser. 46 visual modes react to the bass, the mids, the
+A music visualizer that runs in the browser. 47 visual modes react to the bass, the mids, the
 treble and the beats of the music. There are 28 palettes and 14 looks (film, CRT, stop-motion,
 mirror, glitch, LED wall and others).
 
@@ -140,6 +140,8 @@ tests/visual/          visual regression test (harness and compare script)
 - **murmur**: Craig Reynolds's boids, as a starling murmuration with a falcon.
 - **rays**, **plasma**: op-art interference, demo-scene plasma with domain warping (Inigo Quilez).
 - **led wall** look: concert LED screens.
+- **8bit**: an original glitchy 8-bit platformer (a hero with headphones, eye blocks, speaker
+  stacks), in the spirit of NES-era games.
 
 ## License
 

@@ -9,6 +9,7 @@ import { corrupt } from './corrupt';
 import { cutout } from './cutout';
 import { cymatics } from './cymatics';
 import { datamatics } from './datamatics';
+import { eightBit } from './eightBit';
 import { embers } from './embers';
 import { film } from './film';
 import { fireworks } from './fireworks';
@@ -96,4 +97,5 @@ export const MODES: readonly Mode[] = [
   datamatics,
   attractor,
   murmur,
+  eightBit,
 ];
