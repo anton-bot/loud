@@ -1,10 +1,14 @@
-/** All modes, in the order of the style menu and the ‹ › buttons. */
+/** All modes, in the order of the style menu and the ‹ › buttons. New modes go at the end. */
 import { ascii } from './ascii';
+import { attractor } from './attractor';
 import { bars } from './bars';
 import { blocks } from './blocks';
 import { bounce } from './bounce';
+import { coral } from './coral';
 import { corrupt } from './corrupt';
 import { cutout } from './cutout';
+import { cymatics } from './cymatics';
+import { datamatics } from './datamatics';
 import { embers } from './embers';
 import { film } from './film';
 import { fireworks } from './fireworks';
@@ -21,6 +25,7 @@ import { melt } from './melt';
 import type { Mode } from './mode';
 import { moire } from './moire';
 import { mosh } from './mosh';
+import { murmur } from './murmur';
 import { nebula } from './nebula';
 import { neon } from './neon';
 import { orb } from './orb';
@@ -31,6 +36,7 @@ import { ridges } from './ridges';
 import { ripples } from './ripples';
 import { scope } from './scope';
 import { shroom } from './shroom';
+import { slime } from './slime';
 import { spiral } from './spiral';
 import { spiro } from './spiro';
 import { splats } from './splats';
@@ -84,4 +90,10 @@ export const MODES: readonly Mode[] = [
   neon,
   orb,
   film,
+  slime,
+  coral,
+  cymatics,
+  datamatics,
+  attractor,
+  murmur,
 ];

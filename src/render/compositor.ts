@@ -19,6 +19,10 @@ const red = createLayer();
 const cyan = createLayer();
 /** Bloom pyramid at 1/4, 1/8 and 1/16 of the screen size. */
 const bloomLevels = [createLayer(), createLayer(), createLayer()];
+/** LED wall look: one pixel per lamp, and a mask tile with a round hole. */
+const lamps = createLayer();
+const lampMask = createLayer();
+let lampPattern: CanvasPattern | null = null;
 const hasFilter = 'filter' in CanvasRenderingContext2D.prototype;
 
 onResize(() => {
@@ -104,6 +108,48 @@ function tintedCopy(
   layer.ctx.globalCompositeOperation = 'multiply';
   layer.ctx.fillStyle = tint;
   layer.ctx.fillRect(0, 0, layer.canvas.width, layer.canvas.height);
+}
+
+/**
+ * The LED wall look: the picture at one pixel per lamp, scaled up without smoothing,
+ * then a mask of dark gaps with round holes on top. On the display only, so the
+ * gaps never feed back into the scene.
+ */
+function drawLedWall(): void {
+  const d = displayCtx;
+  const dw = display.width;
+  const dh = display.height;
+  const lamp = Math.max(5, Math.round((view.min * view.dpr) / 80));
+  const w = Math.ceil(dw / lamp);
+  const h = Math.ceil(dh / lamp);
+  setCanvasSize(lamps.canvas, w, h);
+  lamps.ctx.imageSmoothingEnabled = true;
+  lamps.ctx.drawImage(display, 0, 0, w, h);
+  if (lampMask.canvas.width !== lamp || !lampPattern) {
+    setCanvasSize(lampMask.canvas, lamp, lamp);
+    const m = lampMask.ctx;
+    m.clearRect(0, 0, lamp, lamp);
+    m.fillStyle = 'rgba(0,0,0,0.92)';
+    m.fillRect(0, 0, lamp, lamp);
+    m.globalCompositeOperation = 'destination-out';
+    const hole = m.createRadialGradient(lamp / 2, lamp / 2, 0, lamp / 2, lamp / 2, lamp * 0.46);
+    hole.addColorStop(0, 'rgba(0,0,0,1)');
+    hole.addColorStop(0.7, 'rgba(0,0,0,0.95)');
+    hole.addColorStop(1, 'rgba(0,0,0,0)');
+    m.fillStyle = hole;
+    m.fillRect(0, 0, lamp, lamp);
+    m.globalCompositeOperation = 'source-over';
+    lampPattern = d.createPattern(lampMask.canvas, 'repeat');
+  }
+  d.globalCompositeOperation = 'copy';
+  d.imageSmoothingEnabled = false;
+  d.drawImage(lamps.canvas, 0, 0, w * lamp, h * lamp);
+  d.imageSmoothingEnabled = true;
+  d.globalCompositeOperation = 'source-over';
+  if (lampPattern) {
+    d.fillStyle = lampPattern;
+    d.fillRect(0, 0, dw, dh);
+  }
 }
 
 function drawTransition(dt: number, light: boolean): void {
@@ -202,6 +248,7 @@ export function composite(mode: Mode, dt: number): void {
     d.fillRect(0, 0, dw, dh);
   }
 
+  if (scene.look.ledWall) drawLedWall();
   if (transition.t > 0) drawTransition(dt, light);
 
   // Grade: a soft vignette and fine dither, so gradients never band.

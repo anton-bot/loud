@@ -1,8 +1,8 @@
 # loud
 
-A music visualizer that runs in the browser. 40 visual modes react to the bass, the mids, the
-treble and the beats of the music. There are 28 palettes and 13 looks (film, CRT, stop-motion,
-mirror, glitch and others).
+A music visualizer that runs in the browser. 46 visual modes react to the bass, the mids, the
+treble and the beats of the music. There are 28 palettes and 14 looks (film, CRT, stop-motion,
+mirror, glitch, LED wall and others).
 
 **Open <https://anton-bot.github.io/loud/loud.html>, tap Mic and play some music.**
 
@@ -116,6 +116,18 @@ tests/visual/          visual regression test (harness and compare script)
    `waveAt` from `core/signal.ts`) and the screen size from `view`. Use
    `color(k, alpha, lightness)` for palette colours.
 3. Add the mode to the list in `src/modes/index.ts`.
+
+## Where some modes come from
+
+- **slime**: the Physarum slime-mold agent model of Jeff Jones (2010), as in Sage Jenson's art.
+- **coral**: Gray-Scott reaction-diffusion with Karl Sims's constants; Yoshi Sodeoka used
+  reaction-diffusion for Max Cooper's "Spike" video.
+- **cymatics**: Chladni figures, sand on a vibrating plate.
+- **datamatics**: Ryoji Ikeda's "test pattern" (barcodes and binary data in black and white).
+- **attractor**: Peter de Jong and Clifford Pickover strange attractors.
+- **murmur**: Craig Reynolds's boids, as a starling murmuration with a falcon.
+- **rays**, **plasma**: op-art interference, demo-scene plasma with domain warping (Inigo Quilez).
+- **led wall** look: concert LED screens.
 
 ## License
 

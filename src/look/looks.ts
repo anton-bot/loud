@@ -23,6 +23,8 @@ export interface Look {
   readonly liquid?: boolean;
   /** Pixel size for the pixelate effect. */
   readonly pixel?: number;
+  /** The picture as an LED wall: round lamps with dark gaps. */
+  readonly ledWall?: boolean;
 }
 
 export const LOOKS: readonly Look[] = [
@@ -39,4 +41,5 @@ export const LOOKS: readonly Look[] = [
   { name: 'trip', quad: true, liquid: true, ghost: true },
   { name: 'pixel', pixel: 6 },
   { name: 'glitchpix', pixel: 5, glitch: 1, scanlines: true },
+  { name: 'led wall', ledWall: true },
 ];

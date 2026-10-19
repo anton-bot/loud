@@ -75,6 +75,10 @@ var LOOKS = [
 		pixel: 5,
 		glitch: 1,
 		scanlines: true
+	},
+	{
+		name: "led wall",
+		ledWall: true
 	}
 ];
 //#endregion
@@ -1107,9 +1111,255 @@ var ascii = {
 	}
 };
 //#endregion
+//#region src/render/pixelLayer.ts
+/** A small canvas that a mode fills pixel by pixel and then scales up to the screen. */
+var PixelLayer = class {
+	layer = createLayer();
+	data = null;
+	get width() {
+		return this.layer.canvas.width;
+	}
+	get height() {
+		return this.layer.canvas.height;
+	}
+	get canvas() {
+		return this.layer.canvas;
+	}
+	/** Sets the size. Returns true when the size changed (the pixels are then new and black). */
+	setSize(width, height) {
+		if (this.data && this.width === width && this.height === height) return false;
+		this.layer.canvas.width = width;
+		this.layer.canvas.height = height;
+		this.data = this.layer.ctx.createImageData(width, height);
+		return true;
+	}
+	/** RGBA bytes, 4 per pixel, row by row. Call `setSize` first. */
+	get pixels() {
+		if (!this.data) throw new Error("PixelLayer: call setSize first");
+		return this.data.data;
+	}
+	/** Puts the pixels on the canvas. */
+	flush() {
+		if (this.data) this.layer.ctx.putImageData(this.data, 0, 0);
+	}
+};
+/** `size` colours for the values 0..1, as RGB byte triples, for writing pixels fast. */
+function colorRamp(size, colorAt) {
+	const ramp = new Uint8ClampedArray(size * 3);
+	for (let i = 0; i < size; i++) {
+		const c = colorAt(i / (size - 1));
+		ramp[i * 3] = c[0];
+		ramp[i * 3 + 1] = c[1];
+		ramp[i * 3 + 2] = c[2];
+	}
+	return ramp;
+}
+/**
+* Writes one value per pixel into `layer` through `ramp`. `toRamp` turns a value into
+* 0..1 (a tone curve); the layer must have the size of the value grid.
+*/
+function paintField(layer, values, ramp, toRamp) {
+	const pixels = layer.pixels;
+	const last = ramp.length / 3 - 1;
+	for (let i = 0, p = 0; i < values.length; i++, p += 4) {
+		const t = toRamp(values[i]);
+		const r = (t <= 0 ? 0 : t >= 1 ? last : t * last | 0) * 3;
+		pixels[p] = ramp[r];
+		pixels[p + 1] = ramp[r + 1];
+		pixels[p + 2] = ramp[r + 2];
+		pixels[p + 3] = 255;
+	}
+	layer.flush();
+}
+//#endregion
+//#region src/modes/attractor.ts
+/**
+* A strange attractor (Peter de Jong and Clifford Pickover maps): one point jumps
+* around by a simple formula, and the places it lands, plotted as a glowing density,
+* draw a smoky shape. The music bends the four parameters a little all the time;
+* every 8 beats the shape morphs into another one.
+*
+*   de Jong:   x' = sin(a·y) − cos(b·x)      y' = sin(c·x) − cos(d·y)
+*   Clifford:  x' = sin(a·y) + c·cos(a·x)    y' = sin(b·x) + d·cos(b·y)
+*/
+/** Parameter sets that give interesting shapes. */
+var SHAPES = [
+	{
+		map: "dejong",
+		a: 1.641,
+		b: 1.902,
+		c: .316,
+		d: 1.525
+	},
+	{
+		map: "dejong",
+		a: .97,
+		b: -1.899,
+		c: 1.381,
+		d: -1.506
+	},
+	{
+		map: "dejong",
+		a: 1.4,
+		b: -2.3,
+		c: 2.4,
+		d: -2.1
+	},
+	{
+		map: "dejong",
+		a: 2.01,
+		b: -2.53,
+		c: 1.61,
+		d: -.33
+	},
+	{
+		map: "dejong",
+		a: -2.7,
+		b: -.09,
+		c: -.86,
+		d: -2.2
+	},
+	{
+		map: "dejong",
+		a: -2.24,
+		b: .43,
+		c: -.65,
+		d: -2.43
+	},
+	{
+		map: "clifford",
+		a: -1.4,
+		b: 1.6,
+		c: 1,
+		d: .7
+	},
+	{
+		map: "clifford",
+		a: 1.1,
+		b: -1,
+		c: 1,
+		d: 1.5
+	},
+	{
+		map: "clifford",
+		a: 1.6,
+		b: -.6,
+		c: -1.2,
+		d: 1.6
+	},
+	{
+		map: "clifford",
+		a: 1.7,
+		b: 1.7,
+		c: .06,
+		d: 1.2
+	},
+	{
+		map: "clifford",
+		a: -1.7,
+		b: 1.3,
+		c: -.1,
+		d: -1.2
+	},
+	{
+		map: "clifford",
+		a: -1.8,
+		b: -2,
+		c: -.5,
+		d: -.9
+	}
+];
+var layer$4 = new PixelLayer();
+var gridW$2 = 0;
+var gridH$2 = 0;
+var density = /* @__PURE__ */ new Float32Array(0);
+var shape = { ...SHAPES[0] };
+var target$1 = SHAPES[0];
+var x = .1;
+var y = .1;
+var beats = 0;
+/** Recent highest density, for the tone curve. */
+var peak$1 = 1;
+function setUp$6(w, h) {
+	gridW$2 = w;
+	gridH$2 = h;
+	layer$4.setSize(w, h);
+	density = new Float32Array(w * h);
+}
+/** Half the width of the area that the shape fills. */
+function extent(s) {
+	return s.map === "dejong" ? 2.1 : 1.05 + Math.max(Math.abs(s.c), Math.abs(s.d));
+}
+var attractor = {
+	name: "attractor",
+	fade: 1,
+	bloom: .9,
+	blend: "source-over",
+	beatRings: false,
+	palettes: [
+		"void",
+		"ultraviolet",
+		"deep sea",
+		"lava",
+		"sepia",
+		"acid",
+		"ice"
+	],
+	beat() {
+		if (++beats % 8 !== 0) return;
+		target$1 = pick(SHAPES, target$1);
+		if (target$1.map !== shape.map) shape = { ...target$1 };
+	},
+	resize() {
+		gridW$2 = 0;
+	},
+	draw(dt) {
+		const { width, height } = view;
+		const w = Math.max(64, Math.min(480, Math.round(width / 2)));
+		const h = Math.max(48, Math.round(w * height / width));
+		if (w !== gridW$2 || h !== gridH$2) setUp$6(w, h);
+		const k = Math.min(1, dt * .8);
+		shape.a += (target$1.a - shape.a) * k;
+		shape.b += (target$1.b - shape.b) * k;
+		shape.c += (target$1.c - shape.c) * k;
+		shape.d += (target$1.d - shape.d) * k;
+		const a = shape.a + audio.bass * .12;
+		const b = shape.b - audio.mid * .1;
+		const c = shape.c + audio.high * .08;
+		const d = shape.d + Math.sin(clock.time * .3) * .05;
+		const steps = Math.min(3, dt * 60);
+		const keep = Math.pow(.86, steps);
+		for (let i = 0; i < density.length; i++) density[i] *= keep;
+		const scale = Math.min(w, h) / 2 / extent(shape) * (.92 + audio.beat * .05);
+		const turn = clock.time * .03;
+		const cos = Math.cos(turn);
+		const sin = Math.sin(turn);
+		const points = (quality.level === 2 ? 5e4 : 24e3) * Math.min(2, steps);
+		const dejong = shape.map === "dejong";
+		for (let i = 0; i < points; i++) {
+			const nx = dejong ? Math.sin(a * y) - Math.cos(b * x) : Math.sin(a * y) + c * Math.cos(a * x);
+			const ny = dejong ? Math.sin(c * x) - Math.cos(d * y) : Math.sin(b * x) + d * Math.cos(b * y);
+			x = nx;
+			y = ny;
+			const px = Math.floor(w / 2 + (x * cos - y * sin) * scale);
+			const py = Math.floor(h / 2 + (x * sin + y * cos) * scale);
+			if (px >= 0 && px < w && py >= 0 && py < h) density[py * w + px] += 1;
+		}
+		let max = 1;
+		for (let i = 0; i < density.length; i += 11) if (density[i] > max) max = density[i];
+		peak$1 += (max - peak$1) * Math.min(1, dt * 2);
+		const logPeak = Math.log1p(peak$1 * 1.5);
+		const shift = clock.time * .04;
+		const ramp = colorRamp(256, (t) => colorRgb(t * 2.2 + shift, 3 + t * 97));
+		paintField(layer$4, density, ramp, (v) => Math.log1p(v) / logPeak);
+		ctx.imageSmoothingEnabled = true;
+		ctx.drawImage(layer$4.canvas, 0, 0, width, height);
+	}
+};
+//#endregion
 //#region src/modes/bars.ts
 /** A classic segmented spectrum analyser with falling peak caps. */
-var SEGMENTS$1 = 14;
+var SEGMENTS$2 = 14;
 var peaks = null;
 var bars = {
 	name: "bars",
@@ -1125,17 +1375,17 @@ var bars = {
 		const count = width > height ? 32 : 20;
 		const gap = Math.max(3, width * .008);
 		const barWidth = (width - gap * (count + 1)) / count;
-		const segmentHeight = height * .72 / SEGMENTS$1;
+		const segmentHeight = height * .72 / SEGMENTS$2;
 		const base = height * .88;
 		if (!peaks || peaks.length !== count) peaks = new Float32Array(count);
 		for (let i = 0; i < count; i++) {
-			const lit = Math.round(spectrumAt(i / count, .5, 1.8) * SEGMENTS$1);
+			const lit = Math.round(spectrumAt(i / count, .5, 1.8) * SEGMENTS$2);
 			peaks[i] = Math.max(peaks[i] - dt * 6, lit);
 			const x = gap + i * (barWidth + gap);
-			for (let s = 0; s < SEGMENTS$1; s++) {
+			for (let s = 0; s < SEGMENTS$2; s++) {
 				const y = base - (s + 1) * segmentHeight;
-				const k = s / SEGMENTS$1 * 3;
-				ctx.fillStyle = s < lit ? color(k, 1, 55 + s / SEGMENTS$1 * 30) : color(k, scene.palette.light ? .12 : .08);
+				const k = s / SEGMENTS$2 * 3;
+				ctx.fillStyle = s < lit ? color(k, 1, 55 + s / SEGMENTS$2 * 30) : color(k, scene.palette.light ? .12 : .08);
 				ctx.fillRect(x, y + 2, barWidth, segmentHeight - 4);
 			}
 			ctx.fillStyle = color(3, 1, 90);
@@ -1315,6 +1565,148 @@ var bounce = {
 	}
 };
 //#endregion
+//#region src/modes/coral.ts
+/**
+* Reaction-diffusion (the Gray-Scott model, with Karl Sims's constants): two chemicals
+* spread at different speeds and one eats the other. Depending on the feed and kill
+* rates they grow coral, spots that divide, or worms. The rates move from one pattern
+* to the next over time; bass feeds the growth, and each beat drops new chemical.
+*/
+/** Feed and kill rates of some well-known patterns. */
+var PATTERNS$1 = [
+	{
+		name: "coral",
+		feed: .0545,
+		kill: .062
+	},
+	{
+		name: "mitosis",
+		feed: .0367,
+		kill: .0649
+	},
+	{
+		name: "worms",
+		feed: .029,
+		kill: .057
+	},
+	{
+		name: "holes",
+		feed: .039,
+		kill: .058
+	},
+	{
+		name: "spots",
+		feed: .03,
+		kill: .062
+	}
+];
+var DIFFUSION_A = 1;
+var DIFFUSION_B = .5;
+var layer$3 = new PixelLayer();
+var gridW$1 = 0;
+var gridH$1 = 0;
+var a = /* @__PURE__ */ new Float32Array(0);
+var b = /* @__PURE__ */ new Float32Array(0);
+var nextA = /* @__PURE__ */ new Float32Array(0);
+var nextB = /* @__PURE__ */ new Float32Array(0);
+var feed = PATTERNS$1[0].feed;
+var kill = PATTERNS$1[0].kill;
+var target = 0;
+var beatsInPattern = 0;
+/** Drops chemical B in a disc. */
+function drop(cx, cy, r) {
+	for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+		if (x * x + y * y > r * r) continue;
+		const ix = ((cx + x) % gridW$1 + gridW$1) % gridW$1;
+		const iy = ((cy + y) % gridH$1 + gridH$1) % gridH$1;
+		b[iy * gridW$1 + ix] = 1;
+		a[iy * gridW$1 + ix] = .5;
+	}
+}
+function setUp$5(w, h) {
+	gridW$1 = w;
+	gridH$1 = h;
+	layer$3.setSize(w, h);
+	a = new Float32Array(w * h).fill(1);
+	b = new Float32Array(w * h);
+	nextA = new Float32Array(w * h);
+	nextB = new Float32Array(w * h);
+	for (let i = 0; i < 12; i++) drop(rndInt(w), rndInt(h), 2 + rndInt(4));
+}
+/** One step of the simulation on the wrapping grid (3×3 Laplacian: 0.2 sides, 0.05 corners). */
+function react(f, k) {
+	const w = gridW$1;
+	const h = gridH$1;
+	for (let y = 0; y < h; y++) {
+		const row = y * w;
+		const up = (y + h - 1) % h * w;
+		const down = (y + 1) % h * w;
+		for (let x = 0; x < w; x++) {
+			const l = x === 0 ? w - 1 : x - 1;
+			const r = x === w - 1 ? 0 : x + 1;
+			const i = row + x;
+			const av = a[i];
+			const bv = b[i];
+			const lapA = (a[row + l] + a[row + r] + a[up + x] + a[down + x]) * .2 + (a[up + l] + a[up + r] + a[down + l] + a[down + r]) * .05 - av;
+			const lapB = (b[row + l] + b[row + r] + b[up + x] + b[down + x]) * .2 + (b[up + l] + b[up + r] + b[down + l] + b[down + r]) * .05 - bv;
+			const reaction = av * bv * bv;
+			nextA[i] = clamp(av + DIFFUSION_A * lapA - reaction + f * (1 - av), 0, 1);
+			nextB[i] = clamp(bv + DIFFUSION_B * lapB + reaction - (k + f) * bv, 0, 1);
+		}
+	}
+	[a, nextA] = [nextA, a];
+	[b, nextB] = [nextB, b];
+}
+var coral = {
+	name: "coral",
+	fade: 1,
+	bloom: .45,
+	blend: "source-over",
+	beatRings: false,
+	palettes: [
+		"deep sea",
+		"lava",
+		"paper",
+		"mint",
+		"ultraviolet",
+		"sunset",
+		"candy"
+	],
+	beat() {
+		if (!gridW$1) return;
+		const count = 1 + Math.floor(audio.bass * 2.5);
+		for (let i = 0; i < count; i++) drop(rndInt(gridW$1), rndInt(gridH$1), Math.round(rnd(2, 4 + audio.bass * 4)));
+		if (++beatsInPattern >= 16) {
+			beatsInPattern = 0;
+			target = (target + 1) % PATTERNS$1.length;
+		}
+	},
+	resize() {
+		gridW$1 = 0;
+	},
+	draw(dt) {
+		const { width, height } = view;
+		const cell = quality.level === 2 ? 5 : 6;
+		const w = Math.max(32, Math.min(170, Math.round(width / cell)));
+		const h = Math.max(24, Math.round(w * height / width));
+		if (w !== gridW$1 || h !== gridH$1) setUp$5(w, h);
+		const goal = PATTERNS$1[target];
+		feed += (goal.feed - feed) * Math.min(1, dt * .4);
+		kill += (goal.kill - kill) * Math.min(1, dt * .4);
+		const f = feed + audio.bass * .006;
+		const iterations = Math.round((quality.level === 2 ? 8 : 5) * Math.min(2, dt * 60));
+		for (let n = 0; n < iterations; n++) react(f, kill);
+		let total = 0;
+		for (let i = 0; i < b.length; i += 7) total += b[i];
+		if (total < b.length / 7 / 500) drop(rndInt(gridW$1), rndInt(gridH$1), 4);
+		const shift = clock.time * .04;
+		const ramp = colorRamp(256, (t) => colorRgb(t * 3 + shift, 6 + t * 88));
+		paintField(layer$3, b, ramp, (v) => v * 3.2);
+		ctx.imageSmoothingEnabled = true;
+		ctx.drawImage(layer$3.canvas, 0, 0, width, height);
+	}
+};
+//#endregion
 //#region src/render/shapes.ts
 /** Path and drawing helpers shared by the modes and effects. */
 /** Adds point number `i` of a line: point 0 starts the line, the others extend it. */
@@ -1331,14 +1723,6 @@ function strokeCircle(ctx, x, y, r) {
 	ctx.beginPath();
 	ctx.arc(x, y, r, 0, TAU);
 	ctx.stroke();
-}
-/** Filled pie slice from (x, y) between the angles a0 and a1. */
-function fillWedge(ctx, x, y, r, a0, a1) {
-	ctx.beginPath();
-	ctx.moveTo(x, y);
-	ctx.arc(x, y, r, a0, a1);
-	ctx.closePath();
-	ctx.fill();
 }
 /** Starts a closed regular polygon around the origin, first corner on the +x axis. */
 function polygonPath(ctx, sides, r) {
@@ -1359,10 +1743,13 @@ function starPath(ctx, r, inner) {
 	}
 	ctx.closePath();
 }
-/** Starts a closed wobbly blob. `wobble` 0 is a circle; `seed` sets the shape. */
-function blobPath(ctx, x, y, r, wobble, seed) {
+/**
+* Starts a closed wobbly blob. `wobble` 0 is a circle; `seed` sets the shape; more
+* `points` give a smoother edge.
+*/
+function blobPath(ctx, x, y, r, wobble, seed, points = 20) {
 	ctx.beginPath();
-	const n = 20;
+	const n = points;
 	for (let i = 0; i <= n; i++) {
 		const a = i / n * TAU;
 		const rr = r * (1 + wobble * (Math.sin(a * 3 + seed) * .35 + Math.sin(a * 7 + seed * 2) * .2 + Math.sin(a * 11 + seed * 3) * .1));
@@ -1446,50 +1833,394 @@ var corrupt = {
 };
 //#endregion
 //#region src/modes/cutout.ts
-/** Stop-motion paper cut-out creature: stacked blobs with drop shadows and two eyes. */
-var LAYERS$1 = 7;
+/**
+* A stop-motion creature cut from paper. Its stacked paper layers keep changing shape
+* and turn against each other; colours flow through the layers, some layers are
+* printed with stripes, a ring of paper petals pulses with the spectrum, and one to
+* five eyes blink on beats.
+*/
+var LAYERS$1 = 9;
+var PETALS = 12;
+/** Tile for the printed stripes. */
+var print = createLayer();
 var seed = 0;
+var eyes = 2;
+/** 1 when the eyes are shut; they open again over a fraction of a second. */
+var blink = 0;
+/** Direction of the colour flow through the layers. */
+var flow$2 = 1;
+/** Paper printed with stripes in two palette colours. */
+function stripes(k, period) {
+	const size = Math.max(4, Math.round(period));
+	setCanvasSize(print.canvas, size, size);
+	print.ctx.fillStyle = color(k, 1, 55);
+	print.ctx.fillRect(0, 0, size, size);
+	print.ctx.fillStyle = color(k + 2, 1, 82);
+	print.ctx.fillRect(0, 0, size, size * .45);
+	return ctx.createPattern(print.canvas, "repeat") ?? color(k, 1, 55);
+}
+/** A paper blob with its drop shadow, turned by `turn` around its centre. */
+function paper(x, y, r, turn, wobble, shape, fill) {
+	ctx.fillStyle = scene.palette.light ? "rgba(0,0,0,0.22)" : "rgba(0,0,0,0.5)";
+	ctx.save();
+	ctx.translate(x + r * .07, y + r * .09);
+	ctx.rotate(turn);
+	blobPath(ctx, 0, 0, r, wobble, shape, 40);
+	ctx.fill();
+	ctx.restore();
+	ctx.fillStyle = fill;
+	ctx.save();
+	ctx.translate(x, y);
+	ctx.rotate(turn);
+	blobPath(ctx, 0, 0, r, wobble, shape, 40);
+	ctx.fill();
+	ctx.restore();
+}
+function drawPetals(baseR) {
+	const { cx, cy } = view;
+	const time = clock.time;
+	const ringR = baseR * (1.12 + audio.bass * .15);
+	for (let p = 0; p < PETALS; p++) {
+		const a = p / PETALS * TAU + time * .35 * flow$2;
+		const v = spectrumAt(p / PETALS, .4, 1.4);
+		const r = baseR * (.1 + v * .14);
+		const shape = seed + p * 3 + time * 1.2;
+		paper(cx + Math.cos(a) * ringR, cy + Math.sin(a) * ringR, r, a, .35, shape, color(p * .6 + time * .3, 1, 60 + v * 25));
+	}
+}
+function drawEyes(x, y) {
+	const { min } = view;
+	const time = clock.time;
+	const r = min * .028 * (1 + audio.beat * .6);
+	const open = 1 - blink;
+	for (let e = 0; e < eyes; e++) {
+		const spread = e - (eyes - 1) / 2;
+		const ex = x + spread * r * 2.9;
+		const ey = y - r * (1.2 - Math.abs(spread) * .35);
+		ctx.fillStyle = "#fff";
+		ctx.beginPath();
+		ctx.ellipse(ex, ey, r, Math.max(.5, r * open), 0, 0, TAU);
+		ctx.fill();
+		if (open < .3) continue;
+		const lookX = ex + Math.sin(time * 2 + e) * r * .4;
+		const lookY = ey + Math.cos(time * 1.3) * r * .3 + audio.bass * r * .2;
+		ctx.fillStyle = color(e * 1.3 - time * .5, 1, 50);
+		fillCircle(ctx, lookX, lookY, r * .55);
+		ctx.fillStyle = "#111";
+		fillCircle(ctx, lookX, lookY, r * .3);
+	}
+}
 var cutout = {
 	name: "cutout",
 	fade: 1,
-	bloom: .15,
+	bloom: .2,
 	blend: "source-over",
 	beatRings: false,
-	fps: 10,
+	fps: 12,
 	palettes: [
 		"paper",
 		"cream",
 		"candy",
 		"sand",
-		"mint"
+		"mint",
+		"acid",
+		"vapor"
 	],
 	beat() {
-		seed = Math.random() * 100;
+		seed += rnd(1, 4);
+		if (Math.random() < .3) eyes = 1 + rndInt(5);
+		if (Math.random() < .35) blink = 1;
+		if (Math.random() < .2) flow$2 = -flow$2;
 	},
-	draw() {
+	draw(dt) {
 		const { cx, cy, min } = view;
 		const time = clock.time;
-		const baseR = min * .42;
-		for (let i = 6; i >= 0; i--) {
-			const r = baseR * (1 - i / LAYERS$1 * .8) * (.85 + bandLevel(i % 3) * .4 + audio.beat * .1);
-			const x = cx + Math.sin(time * .7 + i) * min * .08 * (1 + audio.mid);
-			const y = cy + Math.cos(time * .5 + i * 1.3) * min * .06;
-			const layerSeed = seed + i * 7 + Math.random() * .3;
-			ctx.fillStyle = scene.palette.light ? "rgba(0,0,0,0.22)" : "rgba(0,0,0,0.5)";
-			blobPath(ctx, x + r * .08, y + r * .1, r, .25, layerSeed);
-			ctx.fill();
-			ctx.fillStyle = color(i * .9, 1, 55);
-			blobPath(ctx, x, y, r, .25, layerSeed);
+		blink = Math.max(0, blink - dt * 5);
+		const baseR = min * .34;
+		drawPetals(baseR);
+		let topX = cx;
+		let topY = cy;
+		for (let i = 0; i < LAYERS$1; i++) {
+			const f = i / LAYERS$1;
+			const breathe = 1 + .07 * Math.sin(time * 1.7 + i * .9);
+			const r = baseR * (1 - f * .86) * (.85 + bandLevel(i % 3) * .3 + audio.beat * .1) * breathe;
+			const x = cx + Math.sin(time * .7 + i) * min * .07 * (1 + audio.mid);
+			const y = cy + Math.cos(time * .55 + i * 1.3) * min * .05;
+			const turn = time * (.15 + f * .35) * (i % 2 ? 1 : -1);
+			const wobble = .2 + audio.bass * .3 + .08 * Math.sin(time * .9 + i);
+			const shape = seed + i * 7 + time * (.5 + f) + Math.random() * .25;
+			const k = i * .9 - time * .5 * flow$2;
+			paper(x, y, r, turn, wobble, shape, i % 3 === 1 ? stripes(k, min * .035) : color(k, 1, 55));
+			topX = x;
+			topY = y;
+		}
+		drawEyes(topX, topY);
+	}
+};
+//#endregion
+//#region src/modes/cymatics.ts
+/**
+* Cymatics: sand on a vibrating plate (Chladni figures). The plate vibrates in a
+* standing wave; grains on the moving parts are thrown around and grains on the
+* still lines (the nodes) stay, so the sand draws the wave's pattern.
+* The pitch of the music picks the pattern on each beat (higher sound, finer
+* pattern), and the loudness shakes the plate.
+*
+* Free-edge plate: u(x, y) = cos(nπx)·cos(mπy) − cos(mπx)·cos(nπy), x and y in −1..1.
+*/
+/** Mode pairs (n, m), from simple to fine. */
+var PATTERNS = [
+	[1, 2],
+	[1, 3],
+	[2, 3],
+	[1, 4],
+	[3, 4],
+	[2, 5],
+	[1, 5],
+	[3, 5],
+	[4, 5],
+	[2, 7],
+	[3, 7],
+	[5, 6],
+	[4, 7],
+	[5, 8],
+	[6, 7],
+	[7, 9]
+];
+var GROUPS$1 = 3;
+var grainX = /* @__PURE__ */ new Float32Array(0);
+var grainY = /* @__PURE__ */ new Float32Array(0);
+var n = 1;
+var m = 2;
+/** Smoothed pitch of the music, 0..1. */
+var pitch = .2;
+function scatter(count) {
+	grainX = new Float32Array(count);
+	grainY = new Float32Array(count);
+	for (let i = 0; i < count; i++) {
+		grainX[i] = rnd(-1, 1);
+		grainY[i] = rnd(-1, 1);
+	}
+}
+/** Spectral centroid of the lower spectrum, 0..1. */
+function measurePitch() {
+	const freq = audio.freq;
+	const top = Math.min(freq.length, 256);
+	let weighted = 0;
+	let total = 0;
+	for (let i = 2; i < top; i++) {
+		weighted += i * freq[i];
+		total += freq[i];
+	}
+	return total > 0 ? weighted / total / top : 0;
+}
+var cymatics = {
+	name: "cymatics",
+	fade: .4,
+	bloom: .5,
+	blend: "source-over",
+	beatRings: false,
+	palettes: [
+		"void",
+		"sand",
+		"paper",
+		"mono",
+		"blueprint",
+		"chalk",
+		"sepia"
+	],
+	beat() {
+		const index = Math.round(pitch * 2.5 * (PATTERNS.length - 1) + rnd(-1.5, 1.5));
+		const [a, b] = PATTERNS[Math.max(0, Math.min(PATTERNS.length - 1, index))];
+		[n, m] = Math.random() < .5 ? [a, b] : [b, a];
+	},
+	draw(dt) {
+		const { cx, cy, min } = view;
+		const count = quality.level === 2 ? 7e3 : 4e3;
+		if (grainX.length !== count) scatter(count);
+		pitch += (measurePitch() - pitch) * Math.min(1, dt * 2);
+		const steps = Math.min(3, dt * 60);
+		const kn = n * Math.PI;
+		const km = m * Math.PI;
+		const shake = (.004 + audio.bass * .03 + audio.beat * .05) * steps;
+		const slide = .012 / (n + m) * steps;
+		for (let i = 0; i < grainX.length; i++) {
+			let x = grainX[i];
+			let y = grainY[i];
+			const cnx = Math.cos(kn * x);
+			const cny = Math.cos(kn * y);
+			const cmx = Math.cos(km * x);
+			const cmy = Math.cos(km * y);
+			const u = cnx * cmy - cmx * cny;
+			const dudx = -kn * Math.sin(kn * x) * cmy + km * Math.sin(km * x) * cny;
+			const dudy = -km * cnx * Math.sin(km * y) + kn * cmx * Math.sin(kn * y);
+			const kick = Math.abs(u) * shake;
+			x += -u * dudx * slide + (Math.random() - .5) * kick;
+			y += -u * dudy * slide + (Math.random() - .5) * kick;
+			grainX[i] = x < -1 ? -1 : x > 1 ? 1 : x;
+			grainY[i] = y < -1 ? -1 : y > 1 ? 1 : y;
+		}
+		const half = min * .44;
+		ctx.strokeStyle = color(3, .25, 60);
+		ctx.lineWidth = 1;
+		ctx.strokeRect(cx - half - 6, cy - half - 6, half * 2 + 12, half * 2 + 12);
+		const size = Math.max(1.2, min / 500);
+		for (let g = 0; g < GROUPS$1; g++) {
+			ctx.fillStyle = color(g * 1.3, .9, 72 + audio.high * 20);
+			ctx.beginPath();
+			for (let i = g; i < grainX.length; i += GROUPS$1) ctx.rect(cx + grainX[i] * half, cy + grainY[i] * half, size, size);
 			ctx.fill();
 		}
-		const eyeR = min * .03 * (1 + audio.beat);
-		const eyeX = cx - eyeR * 1.6;
-		const eyeY = cy - eyeR;
-		for (const dx of [0, eyeR * 3.2]) {
+	}
+};
+//#endregion
+//#region src/modes/datamatics.ts
+/**
+* Data as a picture, after Ryoji Ikeda's "test pattern": stacked bands of barcodes,
+* binary digits, spectrum bitmaps and waveforms, scrolling past at high speed in
+* black and white. Every band reads its own part of the spectrum. Beats re-cut the
+* bands; a strong beat inverts the picture (at most about once a second).
+*/
+/** Barcodes are the main material; a kind can repeat to make it more likely. */
+var KINDS = [
+	"barcode",
+	"barcode",
+	"barcode",
+	"barcode",
+	"binary",
+	"binary",
+	"bitmap",
+	"bitmap",
+	"wave",
+	"blank"
+];
+/** Seconds between two inversions: flashes stay slow (photosensitivity). */
+var INVERT_GAP_S = .9;
+var bands = [];
+var lastInvert = -1;
+function newBand(index, count) {
+	return {
+		kind: pick(KINDS),
+		bin: (index + .5) / count,
+		speed: rnd(.3, 2.2) * (Math.random() < .5 ? 1 : -1),
+		offset: 0,
+		seed: Math.random() * 1e3,
+		bar: 1 + Math.floor(Math.random() * 3)
+	};
+}
+function setUp$4() {
+	const count = Math.max(8, Math.min(18, Math.round(view.height / 46)));
+	bands = Array.from({ length: count }, (_, i) => newBand(i, count));
+}
+function drawBarcode(band, y, h, level) {
+	const barWidth = Math.max(2, Math.round(view.min / 220)) * band.bar;
+	const start = Math.floor(band.offset / barWidth);
+	const shift = band.offset - start * barWidth;
+	const columns = Math.ceil(view.width / barWidth) + 1;
+	const density = .3 + level * .55;
+	ctx.beginPath();
+	for (let c = 0; c < columns; c++) if (hash01((start + c) * .731 + band.seed) < density) ctx.rect(c * barWidth - shift, y, barWidth, h);
+	ctx.fill();
+}
+function drawBinary(band, y, h) {
+	const freq = audio.freq;
+	const size = Math.max(8, Math.floor(h * .62));
+	const charWidth = size * .62;
+	const count = Math.ceil(view.width / charWidth) + 1;
+	const first = Math.floor(band.offset / charWidth);
+	const base = Math.floor(band.bin * freq.length * .5);
+	let text = "";
+	for (let c = 0; c < count; c++) {
+		const n = first + c;
+		const byte = freq[(base + Math.floor(n / 8) + freq.length * 64) % freq.length];
+		text += byte >> 7 - (n % 8 + 8) % 8 & 1;
+	}
+	ctx.font = `${size}px ${MONOSPACE}`;
+	ctx.textBaseline = "middle";
+	ctx.textAlign = "left";
+	ctx.fillText(text, -(band.offset - first * charWidth), y + h / 2);
+}
+/** Three rows of cells: one cell per spectrum bin, lit when the bin is loud. */
+function drawBitmap(band, y, h) {
+	const freq = audio.freq;
+	const cell = h / 3;
+	const columns = Math.ceil(view.width / cell) + 1;
+	const first = Math.floor(band.offset / cell);
+	const shift = band.offset - first * cell;
+	ctx.beginPath();
+	for (let row = 0; row < 3; row++) for (let c = 0; c < columns; c++) if (freq[Math.abs((first + c) * 3 + row) % (freq.length >> 1)] > 100) ctx.rect(c * cell - shift + 1, y + row * cell + 1, cell - 2, cell - 2);
+	ctx.fill();
+}
+function drawWave(y, h) {
+	const { width } = view;
+	ctx.lineWidth = 1;
+	ctx.beginPath();
+	for (let i = 0; i <= 160; i++) {
+		const t = i / 160;
+		pathPoint(ctx, i, t * width, y + h / 2 + waveAt(t) * h * .45);
+	}
+	ctx.stroke();
+	ctx.beginPath();
+	for (let x = 0; x < width; x += 8) {
+		const tick = 2 + Math.abs(waveAt(x / width)) * h * .4;
+		ctx.rect(x, y + h - tick, 1, tick);
+	}
+	ctx.fill();
+}
+var datamatics = {
+	name: "datamatics",
+	fade: 1,
+	bloom: .15,
+	blend: "source-over",
+	beatRings: false,
+	palettes: [
+		"mono",
+		"noir",
+		"void",
+		"blueprint",
+		"hazard",
+		"paper"
+	],
+	beat() {
+		if (!bands.length) return;
+		for (let i = 0; i < bands.length; i++) if (Math.random() < .3) bands[i] = newBand(i, bands.length);
+	},
+	resize() {
+		bands = [];
+	},
+	draw(dt) {
+		const { width, height } = view;
+		if (!bands.length) setUp$4();
+		ctx.fillStyle = background(1);
+		ctx.fillRect(0, 0, width, height);
+		const ink = scene.palette.light ? "rgb(12,12,12)" : "rgb(245,245,245)";
+		const gap = 2;
+		const bandHeight = (height - gap * (bands.length - 1)) / bands.length;
+		const pace = (.4 + audio.mid * 2.2 + audio.beat) * dt * width;
+		for (let i = 0; i < bands.length; i++) {
+			const band = bands[i];
+			const y = i * (bandHeight + gap);
+			const level = spectrumAt(band.bin, .5, 1.4);
+			band.offset += band.speed * pace;
+			ctx.fillStyle = ink;
+			ctx.strokeStyle = ink;
+			if (band.kind === "barcode") drawBarcode(band, y, bandHeight, level);
+			else if (band.kind === "binary") drawBinary(band, y, bandHeight);
+			else if (band.kind === "bitmap") drawBitmap(band, y, bandHeight);
+			else if (band.kind === "wave") drawWave(y, bandHeight);
+			ctx.fillStyle = color(0, .9, 60);
+			ctx.font = `${Math.max(9, Math.round(bandHeight * .28))}px ${MONOSPACE}`;
+			ctx.textBaseline = "top";
+			ctx.textAlign = "right";
+			const hex = Math.round(level * 255).toString(16).padStart(2, "0");
+			ctx.fillText(`${String(i).padStart(2, "0")}:${hex}`, width - 4, y + 2);
+		}
+		if (audio.beat > .9 && audio.bass > .6 && clock.time - lastInvert > INVERT_GAP_S) lastInvert = clock.time;
+		if (clock.time - lastInvert < .07) {
+			ctx.globalCompositeOperation = "difference";
 			ctx.fillStyle = "#fff";
-			fillCircle(ctx, eyeX + dx, eyeY, eyeR);
-			ctx.fillStyle = "#111";
-			fillCircle(ctx, eyeX + dx + Math.sin(time * 2) * eyeR * .4, eyeY + audio.bass * eyeR * .4, eyeR * .45);
+			ctx.fillRect(0, 0, width, height);
+			ctx.globalCompositeOperation = "source-over";
 		}
 	}
 };
@@ -1514,7 +2245,7 @@ function randomCoal() {
 	return coals[rndInt(coals.length)];
 }
 /** How bright a coal glows now, 0..max. */
-function glow(c, max) {
+function glow$1(c, max) {
 	return clamp(.35 + .35 * Math.sin(clock.time * c.speed + c.phase) + audio.bass * .5 + audio.beat * .4, 0, max);
 }
 var embers = {
@@ -1610,7 +2341,7 @@ var embers = {
 		for (const c of coals) {
 			const x = c.x * width;
 			const y = c.y * height;
-			const g = glow(c, 1.2);
+			const g = glow$1(c, 1.2);
 			const halo = ctx.createRadialGradient(x, y, 0, x, y, c.r * 2.2);
 			halo.addColorStop(0, color(.3, g * .06, 70));
 			halo.addColorStop(1, color(.3, 0, 50));
@@ -1621,7 +2352,7 @@ var embers = {
 		for (const c of coals) {
 			const x = c.x * width;
 			const y = c.y * height;
-			const g = glow(c, 1);
+			const g = glow$1(c, 1);
 			ctx.fillStyle = light ? "rgba(40,20,14,0.9)" : "rgba(18,7,4,0.95)";
 			blobPath(ctx, x, y, c.r, .35, c.seed);
 			ctx.fill();
@@ -1938,7 +2669,7 @@ var fireworks = {
 var particles$1 = [];
 /** Phase offset of the field; each beat moves it so the flow changes direction. */
 var fieldPhase = 0;
-var flow = {
+var flow$1 = {
 	name: "flow",
 	fade: .05,
 	beat() {
@@ -2037,13 +2768,13 @@ var halftone = {
 //#region src/modes/halo.ts
 /** A ring of spectrum spokes around a waveform circle. */
 var SPOKES = 112;
-var angle$1 = 0;
+var angle = 0;
 var halo = {
 	name: "halo",
 	fade: .28,
 	draw(dt) {
 		const { cx, cy, min } = view;
-		angle$1 += dt * (.15 + audio.mid * 1.2);
+		angle += dt * (.15 + audio.mid * 1.2);
 		const half = SPOKES / 2;
 		const innerR = min * .15 * (1 + audio.bass * .6 + audio.beat * .2);
 		const maxLength = min * .42;
@@ -2052,7 +2783,7 @@ var halo = {
 			const j = i < half ? i : 111 - i;
 			const v = spectrumAt(j / half, .45, 1.7);
 			const length = 4 + v * v * maxLength;
-			const a = angle$1 + i / SPOKES * TAU;
+			const a = angle + i / SPOKES * TAU;
 			ctx.strokeStyle = color(j / half * 5, .9, 45 + v * 35);
 			ctx.lineWidth = 2.5 + v * 7;
 			ctx.beginPath();
@@ -2062,7 +2793,7 @@ var halo = {
 		}
 		ctx.beginPath();
 		for (let i = 0; i < 200; i++) {
-			const a = i / 200 * TAU - angle$1 * .5;
+			const a = i / 200 * TAU - angle * .5;
 			const r = innerR * .8 + waveAt(i / 200) * innerR * .6;
 			pathPoint(ctx, i, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
 		}
@@ -2074,39 +2805,6 @@ var halo = {
 		glow.addColorStop(1, color(1.5, 0, 85));
 		ctx.fillStyle = glow;
 		fillCircle(ctx, cx, cy, innerR * .7);
-	}
-};
-//#endregion
-//#region src/render/pixelLayer.ts
-/** A small canvas that a mode fills pixel by pixel and then scales up to the screen. */
-var PixelLayer = class {
-	layer = createLayer();
-	data = null;
-	get width() {
-		return this.layer.canvas.width;
-	}
-	get height() {
-		return this.layer.canvas.height;
-	}
-	get canvas() {
-		return this.layer.canvas;
-	}
-	/** Sets the size. Returns true when the size changed (the pixels are then new and black). */
-	setSize(width, height) {
-		if (this.data && this.width === width && this.height === height) return false;
-		this.layer.canvas.width = width;
-		this.layer.canvas.height = height;
-		this.data = this.layer.ctx.createImageData(width, height);
-		return true;
-	}
-	/** RGBA bytes, 4 per pixel, row by row. Call `setSize` first. */
-	get pixels() {
-		if (!this.data) throw new Error("PixelLayer: call setSize first");
-		return this.data.data;
-	}
-	/** Puts the pixels on the canvas. */
-	flush() {
-		if (this.data) this.layer.ctx.putImageData(this.data, 0, 0);
 	}
 };
 //#endregion
@@ -2188,7 +2886,7 @@ var julia = {
 //#endregion
 //#region src/modes/kaleido.ts
 /** The waveform drawn in eight mirrored segments. */
-var SEGMENTS = 8;
+var SEGMENTS$1 = 8;
 var POINTS = 110;
 var kaleido = {
 	name: "kaleido",
@@ -2201,10 +2899,10 @@ var kaleido = {
 		const waveHeight = 60 + audio.mid * 220;
 		ctx.lineWidth = 2 + audio.bass * 4;
 		ctx.lineJoin = "round";
-		for (let s = 0; s < SEGMENTS; s++) {
+		for (let s = 0; s < SEGMENTS$1; s++) {
 			ctx.save();
 			ctx.translate(cx, cy);
-			ctx.rotate(s / SEGMENTS * TAU + clock.time * .2);
+			ctx.rotate(s / SEGMENTS$1 * TAU + clock.time * .2);
 			if (s % 2) ctx.scale(1, -1);
 			ctx.beginPath();
 			for (let i = 0; i <= POINTS; i++) {
@@ -2237,7 +2935,7 @@ var layerWidth = 0;
 var layerHeight = 0;
 var puffs = [];
 var emitters = [];
-function setUp$1(w, h) {
+function setUp$3(w, h) {
 	for (const layer of [fog, beams]) {
 		layer.canvas.width = w;
 		layer.canvas.height = h;
@@ -2382,7 +3080,7 @@ var lasers = {
 		const light = scene.palette.light;
 		const w = Math.max(64, Math.round(width / 2));
 		const h = Math.max(64, Math.round(height / 2));
-		if (layerWidth !== w || layerHeight !== h) setUp$1(w, h);
+		if (layerWidth !== w || layerHeight !== h) setUp$3(w, h);
 		const fanWidth = .06 + audio.high * .12;
 		drawFog(dt);
 		drawBeams(fanWidth);
@@ -2471,7 +3169,7 @@ var cell = 14;
 var glyphs = "0123456789";
 /** Whether the font has the half-width katakana; checked once. */
 var hasKatakana = null;
-function setUp() {
+function setUp$2() {
 	cell = Math.max(14, Math.round(view.min / 26));
 	ctx.font = `${cell}px ${MONOSPACE}`;
 	if (hasKatakana === null) hasKatakana = Math.abs(ctx.measureText("ｱｲｳｴｵ").width - ctx.measureText("").width) > 1;
@@ -2533,7 +3231,7 @@ var matrix = {
 		columns = [];
 	},
 	draw(dt) {
-		if (!columns.length) setUp();
+		if (!columns.length) setUp$2();
 		const rows = Math.ceil(view.height / cell) + 1;
 		const speed = .45 + audio.mid * 1.4 + audio.beat * .5;
 		ctx.font = `${cell}px ${MONOSPACE}`;
@@ -2719,11 +3417,215 @@ var mosh = {
 	}
 };
 //#endregion
+//#region src/modes/murmur.ts
+/**
+* A starling murmuration (Craig Reynolds's boids): each bird keeps a little distance
+* from its neighbours, flies the way they fly and stays close to them. Bass pulls the
+* flock tighter, mids make it faster, and each beat sends a falcon through the flock,
+* which splits around it.
+*/
+/** Neighbours count within this distance (px); closer than SPACE they push apart. */
+var SIGHT = 46;
+var GROUPS = 3;
+var birdX = /* @__PURE__ */ new Float32Array(0);
+var birdY = /* @__PURE__ */ new Float32Array(0);
+var birdVX = /* @__PURE__ */ new Float32Array(0);
+var birdVY = /* @__PURE__ */ new Float32Array(0);
+/** Spatial hash: the first bird in each cell, and the next bird in the same cell. */
+var cellFirst = /* @__PURE__ */ new Int32Array(0);
+var cellNext = /* @__PURE__ */ new Int32Array(0);
+var gridCols = 0;
+var gridRows = 0;
+var falcon = {
+	x: 0,
+	y: 0,
+	vx: 0,
+	vy: 0,
+	life: 0
+};
+function setUp$1(count) {
+	const { width, height, cx, cy, min } = view;
+	birdX = new Float32Array(count);
+	birdY = new Float32Array(count);
+	birdVX = new Float32Array(count);
+	birdVY = new Float32Array(count);
+	cellNext = new Int32Array(count);
+	for (let i = 0; i < count; i++) {
+		const a = Math.random() * TAU;
+		const r = Math.random() * min * .25;
+		birdX[i] = cx + Math.cos(a) * r;
+		birdY[i] = cy + Math.sin(a) * r;
+		birdVX[i] = rnd(-60, 60);
+		birdVY[i] = rnd(-60, 60);
+	}
+	gridCols = Math.ceil(width / SIGHT);
+	gridRows = Math.ceil(height / SIGHT);
+	cellFirst = new Int32Array(gridCols * gridRows);
+}
+function cellOf(x, y) {
+	const c = Math.min(gridCols - 1, Math.max(0, Math.floor(x / SIGHT)));
+	return Math.min(gridRows - 1, Math.max(0, Math.floor(y / SIGHT))) * gridCols + c;
+}
+function hashBirds() {
+	cellFirst.fill(-1);
+	for (let i = 0; i < birdX.length; i++) {
+		const cell = cellOf(birdX[i], birdY[i]);
+		cellNext[i] = cellFirst[cell];
+		cellFirst[cell] = i;
+	}
+}
+function fly(dt) {
+	const { width, height } = view;
+	const maxSpeed = 110 + audio.mid * 200;
+	const cohesion = .6 + audio.bass * 2.2;
+	const margin = Math.min(width, height) * .12;
+	const time = clock.time;
+	const focusX = width / 2 + Math.sin(time * .31) * width * .22;
+	const focusY = height / 2 + Math.cos(time * .23) * height * .18;
+	const pull = .9 + audio.bass * .8;
+	for (let i = 0; i < birdX.length; i++) {
+		const x = birdX[i];
+		const y = birdY[i];
+		let count = 0;
+		let sumX = 0;
+		let sumY = 0;
+		let sumVX = 0;
+		let sumVY = 0;
+		let pushX = 0;
+		let pushY = 0;
+		const col = Math.floor(x / SIGHT);
+		const row = Math.floor(y / SIGHT);
+		for (let r = row - 1; r <= row + 1; r++) {
+			if (r < 0 || r >= gridRows) continue;
+			for (let c = col - 1; c <= col + 1; c++) {
+				if (c < 0 || c >= gridCols) continue;
+				for (let j = cellFirst[r * gridCols + c]; j !== -1; j = cellNext[j]) {
+					if (j === i) continue;
+					const dx = birdX[j] - x;
+					const dy = birdY[j] - y;
+					const d2 = dx * dx + dy * dy;
+					if (d2 > 2116) continue;
+					count++;
+					sumX += dx;
+					sumY += dy;
+					sumVX += birdVX[j];
+					sumVY += birdVY[j];
+					if (d2 < 196 && d2 > 0) {
+						pushX -= dx / d2;
+						pushY -= dy / d2;
+					}
+				}
+			}
+		}
+		let ax = 0;
+		let ay = 0;
+		if (count) {
+			ax += sumX / count * cohesion + (sumVX / count - birdVX[i]) * 1.6 + pushX * 900;
+			ay += sumY / count * cohesion + (sumVY / count - birdVY[i]) * 1.6 + pushY * 900;
+		}
+		ax += (focusX - x) * pull;
+		ay += (focusY - y) * pull;
+		if (x < margin) ax += (margin - x) * 6;
+		if (x > width - margin) ax -= (x - width + margin) * 6;
+		if (y < margin) ay += (margin - y) * 6;
+		if (y > height - margin) ay -= (y - height + margin) * 6;
+		if (falcon.life > 0) {
+			const dx = x - falcon.x;
+			const dy = y - falcon.y;
+			const d2 = dx * dx + dy * dy;
+			const fear = 150 * (1 + audio.bass);
+			if (d2 < fear * fear) {
+				const d = Math.sqrt(d2) + 1;
+				ax += dx / d * 2600;
+				ay += dy / d * 2600;
+			}
+		}
+		ax += (Math.random() - .5) * audio.high * 900;
+		ay += (Math.random() - .5) * audio.high * 900;
+		let vx = birdVX[i] + ax * dt;
+		let vy = birdVY[i] + ay * dt;
+		const speed = Math.hypot(vx, vy);
+		const limit = speed > maxSpeed ? maxSpeed / speed : speed < 50 ? 50 / (speed + .001) : 1;
+		vx *= limit;
+		vy *= limit;
+		birdVX[i] = vx;
+		birdVY[i] = vy;
+		birdX[i] = x + vx * dt;
+		birdY[i] = y + vy * dt;
+	}
+}
+var murmur = {
+	name: "murmur",
+	fade: .3,
+	blend: "source-over",
+	beatRings: false,
+	palettes: [
+		"sunset",
+		"peach",
+		"sand",
+		"paper",
+		"ice",
+		"slate",
+		"wine",
+		"cream"
+	],
+	beat() {
+		if (!birdX.length || falcon.life > .4) return;
+		const { width, height } = view;
+		let mx = 0;
+		let my = 0;
+		for (let i = 0; i < birdX.length; i++) {
+			mx += birdX[i];
+			my += birdY[i];
+		}
+		mx /= birdX.length;
+		my /= birdX.length;
+		const a = Math.random() * TAU;
+		falcon.x = mx + Math.cos(a) * Math.max(width, height) * .6;
+		falcon.y = my + Math.sin(a) * Math.max(width, height) * .6;
+		const d = Math.hypot(mx - falcon.x, my - falcon.y) + 1;
+		const speed = 700 + audio.bass * 500;
+		falcon.vx = (mx - falcon.x) / d * speed;
+		falcon.vy = (my - falcon.y) / d * speed;
+		falcon.life = 1.6;
+	},
+	resize() {
+		birdX = /* @__PURE__ */ new Float32Array(0);
+	},
+	draw(dt) {
+		const count = quality.level === 2 ? 600 : 350;
+		if (birdX.length !== count) setUp$1(count);
+		const step = Math.min(dt, 1 / 30);
+		hashBirds();
+		fly(step);
+		if (falcon.life > 0) {
+			falcon.life -= dt;
+			falcon.x += falcon.vx * dt;
+			falcon.y += falcon.vy * dt;
+		}
+		ctx.lineCap = "round";
+		ctx.lineWidth = Math.max(2, view.min / 300) * (1 + audio.beat * .4);
+		for (let g = 0; g < GROUPS; g++) {
+			ctx.strokeStyle = color(g * .8, .95, 68 + audio.high * 20);
+			ctx.beginPath();
+			for (let i = g; i < birdX.length; i += GROUPS) {
+				ctx.moveTo(birdX[i], birdY[i]);
+				ctx.lineTo(birdX[i] - birdVX[i] * .014, birdY[i] - birdVY[i] * .014);
+			}
+			ctx.stroke();
+		}
+		if (falcon.life > 0) {
+			ctx.fillStyle = color(3, Math.min(1, falcon.life), 90);
+			fillCircle(ctx, falcon.x, falcon.y, 3 + audio.bass * 3);
+		}
+	}
+};
+//#endregion
 //#region src/modes/nebula.ts
 /** Particles burst out of a glowing core and swirl with the treble. */
 var MAX_PARTICLES = 420;
 var particles = [];
-function spawn(count, speed, spread) {
+function spawn$1(count, speed, spread) {
 	for (let n = 0; n < count; n++) {
 		const angle = Math.random() * TAU;
 		const v = speed * (.4 + Math.random());
@@ -2744,11 +3646,11 @@ var nebula = {
 	name: "nebula",
 	fade: .14,
 	beat() {
-		spawn(40 + Math.floor(audio.bass * 80), 250 + audio.bass * 400, 3);
+		spawn$1(40 + Math.floor(audio.bass * 80), 250 + audio.bass * 400, 3);
 	},
 	draw(dt) {
 		const { width, height, cx, cy } = view;
-		spawn(Math.floor(1 + audio.mid * 6), 60 + audio.mid * 200, 1.5);
+		spawn$1(Math.floor(1 + audio.mid * 6), 60 + audio.mid * 200, 1.5);
 		const swirl = audio.high * 1.2;
 		for (let i = particles.length - 1; i >= 0; i--) {
 			const p = particles[i];
@@ -3210,7 +4112,7 @@ var orb = {
 //#region src/modes/pixels.ts
 /** A chunky 32-pixel-wide field; beats sort rows and columns like a pixel-sorting glitch. */
 var COLUMNS = 32;
-var layer = new PixelLayer();
+var layer$2 = new PixelLayer();
 /** Brightness per pixel, 0..1, smoothed over time. */
 var values = null;
 var ascending = (a, b) => a - b;
@@ -3243,16 +4145,16 @@ var pixels = {
 	beat() {
 		if (!values) return;
 		const rows = 1 + Math.floor(audio.bass * 4);
-		for (let r = 0; r < rows; r++) sortRow(values, layer.width, layer.height);
-		if (Math.random() < .4) sortColumn(values, layer.width, layer.height);
+		for (let r = 0; r < rows; r++) sortRow(values, layer$2.width, layer$2.height);
+		if (Math.random() < .4) sortColumn(values, layer$2.width, layer$2.height);
 	},
 	draw(dt) {
 		const { width, height } = view;
 		const w = COLUMNS;
 		const h = Math.max(8, Math.round(32 * height / width));
-		if (layer.setSize(w, h) || !values) values = new Float32Array(w * h);
+		if (layer$2.setSize(w, h) || !values) values = new Float32Array(w * h);
 		const v = values;
-		const data = layer.pixels;
+		const data = layer$2.pixels;
 		const rate = Math.min(1, dt * 6);
 		for (let j = 0; j < h; j++) {
 			const wave = Math.abs(waveAt(j / h));
@@ -3269,20 +4171,33 @@ var pixels = {
 			}
 		}
 		if (audio.high > .6 && Math.random() < .3) v.copyWithin(0, w);
-		layer.flush();
+		layer$2.flush();
 		ctx.imageSmoothingEnabled = false;
 		const jolt = audio.beat > .5 ? (Math.random() - .5) * width / w : 0;
-		ctx.drawImage(layer.canvas, jolt, 0, width, height);
+		ctx.drawImage(layer$2.canvas, jolt, 0, width, height);
 		ctx.imageSmoothingEnabled = true;
 	}
 };
 //#endregion
 //#region src/modes/plasma.ts
-/** Classic demo-scene plasma: four sine fields added together. */
+/**
+* Liquid plasma. The classic demo-scene sum of sine waves, with three additions:
+* the space is bent by its own waves first (domain warping), two moving sources send
+* out interfering ripples, and thin dark contour lines cut the colours into bands,
+* like a topographic map. The colours cycle through the palette.
+* Bass: how much the space bends, and the second ripple. Mid: speed. Treble: more
+* contour bands and faster colour cycling. Beat: a jolt of bending and colour.
+*/
+var RAMP_SIZE = 256;
+var layer$1 = new PixelLayer();
+/** Colour cycling position, 0..1 per palette cycle. */
+var cycle = 0;
+/** Extra bending after a beat, 1..0. */
+var jolt = 0;
 var plasma = {
 	name: "plasma",
 	fade: 1,
-	bloom: .25,
+	bloom: .35,
 	blend: "source-over",
 	beatRings: false,
 	palettes: [
@@ -3290,56 +4205,193 @@ var plasma = {
 		"lava",
 		"ultraviolet",
 		"vapor",
-		"toxic"
+		"toxic",
+		"technicolor",
+		"candy"
 	],
-	draw() {
-		const { width, height, cx, cy } = view;
-		const cell = Math.max(10, Math.sqrt(width * height / 2e3));
-		const cols = Math.ceil(width / cell);
-		const rows = Math.ceil(height / cell);
-		const t = clock.time * (.6 + audio.bass * 1.2);
-		const fx = .06 + audio.mid * .05;
-		const fr = .02 + audio.high * .03;
-		for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-			const x = i * cell;
-			const y = j * cell;
-			const v = (Math.sin(x * fx + t) + Math.sin(y * .045 - t * .7) + Math.sin((x + y) * .035 + t * .5) + Math.sin(Math.hypot(x - cx, y - cy) * fr - t * 1.5) + 4) / 8;
-			ctx.fillStyle = color(v * 4, 1, 35 + v * 50);
-			ctx.fillRect(x, y, cell + .5, cell + .5);
+	beat() {
+		jolt = 1;
+		cycle += .12;
+	},
+	draw(dt) {
+		const { width, height } = view;
+		const cell = quality.level === 2 ? 4 : 6;
+		const w = clamp(Math.round(width / cell), 48, 220);
+		const h = Math.max(36, Math.round(w * height / width));
+		layer$1.setSize(w, h);
+		const time = clock.time * (.5 + audio.mid * .9);
+		cycle += dt * (.05 + audio.high * .25);
+		jolt = Math.max(0, jolt - dt * 2);
+		const bend = .35 + audio.bass * .9 + jolt * .8;
+		const bands = 4 + audio.high * 5;
+		const rippleB = 2 + audio.bass * 2;
+		const ca = Math.cos(time * .21);
+		const sa = Math.sin(time * .21);
+		const s1x = Math.sin(time * .37) * 2.2;
+		const s1y = Math.cos(time * .29) * 1.6;
+		const s2x = Math.cos(time * .23) * 2.4;
+		const s2y = Math.sin(time * .41) * 1.4;
+		const span = scene.palette.rgb ? scene.palette.rgb.length : 9;
+		const ramp = colorRamp(RAMP_SIZE, (t) => colorRgb(t * span, 58));
+		const pixels = layer$1.pixels;
+		const aspect = w / h;
+		let p = 0;
+		for (let j = 0; j < h; j++) {
+			const y = (j / h - .5) * 6;
+			for (let i = 0; i < w; i++) {
+				const x = (i / w - .5) * 6 * aspect;
+				const wx = x + bend * Math.sin(y * 1.3 + time);
+				const wy = y + bend * Math.cos(x * 1.1 - time * .8);
+				const n = (Math.sin(wx * 1.2 + time) + Math.sin((wx * ca + wy * sa) * 1.6 - time * 1.3) + Math.sin(Math.hypot(wx - s1x, wy - s1y) * 2.4 - time * 2) + Math.sin(Math.hypot(wx - s2x, wy - s2y) * rippleB - time * 2.6)) * .125 + .5;
+				const band = n * bands;
+				const edge = band - Math.floor(band);
+				const shade = .45 + .55 * Math.min(1, Math.min(edge, 1 - edge) * 6);
+				const c = n * 2 + cycle;
+				const r = ((c - Math.floor(c)) * 255 | 0) * 3;
+				pixels[p] = ramp[r] * shade;
+				pixels[p + 1] = ramp[r + 1] * shade;
+				pixels[p + 2] = ramp[r + 2] * shade;
+				pixels[p + 3] = 255;
+				p += 4;
+			}
 		}
+		layer$1.flush();
+		ctx.imageSmoothingEnabled = true;
+		ctx.drawImage(layer$1.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
 //#region src/modes/rays.ts
-/** Sunburst: rotating ray wedges, a counter-rotating inner star and a bright core. */
-var rayCount = 16;
-var angle = 0;
+/**
+* Psychedelic sunburst. Two sets of rays turn in opposite directions and twist into
+* spirals with liquid, wavy edges. The second set is blended with "difference", so
+* where the sets cross they make op-art interference. Colours flow along each ray,
+* inverting rings ripple outward, the last frame zooms and turns behind it all
+* (tunnel echoes), and a flower pulses in the middle.
+* Bass: twist and ray width. Mid: spin. Treble: wobble. Beat: new ray counts,
+* sometimes a new twist direction or colour flow.
+*/
+/** Points along each ray edge. */
+var SEGMENTS = 28;
+var outer = {
+	count: 18,
+	twist: 1.3,
+	spin: 1,
+	angle: 0,
+	k: 0
+};
+var inner = {
+	count: 12,
+	twist: -1.8,
+	spin: -1.5,
+	angle: 0,
+	k: 2
+};
+/** Direction of the colour flow along the rays: 1 outward, −1 inward. */
+var flow = 1;
+/** One set of twisted, wavy rays, each filled with colours that flow along it. */
+function drawRaySet(set, radius, width, wobble) {
+	const { cx, cy } = view;
+	const time = clock.time;
+	const slot = TAU / set.count;
+	const twist = set.twist * (1 + audio.bass * .6 + Math.sin(time * .4) * .3);
+	for (let i = 0; i < set.count; i++) {
+		const base = set.angle + i * slot;
+		const fill = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+		for (let s = 0; s <= 4; s++) fill.addColorStop(s / 4, color(set.k + i * .5 + s * .7 - time * .6 * flow, 1, 45 + s * 8));
+		ctx.fillStyle = fill;
+		ctx.beginPath();
+		for (let j = 0; j <= SEGMENTS; j++) {
+			const t = j / SEGMENTS;
+			const a = base + twist * t + wobble * Math.sin(t * 9 - time * 3 + i);
+			pathPoint(ctx, j, cx + Math.cos(a) * t * radius, cy + Math.sin(a) * t * radius);
+		}
+		for (let j = SEGMENTS; j >= 0; j--) {
+			const t = j / SEGMENTS;
+			const a = base + twist * t + wobble * Math.sin(t * 9 - time * 3 + i + .8) + slot * width * (.3 + .7 * t);
+			ctx.lineTo(cx + Math.cos(a) * t * radius, cy + Math.sin(a) * t * radius);
+		}
+		ctx.closePath();
+		ctx.fill();
+	}
+}
+/** White rings blended with "difference": they invert the colours as they ripple out. */
+function drawInvertingRings(radius) {
+	const { cx, cy } = view;
+	const rings = 5;
+	const travel = clock.time * (.12 + audio.mid * .25) * flow;
+	ctx.globalCompositeOperation = "difference";
+	ctx.strokeStyle = "#fff";
+	ctx.lineWidth = radius * (.025 + audio.bass * .05);
+	ctx.beginPath();
+	for (let i = 0; i < rings; i++) {
+		const r = ((i / rings + travel) % 1 + 1) % 1 * radius;
+		ctx.moveTo(cx + r, cy);
+		ctx.arc(cx, cy, r, 0, TAU);
+	}
+	ctx.stroke();
+}
+/** A pulsing flower in the middle, with as many petals as the inner rays. */
+function drawFlower() {
+	const { cx, cy, min } = view;
+	const time = clock.time;
+	const petals = inner.count / 2;
+	const R = min * (.09 + audio.bass * .09 + audio.beat * .04);
+	const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+	glow.addColorStop(0, color(3 - time * .6 * flow, 1, 95));
+	glow.addColorStop(.6, color(1 - time * .6 * flow, 1, 70));
+	glow.addColorStop(1, color(2 - time * .6 * flow, .9, 50));
+	ctx.fillStyle = glow;
+	ctx.beginPath();
+	for (let j = 0; j <= 96; j++) {
+		const a = j / 96 * TAU - inner.angle;
+		const r = R * (.55 + .45 * Math.pow(Math.abs(Math.cos(a * petals / 2)), .6));
+		pathPoint(ctx, j, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+	}
+	ctx.closePath();
+	ctx.fill();
+}
 var rays = {
 	name: "rays",
-	fade: 1,
-	bloom: .25,
+	fade: .6,
+	zoom: 1.015,
+	rotate: .004,
+	bloom: .4,
 	blend: "source-over",
+	beatRings: false,
+	palettes: [
+		"acid",
+		"vapor",
+		"ultraviolet",
+		"neon",
+		"candy",
+		"technicolor",
+		"toxic"
+	],
 	beat() {
-		if (Math.random() < .4) rayCount = 8 + 2 * rndInt(12);
+		if (Math.random() < .5) {
+			outer.count = 8 + 2 * rndInt(10);
+			inner.count = 6 + 2 * rndInt(8);
+		}
+		if (Math.random() < .3) outer.twist = -outer.twist;
+		if (Math.random() < .3) inner.twist = -inner.twist;
+		if (Math.random() < .25) flow = -flow;
+		outer.k += 1;
 	},
 	draw(dt) {
 		const { cx, cy, min } = view;
-		angle += dt * (.2 + audio.mid * 1.5) * (rayCount % 4 ? 1 : -1);
-		const outerR = Math.hypot(cx, cy) * 1.05;
-		for (let i = 0; i < rayCount; i++) {
-			const a0 = angle + i / rayCount * TAU;
-			ctx.fillStyle = color(i % 2 ? 1 : 0, 1, 50 + i % 2 * 15);
-			fillWedge(ctx, cx, cy, outerR, a0, a0 + TAU / rayCount * (.5 + audio.bass * .4));
-		}
-		const innerCount = Math.max(6, rayCount / 2);
-		const innerR = min * (.25 + audio.bass * .2);
-		for (let i = 0; i < innerCount; i++) {
-			const a0 = -angle * 1.5 + i / innerCount * TAU;
-			ctx.fillStyle = color(2 + i % 2, 1, 65);
-			fillWedge(ctx, cx, cy, innerR, a0, a0 + TAU / innerCount * .5);
-		}
-		ctx.fillStyle = color(3, 1, 90);
-		fillCircle(ctx, cx, cy, min * (.05 + audio.bass * .08));
+		const spin = dt * (.25 + audio.mid * 1.2);
+		outer.angle += spin * outer.spin;
+		inner.angle += spin * inner.spin;
+		const far = Math.hypot(cx, cy) * 1.1;
+		const width = .45 + audio.bass * .3;
+		const wobble = .05 + audio.high * .25;
+		drawRaySet(outer, far, width, wobble);
+		ctx.globalCompositeOperation = scene.palette.light ? "exclusion" : "difference";
+		drawRaySet(inner, min * (.55 + audio.bass * .25), width * .9, wobble * 1.4);
+		drawInvertingRings(far);
+		ctx.globalCompositeOperation = "source-over";
+		drawFlower();
 	}
 };
 var spectrumHistory = [];
@@ -3509,98 +4561,491 @@ var scope = {
 };
 //#endregion
 //#region src/modes/shroom.ts
-/** Five spotted mushrooms bob and lean in front of pulsing rings. */
+/**
+* Psilocybin mushrooms crawling through space. Two kinds: Psilocybe cubensis
+* (golden-caramel caps with a dark bump in the middle, a pale stem with a dark ring
+* and blue bruising at the base) and liberty caps (P. semilanceata: pointed cones on
+* thin, wavy stems). They crawl toward the viewer in surges and drift sideways, and
+* they turn and flip on every axis (flipped over, they show their gills). A glowing
+* mycelium web links each one to its nearest neighbour and carries light on beats;
+* spores drift off the caps. The louder the bass, the faster they come and the more
+* the palette's colours bleed into the caps.
+*/
+/** Depth range: new mushrooms appear at FAR and leave at NEAR. */
+var FAR = 4.2;
+var NEAR = .35;
+var COUNT = 14;
+var STEM = [
+	240,
+	234,
+	220
+];
+var BRUISE = [
+	70,
+	110,
+	190
+];
+var GILLS = [
+	58,
+	40,
+	50
+];
+/** Cap colours from the middle to the edge, per kind. */
+var CAP = {
+	cubensis: [
+		[
+			112,
+			62,
+			26
+		],
+		[
+			204,
+			146,
+			66
+		],
+		[
+			236,
+			212,
+			164
+		]
+	],
+	liberty: [
+		[
+			86,
+			66,
+			38
+		],
+		[
+			176,
+			140,
+			86
+		],
+		[
+			214,
+			196,
+			150
+		]
+	]
+};
 var mushrooms = [];
-function plant() {
-	mushrooms = [];
-	for (let i = 0; i < 5; i++) mushrooms.push({
-		x: rnd(.12, .88),
-		base: rnd(.75, .95),
-		height: rnd(.18, .42),
-		capWidth: rnd(.5, 1),
-		k: rndInt(4),
-		phase: Math.random() * TAU,
-		spots: Array.from({ length: 6 }, () => [
-			rnd(-.8, .8),
-			rnd(.1, .7),
-			rnd(.06, .16)
-		])
-	});
-	mushrooms.sort((a, b) => a.height - b.height);
+var spores = [];
+/** Glow after a beat, 1..0. */
+var glow = 0;
+/** Extra speed after a beat, 1..0. */
+var surge = 0;
+function mix(a, b, t, alpha = 1) {
+	return `rgba(${a[0] + (b[0] - a[0]) * t | 0},${a[1] + (b[1] - a[1]) * t | 0},${a[2] + (b[2] - a[2]) * t | 0},${alpha})`;
 }
-function drawMushroom(s) {
-	const { width, height, min } = view;
+/** A mushroom somewhere in the space; `far`: at the back, where new ones appear. */
+function spawn(far) {
+	const kind = Math.random() < .35 ? "liberty" : "cubensis";
+	const z = far ? FAR : rnd(.95, FAR);
+	return {
+		kind,
+		x: rnd(-1.8, 1.8) * (z / 2),
+		y: rnd(-1.3, 1.3) * (z / 2),
+		z,
+		vx: rnd(-.25, .25),
+		vy: rnd(-.2, .2),
+		vz: rnd(.25, .6),
+		roll: Math.random() * TAU,
+		rollSpeed: rnd(-.8, .8),
+		flip: rnd(-.7, .7),
+		flipSpeed: rnd(-.7, .7),
+		size: rnd(.75, 1.3),
+		phase: Math.random() * TAU,
+		tint: Math.random() * 4,
+		pulse: 2
+	};
+}
+function crawl(m, dt) {
 	const time = clock.time;
-	const bob = Math.sin(time * 1.5 + s.phase) * .02;
-	const h = s.height * height * (1 + audio.bass * .25 + bob);
-	const cw = h * s.capWidth * .9 * (1 + audio.beat * .15);
-	const lean = Math.sin(time * .8 + s.phase) * .15 * (1 + audio.mid);
+	const stride = Math.pow(.5 + .5 * Math.sin(time * 2.6 + m.phase), 2);
+	const speed = (.5 + audio.bass * 1.6 + surge * 2) * (.3 + stride);
+	m.z -= m.vz * speed * dt;
+	m.x += (m.vx + Math.sin(time * .7 + m.phase) * .18) * dt;
+	m.y += (m.vy + Math.cos(time * .6 + m.phase) * .14) * dt;
+	m.roll += m.rollSpeed * dt * (1 + audio.mid);
+	m.flip += m.flipSpeed * dt * (1 + audio.mid * .5);
+	if (m.pulse <= 1) m.pulse += dt * (.8 + audio.mid);
+}
+function project(m) {
+	const { cx, cy, min } = view;
+	const scale = min * .45 / m.z;
+	return {
+		x: cx + m.x * scale,
+		y: cy + m.y * scale,
+		scale
+	};
+}
+/** Thin glowing threads from each mushroom to its nearest neighbour, with light pulses. */
+function drawMycelium() {
+	ctx.lineWidth = 1;
+	ctx.strokeStyle = color(1, .18 + audio.bass * .2, 65);
+	ctx.beginPath();
+	const pulses = [];
+	for (const m of mushrooms) {
+		let nearest = null;
+		let best = Infinity;
+		for (const o of mushrooms) {
+			if (o === m) continue;
+			const d = (o.x - m.x) ** 2 + (o.y - m.y) ** 2 + (o.z - m.z) ** 2;
+			if (d < best) {
+				best = d;
+				nearest = o;
+			}
+		}
+		if (!nearest || best > 4) continue;
+		const a = project(m);
+		const b = project(nearest);
+		const midX = (a.x + b.x) / 2;
+		const midY = (a.y + b.y) / 2 + Math.hypot(a.x - b.x, a.y - b.y) * .12;
+		ctx.moveTo(a.x, a.y);
+		ctx.quadraticCurveTo(midX, midY, b.x, b.y);
+		if (m.pulse <= 1) {
+			const t = m.pulse;
+			pulses.push({
+				x: (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * midX + t * t * b.x,
+				y: (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * midY + t * t * b.y,
+				t
+			});
+		}
+	}
+	ctx.stroke();
+	for (const p of pulses) {
+		ctx.fillStyle = color(2, 1 - p.t * .7, 88);
+		fillCircle(ctx, p.x, p.y, 2 + audio.bass * 2.5);
+	}
+}
+function drawMushroom(m, trip) {
+	const time = clock.time;
+	const p = project(m);
+	const alpha = clamp((FAR - m.z) / 1.2, 0, 1) * clamp((m.z - NEAR) / .25, 0, 1);
+	if (alpha <= .01) return;
+	const unit = p.scale * m.size;
+	const h = unit * (m.kind === "cubensis" ? .9 : 1.1) * (1 + audio.bass * .06);
+	const r = unit * (m.kind === "cubensis" ? .3 : .17) * (1 + audio.bass * .12 + glow * .05);
+	const flip = Math.cos(m.flip);
 	ctx.save();
-	ctx.translate(s.x * width, s.base * height);
-	ctx.rotate(lean * .3);
-	ctx.fillStyle = color(s.k + 1, 1, 85);
+	ctx.globalAlpha = alpha;
+	ctx.translate(p.x, p.y);
+	ctx.rotate(m.roll);
+	ctx.scale(1, Math.abs(flip) < .08 ? .08 * Math.sign(flip || 1) : flip);
+	const wave = Math.sin(time * 2.6 + m.phase) * r * (m.kind === "liberty" ? .9 : .4);
+	drawStem(m, 0, h / 2, 0, -h / 2, m.kind === "cubensis" ? r * .2 : r * .16, wave);
+	drawCap(m, 0, -h / 2, r, colorRgb(m.tint + time * .2, 60), trip, flip < 0);
+	ctx.restore();
+}
+/** Pale, slightly tapered stem along a curve, with fibres, a dark ring and blue bruising at the base. */
+function drawStem(m, x0, y0, tx, ty, width, wave) {
+	const midX = (x0 + tx) / 2 + wave;
+	const midY = (y0 + ty) / 2;
+	const fill = ctx.createLinearGradient(x0, y0, tx, ty);
+	fill.addColorStop(0, mix(STEM, BRUISE, .75));
+	fill.addColorStop(.18, mix(STEM, BRUISE, .1));
+	fill.addColorStop(1, mix(STEM, STEM, 0));
+	ctx.fillStyle = fill;
 	ctx.beginPath();
-	ctx.moveTo(-cw * .18, 0);
-	ctx.quadraticCurveTo(-cw * .25 + lean * h * .5, -h * .5, -cw * .14 + lean * h, -h * .65);
-	ctx.lineTo(cw * .14 + lean * h, -h * .65);
-	ctx.quadraticCurveTo(cw * .25 + lean * h * .5, -h * .5, cw * .18, 0);
+	ctx.moveTo(x0 - width * 1.3, y0);
+	ctx.quadraticCurveTo(midX - width, midY, tx - width * .8, ty);
+	ctx.lineTo(tx + width * .8, ty);
+	ctx.quadraticCurveTo(midX + width, midY, x0 + width * 1.3, y0);
 	ctx.closePath();
 	ctx.fill();
-	ctx.strokeStyle = background(1);
-	ctx.lineWidth = Math.max(2, min * .008);
-	ctx.stroke();
-	ctx.translate(lean * h, -h * .65);
-	ctx.fillStyle = color(s.k, 1, 50);
+	ctx.strokeStyle = "rgba(120,100,90,0.25)";
+	ctx.lineWidth = 1;
 	ctx.beginPath();
-	ctx.ellipse(0, 0, cw, h * .42, 0, Math.PI, TAU);
-	ctx.lineTo(cw, 0);
-	ctx.quadraticCurveTo(0, h * .12, -cw, 0);
-	ctx.closePath();
-	ctx.fill();
+	for (const f of [
+		-.45,
+		.1,
+		.5
+	]) {
+		ctx.moveTo(x0 + width * f, y0);
+		ctx.quadraticCurveTo(midX + width * f * .8, midY, tx + width * f * .6, ty);
+	}
 	ctx.stroke();
-	for (const [sx, sy, sr] of s.spots) {
-		const r = sr * cw * (1 + audio.high * .8 + audio.beat * .3);
-		ctx.fillStyle = color(s.k + 2, 1, 90);
+	if (m.kind === "cubensis") {
+		const ringY = ty + (y0 - ty) * .12;
+		const ringX = tx + (midX - tx) * .24;
+		ctx.fillStyle = "rgba(48,30,44,0.85)";
 		ctx.beginPath();
-		ctx.ellipse(sx * cw, -sy * h * .42, r, r * .8, 0, 0, TAU);
+		ctx.ellipse(ringX, ringY, width * 1.25, width * .35, 0, 0, TAU);
 		ctx.fill();
 	}
-	ctx.restore();
+}
+/** Gills: dark purple-brown, with fine radial lines. */
+function drawGills(x, y, r, tint, trip) {
+	ctx.fillStyle = mix(GILLS, tint, trip * .3);
+	ctx.beginPath();
+	ctx.ellipse(x, y, r * .95, r * .17, 0, 0, TAU);
+	ctx.fill();
+	ctx.strokeStyle = "rgba(150,120,130,0.35)";
+	ctx.lineWidth = .8;
+	ctx.beginPath();
+	for (let g = -8; g <= 8; g++) {
+		ctx.moveTo(x, y);
+		ctx.lineTo(x + g / 8 * r * .92, y + Math.sqrt(1 - (g / 8) ** 2) * r * .15);
+	}
+	ctx.stroke();
+}
+/** The cap with its streaks; the gills show below it, or on top when it is seen from underneath. */
+function drawCap(m, x, y, r, tint, trip, underside) {
+	const [middle, body, edge] = CAP[m.kind];
+	if (!underside) drawGills(x, y, r, tint, trip);
+	const apexY = m.kind === "cubensis" ? y - r * .78 : y - r * 1.35;
+	const fill = ctx.createRadialGradient(x, apexY + r * .1, 0, x, apexY + r * .1, r * 1.25);
+	fill.addColorStop(0, mix(middle, tint, trip * .6));
+	fill.addColorStop(.45, mix(body, tint, trip));
+	fill.addColorStop(1, mix(edge, tint, trip * .7));
+	ctx.fillStyle = fill;
+	ctx.beginPath();
+	if (m.kind === "cubensis") {
+		ctx.moveTo(x - r, y);
+		ctx.bezierCurveTo(x - r, y - r * .55, x - r * .45, apexY, x - r * .12, apexY + r * .02);
+		ctx.quadraticCurveTo(x, apexY - r * .07, x + r * .12, apexY + r * .02);
+		ctx.bezierCurveTo(x + r * .45, apexY, x + r, y - r * .55, x + r, y);
+		ctx.quadraticCurveTo(x, y + r * .12, x - r, y);
+	} else {
+		ctx.moveTo(x - r * .85, y + r * .05);
+		ctx.quadraticCurveTo(x - r * .6, apexY + r * .35, x - r * .1, apexY + r * .05);
+		ctx.quadraticCurveTo(x, apexY - r * .12, x + r * .1, apexY + r * .05);
+		ctx.quadraticCurveTo(x + r * .6, apexY + r * .35, x + r * .85, y + r * .05);
+		ctx.quadraticCurveTo(x, y + r * .15, x - r * .85, y + r * .05);
+	}
+	ctx.closePath();
+	ctx.fill();
+	ctx.strokeStyle = m.kind === "cubensis" ? "rgba(255,236,200,0.18)" : "rgba(60,40,20,0.25)";
+	ctx.lineWidth = 1;
+	ctx.beginPath();
+	for (let s = -3; s <= 3; s++) {
+		ctx.moveTo(x + s * r * .04, apexY + r * .1);
+		ctx.quadraticCurveTo(x + s * r * .2, (apexY + y) / 2, x + s * r * .3, y - r * .02);
+	}
+	ctx.stroke();
+	if (glow > .05) {
+		ctx.strokeStyle = mix(tint, [
+			255,
+			255,
+			255
+		], .3, glow * .8);
+		ctx.lineWidth = 1.5 + glow * 2;
+		ctx.stroke();
+	}
+	if (underside) drawGills(x, y, r, tint, trip);
+}
+function drawSpores(dt) {
+	for (let i = spores.length - 1; i >= 0; i--) {
+		const s = spores[i];
+		s.life -= dt * .35;
+		if (s.life <= 0) {
+			spores.splice(i, 1);
+			continue;
+		}
+		s.vx += Math.sin(clock.time * 2 + s.y * .05) * 6 * dt;
+		s.x += s.vx * dt;
+		s.y += s.vy * dt;
+		ctx.fillStyle = color(s.k, s.life * .9, 85);
+		fillCircle(ctx, s.x, s.y, 1 + s.life * 1.5);
+	}
+}
+function releaseSpores(count) {
+	for (let n = 0; n < count && mushrooms.length; n++) {
+		const m = mushrooms[Math.floor(Math.random() * mushrooms.length)];
+		const p = project(m);
+		spores.push({
+			x: p.x + rnd(-1, 1) * p.scale * .1,
+			y: p.y + rnd(-1, 1) * p.scale * .1,
+			vx: rnd(-14, 14),
+			vy: rnd(-24, 8),
+			life: rnd(.6, 1),
+			k: Math.random() * 4
+		});
+	}
+	while (spores.length > 400) spores.shift();
 }
 var shroom = {
 	name: "shroom",
-	fade: 1,
-	bloom: .2,
+	fade: .6,
+	zoom: 1.006,
+	bloom: .5,
 	blend: "source-over",
 	beatRings: false,
 	palettes: [
 		"mushroom",
-		"candy",
-		"acid",
 		"forest",
-		"peach"
+		"sepia",
+		"wine",
+		"ultraviolet",
+		"toxic",
+		"lava",
+		"void"
 	],
+	beat() {
+		glow = 1;
+		surge = Math.max(surge, .5 + audio.bass * .5);
+		for (const m of mushrooms) if (Math.random() < .6) m.pulse = 0;
+		releaseSpores(10 + Math.floor(audio.bass * 30));
+	},
 	resize() {
 		mushrooms = [];
 	},
-	draw() {
-		const { cx, cy, min } = view;
+	draw(dt) {
+		const { width, height, cx, cy, min } = view;
 		const time = clock.time;
-		if (!mushrooms.length) plant();
-		ctx.lineWidth = min * .02;
-		for (let i = 1; i <= 10; i++) {
-			const r = i * min * .09 * (1 + audio.bass * .15) + Math.sin(time * 2 + i) * min * .01;
-			ctx.strokeStyle = color(i * .4 + time * .3, .25 + audio.mid * .3, 60);
-			ctx.beginPath();
-			for (let a = 0; a <= 64; a++) {
-				const angle = a / 64 * TAU;
-				const rr = r * (1 + .06 * Math.sin(angle * 6 + time * 3 + i));
-				pathPoint(ctx, a, cx + Math.cos(angle) * rr, cy + Math.sin(angle) * rr);
-			}
-			ctx.closePath();
-			ctx.stroke();
+		if (!mushrooms.length) mushrooms = Array.from({ length: COUNT }, () => spawn(false));
+		glow = Math.max(0, glow - dt * 1.8);
+		surge = Math.max(0, surge - dt * 1.2);
+		const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, min * .8);
+		aura.addColorStop(0, color(time * .1, .12 + audio.bass * .2 + glow * .1, 60));
+		aura.addColorStop(1, color(time * .1 + 1, 0, 60));
+		ctx.fillStyle = aura;
+		ctx.fillRect(0, 0, width, height);
+		for (let i = 0; i < mushrooms.length; i++) {
+			const m = mushrooms[i];
+			crawl(m, dt);
+			const p = project(m);
+			if (m.z < NEAR || Math.abs(p.x - cx) > width || Math.abs(p.y - cy) > height) mushrooms[i] = spawn(true);
 		}
-		for (const mushroom of mushrooms) drawMushroom(mushroom);
+		mushrooms.sort((a, b) => b.z - a.z);
+		drawMycelium();
+		if (Math.random() < .3 + audio.high) releaseSpores(1);
+		const trip = Math.min(1, .12 + audio.bass * .55 + glow * .25);
+		for (const m of mushrooms) drawMushroom(m, trip);
+		drawSpores(dt);
+	}
+};
+//#endregion
+//#region src/modes/slime.ts
+/**
+* Slime mold (Physarum), after Jeff Jones's agent model (2010): thousands of agents
+* smell the trail in front of them, turn toward the strongest scent and lay more
+* trail. The trail spreads and fades, and the agents build living networks.
+* Bass: speed and scent strength. Mid: how wide they smell. Treble: how sharply they
+* turn. Beat: a burst of spores somewhere on the screen.
+*/
+var layer = new PixelLayer();
+var gridW = 0;
+var gridH = 0;
+var trail = /* @__PURE__ */ new Float32Array(0);
+var spread = /* @__PURE__ */ new Float32Array(0);
+/** Agent positions (grid cells) and headings (radians). */
+var agentX = /* @__PURE__ */ new Float32Array(0);
+var agentY = /* @__PURE__ */ new Float32Array(0);
+var heading = /* @__PURE__ */ new Float32Array(0);
+function setUp(w, h) {
+	gridW = w;
+	gridH = h;
+	layer.setSize(w, h);
+	trail = new Float32Array(w * h);
+	spread = new Float32Array(w * h);
+	const count = Math.round(Math.min(quality.level === 2 ? 14e3 : 8e3, w * h * .25));
+	agentX = new Float32Array(count);
+	agentY = new Float32Array(count);
+	heading = new Float32Array(count);
+	for (let i = 0; i < count; i++) {
+		const a = Math.random() * TAU;
+		const r = Math.min(w, h) * rnd(.2, .4);
+		agentX[i] = w / 2 + Math.cos(a) * r;
+		agentY[i] = h / 2 + Math.sin(a) * r;
+		heading[i] = a + Math.PI;
+	}
+}
+/** Trail strength at `distance` cells from (x, y) in direction `angle`; the grid wraps. */
+function smell(x, y, angle, distance) {
+	let ix = Math.floor(x + Math.cos(angle) * distance) % gridW;
+	let iy = Math.floor(y + Math.sin(angle) * distance) % gridH;
+	if (ix < 0) ix += gridW;
+	if (iy < 0) iy += gridH;
+	return trail[iy * gridW + ix];
+}
+function moveAgents(steps) {
+	const sensorAngle = .35 + audio.mid * .5;
+	const sensorDistance = 5 + audio.bass * 7;
+	const turn = (.25 + audio.high * .45) * steps;
+	const speed = (.7 + audio.bass * 1.8) * steps;
+	const deposit = (.6 + audio.bass * 1.2) * steps;
+	for (let i = 0; i < agentX.length; i++) {
+		const x = agentX[i];
+		const y = agentY[i];
+		let a = heading[i];
+		const front = smell(x, y, a, sensorDistance);
+		const left = smell(x, y, a - sensorAngle, sensorDistance);
+		const right = smell(x, y, a + sensorAngle, sensorDistance);
+		if (front < left && front < right) a += Math.random() < .5 ? turn : -turn;
+		else if (left > right && left > front) a -= turn;
+		else if (right > left && right > front) a += turn;
+		let nx = (x + Math.cos(a) * speed) % gridW;
+		let ny = (y + Math.sin(a) * speed) % gridH;
+		if (nx < 0) nx += gridW;
+		if (ny < 0) ny += gridH;
+		agentX[i] = nx;
+		agentY[i] = ny;
+		heading[i] = a;
+		trail[(ny | 0) * gridW + (nx | 0)] += deposit;
+	}
+}
+/** The trail spreads to the four neighbours and fades. */
+function diffuse(steps) {
+	const w = gridW;
+	const h = gridH;
+	const keep = Math.pow(.9, steps) / 8;
+	for (let y = 0; y < h; y++) {
+		const row = y * w;
+		const up = (y + h - 1) % h * w;
+		const down = (y + 1) % h * w;
+		for (let x = 0; x < w; x++) {
+			const left = x === 0 ? w - 1 : x - 1;
+			const right = x === w - 1 ? 0 : x + 1;
+			spread[row + x] = (trail[row + x] * 4 + trail[row + left] + trail[row + right] + trail[up + x] + trail[down + x]) * keep;
+		}
+	}
+	[trail, spread] = [spread, trail];
+}
+var slime = {
+	name: "slime",
+	fade: 1,
+	bloom: .7,
+	blend: "source-over",
+	beatRings: false,
+	palettes: [
+		"toxic",
+		"phosphor",
+		"acid",
+		"deep sea",
+		"forest",
+		"lava",
+		"void"
+	],
+	beat() {
+		if (!agentX.length) return;
+		const x = Math.random() * gridW;
+		const y = Math.random() * gridH;
+		const count = Math.floor(agentX.length * (.04 + audio.bass * .1));
+		for (let n = 0; n < count; n++) {
+			const i = Math.floor(Math.random() * agentX.length);
+			const a = Math.random() * TAU;
+			agentX[i] = x;
+			agentY[i] = y;
+			heading[i] = a;
+		}
+	},
+	resize() {
+		gridW = 0;
+	},
+	draw(dt) {
+		const { width, height } = view;
+		const cell = quality.level === 2 ? 3 : 4;
+		const w = Math.max(32, Math.min(360, Math.round(width / cell)));
+		const h = Math.max(24, Math.round(w * height / width));
+		if (w !== gridW || h !== gridH) setUp(w, h);
+		const steps = Math.min(3, dt * 60);
+		moveAgents(steps);
+		diffuse(steps);
+		const shift = clock.time * .05;
+		const ramp = colorRamp(256, (t) => colorRgb(t * 2.5 + shift, 6 + t * 92));
+		paintField(layer, trail, ramp, (v) => 1 - Math.exp(-v * .3));
+		ctx.imageSmoothingEnabled = true;
+		ctx.drawImage(layer.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -4044,14 +5489,14 @@ var k = 0;
 document.fonts?.load?.("700 40px Unbounded").catch(() => {});
 //#endregion
 //#region src/modes/index.ts
-/** All modes, in the order of the style menu and the ‹ › buttons. */
+/** All modes, in the order of the style menu and the ‹ › buttons. New modes go at the end. */
 var MODES = [
 	nebula,
 	halo,
 	tunnel,
 	kaleido,
 	grid,
-	flow,
+	flow$1,
 	fireworks,
 	scope,
 	bars,
@@ -4114,7 +5559,13 @@ var MODES = [
 	embers,
 	neon,
 	orb,
-	film
+	film,
+	slime,
+	coral,
+	cymatics,
+	datamatics,
+	attractor,
+	murmur
 ];
 //#endregion
 //#region src/render/beatRings.ts
@@ -4161,6 +5612,10 @@ var bloomLevels = [
 	createLayer(),
 	createLayer()
 ];
+/** LED wall look: one pixel per lamp, and a mask tile with a round hole. */
+var lamps = createLayer();
+var lampMask = createLayer();
+var lampPattern = null;
 var hasFilter = "filter" in CanvasRenderingContext2D.prototype;
 onResize(() => {
 	for (const layer of [
@@ -4238,6 +5693,47 @@ function tintedCopy(layer, tint) {
 	layer.ctx.globalCompositeOperation = "multiply";
 	layer.ctx.fillStyle = tint;
 	layer.ctx.fillRect(0, 0, layer.canvas.width, layer.canvas.height);
+}
+/**
+* The LED wall look: the picture at one pixel per lamp, scaled up without smoothing,
+* then a mask of dark gaps with round holes on top. On the display only, so the
+* gaps never feed back into the scene.
+*/
+function drawLedWall() {
+	const d = displayCtx;
+	const dw = display.width;
+	const dh = display.height;
+	const lamp = Math.max(5, Math.round(view.min * view.dpr / 80));
+	const w = Math.ceil(dw / lamp);
+	const h = Math.ceil(dh / lamp);
+	setCanvasSize(lamps.canvas, w, h);
+	lamps.ctx.imageSmoothingEnabled = true;
+	lamps.ctx.drawImage(display, 0, 0, w, h);
+	if (lampMask.canvas.width !== lamp || !lampPattern) {
+		setCanvasSize(lampMask.canvas, lamp, lamp);
+		const m = lampMask.ctx;
+		m.clearRect(0, 0, lamp, lamp);
+		m.fillStyle = "rgba(0,0,0,0.92)";
+		m.fillRect(0, 0, lamp, lamp);
+		m.globalCompositeOperation = "destination-out";
+		const hole = m.createRadialGradient(lamp / 2, lamp / 2, 0, lamp / 2, lamp / 2, lamp * .46);
+		hole.addColorStop(0, "rgba(0,0,0,1)");
+		hole.addColorStop(.7, "rgba(0,0,0,0.95)");
+		hole.addColorStop(1, "rgba(0,0,0,0)");
+		m.fillStyle = hole;
+		m.fillRect(0, 0, lamp, lamp);
+		m.globalCompositeOperation = "source-over";
+		lampPattern = d.createPattern(lampMask.canvas, "repeat");
+	}
+	d.globalCompositeOperation = "copy";
+	d.imageSmoothingEnabled = false;
+	d.drawImage(lamps.canvas, 0, 0, w * lamp, h * lamp);
+	d.imageSmoothingEnabled = true;
+	d.globalCompositeOperation = "source-over";
+	if (lampPattern) {
+		d.fillStyle = lampPattern;
+		d.fillRect(0, 0, dw, dh);
+	}
 }
 function drawTransition(dt, light) {
 	const d = displayCtx;
@@ -4322,6 +5818,7 @@ function composite(mode, dt) {
 		d.fillStyle = cssRgba(colorRgb(0, light ? 55 : 75), beat * beat * (light ? .12 : .16));
 		d.fillRect(0, 0, dw, dh);
 	}
+	if (scene.look.ledWall) drawLedWall();
 	if (transition.t > 0) drawTransition(dt, light);
 	d.globalCompositeOperation = "source-over";
 	const R = Math.hypot(dw, dh) / 2;

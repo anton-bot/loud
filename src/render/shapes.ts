@@ -51,7 +51,10 @@ export function starPath(ctx: Ctx, r: number, inner: number): void {
   ctx.closePath();
 }
 
-/** Starts a closed wobbly blob. `wobble` 0 is a circle; `seed` sets the shape. */
+/**
+ * Starts a closed wobbly blob. `wobble` 0 is a circle; `seed` sets the shape; more
+ * `points` give a smoother edge.
+ */
 export function blobPath(
   ctx: Ctx,
   x: number,
@@ -59,9 +62,10 @@ export function blobPath(
   r: number,
   wobble: number,
   seed: number,
+  points = 20,
 ): void {
   ctx.beginPath();
-  const n = 20;
+  const n = points;
   for (let i = 0; i <= n; i++) {
     const a = (i / n) * TAU;
     const rr =
