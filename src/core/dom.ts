@@ -1,7 +1,7 @@
-/** The element with this id. Throws when loud.html does not have it. */
+/** The element with this id. Throws when index.html does not have it. */
 export function byId<T extends HTMLElement = HTMLElement>(id: string): T {
   const element = document.getElementById(id);
-  if (!element) throw new Error(`loud.html has no element #${id}`);
+  if (!element) throw new Error(`index.html has no element #${id}`);
   return element as T;
 }
 

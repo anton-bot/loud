@@ -3,7 +3,7 @@ import { scene, view } from '../../core/state';
 import { ctx } from '../canvases';
 
 /**
- * A typeface for the heard words. All come from Google Fonts in loud.html. A face
+ * A typeface for the heard words. All come from Google Fonts in index.html. A face
  * without Cyrillic names one with it next in its stack, and Noto Sans SC is always
  * last, for Chinese (and the Japanese kanji it shares).
  */

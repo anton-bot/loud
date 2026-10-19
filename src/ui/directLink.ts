@@ -23,7 +23,7 @@ export function offerDirectLink(): void {
   const href = location.href;
   if (!/^https?:/.test(href)) {
     setStatus(
-      'This viewer gives the page no address of its own, so the mic cannot be granted here. Use the demo beat or a file, or serve loud.html over http(s).',
+      'This viewer gives the page no address of its own, so the mic cannot be granted here. Open the page in its own tab, or serve index.html over http(s).',
     );
     return;
   }

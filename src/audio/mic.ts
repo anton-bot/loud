@@ -49,7 +49,7 @@ function errorName(error: unknown): string {
 function micCanWork(): boolean {
   if (!/^https?:$/.test(location.protocol)) {
     setStatus(
-      `The mic needs an http(s) address, not ${location.protocol}//. Serve loud.html, for example with: python -m http.server 8000`,
+      `The mic needs an http(s) address, not ${location.protocol}//. Serve index.html, for example with: python -m http.server 8000`,
     );
     return false;
   }

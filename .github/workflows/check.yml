@@ -20,11 +20,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm build
-      - name: loud.html is built from the current source
-        run: git diff --exit-code -- loud.html
+      - name: index.html is built from the current source
+        run: git diff --exit-code -- index.html
 
   visual:
-    # Renders loud.html of the pull request and of its base with the same random numbers
+    # Renders index.html of the pull request and of its base with the same random numbers
     # and compares the pictures. With the visual-change label it only reports.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

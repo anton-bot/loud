@@ -2,9 +2,9 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
-// The app ships as ONE self-contained file (loud.html): it must still work when it is
+// The app ships as ONE self-contained file (index.html): it must still work when it is
 // opened from disk, uploaded somewhere, or shown inside an HTML viewer. `pnpm build`
-// writes dist/loud.html and copies it to the repository root, where GitHub Pages serves it.
+// writes dist/index.html and copies it to the repository root, where GitHub Pages serves it.
 export default defineConfig({
   root: resolve(import.meta.dirname, 'src'),
   base: './',
@@ -17,7 +17,7 @@ export default defineConfig({
     modulePreload: { polyfill: false },
     outDir: resolve(import.meta.dirname, 'dist'),
     emptyOutDir: true,
-    rollupOptions: { input: resolve(import.meta.dirname, 'src/loud.html') },
+    rollupOptions: { input: resolve(import.meta.dirname, 'src/index.html') },
   },
-  server: { open: '/loud.html' },
+  server: { open: '/' },
 });

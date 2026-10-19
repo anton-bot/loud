@@ -1,12 +1,12 @@
 /**
- * Test harness for the visual regression test (compare.mjs puts it into loud.html,
+ * Test harness for the visual regression test (compare.mjs puts it into the app,
  * before the app starts). It makes every run repeatable:
  *   - Math.random is a seeded generator. The seed comes from `?seed=` in the URL.
  *   - performance.now is a fake clock, and requestAnimationFrame only queues the
  *     callback. Frames run when the test calls `step()`, 60 per fake second.
  *   - Every 2D canvas renders in software, so that the GPU cannot change the pixels.
  * It uses only the page's canvas and its keyboard shortcuts, so it also works with
- * older builds of loud.html.
+ * older builds of the app.
  */
 (() => {
   let seed = Number(new URLSearchParams(location.search).get('seed') || 1) >>> 0;

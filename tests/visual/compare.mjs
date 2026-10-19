@@ -1,11 +1,11 @@
 // @ts-check
 /**
- * Visual regression test for loud.html.
+ * Visual regression test for the app (index.html; loud.html before the rename).
  *
- * Renders two builds of loud.html with the same seeded random numbers and the same
+ * Renders two builds of the app with the same seeded random numbers and the same
  * fake clock (see harness.js), and compares the pictures frame by frame:
- *   base  loud.html at a git commit (default: HEAD, the last commit), or a file
- *   head  loud.html in the working tree (default), or a file
+ *   base  the app at a git commit (default: HEAD, the last commit), or a file
+ *   head  index.html in the working tree (default), or a file
  * Both builds run in the same browser on the same machine. So the result does not
  * depend on the GPU, the CPU or the fonts, and no reference pictures are stored.
  *
@@ -53,7 +53,7 @@ const root = join(here, '..', '..');
 const { values: options } = parseArgs({
   options: {
     base: { type: 'string', default: 'HEAD' },
-    head: { type: 'string', default: join(root, 'loud.html') },
+    head: { type: 'string', default: join(root, 'index.html') },
     browser: { type: 'string', default: 'chrome' },
     quick: { type: 'boolean', default: false },
     'report-only': { type: 'boolean', default: false },
@@ -61,16 +61,28 @@ const { values: options } = parseArgs({
 });
 
 /**
- * The HTML of a build: a file, or loud.html at a git ref.
+ * The HTML of a build: a file, or the app at a git ref. The app was loud.html before
+ * it became index.html (and for a while index.html only forwarded to loud.html), so
+ * take whichever of the two has the app's canvas.
  * @param {string} source
  */
 function readBuild(source) {
   if (existsSync(source)) return readFileSync(source, 'utf8');
-  return execFileSync('git', ['show', `${source}:loud.html`], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  for (const file of ['index.html', 'loud.html']) {
+    let html = '';
+    try {
+      html = execFileSync('git', ['show', `${source}:${file}`], {
+        cwd: root,
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024 * 1024,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+    } catch {
+      continue;
+    }
+    if (html.includes('id="display"')) return html;
+  }
+  throw new Error(`No build of the app at ${source}`);
 }
 
 const harness = readFileSync(join(here, 'harness.js'), 'utf8');

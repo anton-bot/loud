@@ -6,8 +6,9 @@ mirror, glitch, LED wall and others).
 
 **Open <https://loud.ivanov.hk>, tap Mic and play some music.**
 
-`loud.html` is one self-contained file. The mic needs an http or https address, so serve the file
-(for example `python -m http.server 8000`) when you use a local copy.
+The app is one self-contained file, `index.html` (the old `loud.html` address forwards to it). The
+mic needs an http or https address, so serve the file (for example `python -m http.server 8000`)
+when you use a local copy.
 
 ## Controls
 
@@ -103,25 +104,25 @@ You need Node.js 22 and pnpm.
 
 ```bash
 pnpm install
-pnpm dev          # dev server with live reload: http://localhost:5173/loud.html
-pnpm build        # type check, then build loud.html (copied to the repository root)
+pnpm dev          # dev server with live reload: http://localhost:5173/
+pnpm build        # type check, then build index.html (copied to the repository root)
 pnpm typecheck
 pnpm format       # Prettier
 ```
 
-The source is in `src/`. **Do not edit `loud.html` in the repository root by hand**: `pnpm build`
-writes it, and GitHub Pages serves it from there. The CI check fails when `loud.html` does not match
-the source. The build is not minified, so the deployed file stays readable.
+The source is in `src/`. **Do not edit `index.html` in the repository root by hand**: `pnpm build`
+writes it, and GitHub Pages serves it from there. The CI check fails when `index.html` does not
+match the source. `loud.html` in the root is a small hand-written page that forwards old links. The build is not minified, so the deployed file stays readable.
 
 ### Visual regression test
 
 ```bash
 pnpm build
-pnpm test:visual                        # loud.html against the last commit
-pnpm test:visual --base origin/master   # loud.html against master
+pnpm test:visual                        # index.html against the last commit
+pnpm test:visual --base origin/master   # index.html against master
 ```
 
-The test renders two builds of `loud.html` in Chrome with the same seeded random numbers and a fake
+The test renders two builds of the app in Chrome with the same seeded random numbers and a fake
 clock, and compares the pictures frame by frame: every mode, palette and look, and two long runs
 with scene changes. Both builds run on the same machine in the same browser, so the result does not
 depend on the GPU, the CPU or the fonts, and there are no reference pictures to keep up to date. It
