@@ -4,8 +4,9 @@
  * into vortices, and the ink stays and mixes. The mids stir the whole tank; the bass
  * gives the jets force.
  *
- * Each frame: add forces, make the flow incompressible (projection), move the flow
- * along itself (advection), project again, then move the ink along the flow.
+ * Each frame: add forces, keep the swirls tight (vorticity confinement, which puts back
+ * the spin that the coarse grid smears out), make the flow incompressible (projection),
+ * move the flow along itself (advection), project again, then move the ink along it.
  */
 import { rnd } from '../core/math';
 import { audio, clock, view } from '../core/state';
@@ -36,6 +37,7 @@ let pressure = new Float32Array(0);
 let divergence = new Float32Array(0);
 let ink: Float32Array[] = [];
 let scratch = new Float32Array(0);
+let curl = new Float32Array(0);
 let jets: Jet[] = [];
 let beats = 0;
 let lastJet = -1e9;
@@ -52,6 +54,7 @@ function setUp(width: number, height: number): void {
   divergence = new Float32Array(n);
   ink = [new Float32Array(n), new Float32Array(n), new Float32Array(n)];
   scratch = new Float32Array(n);
+  curl = new Float32Array(n);
   layer.setSize(nx, ny);
 }
 
@@ -70,6 +73,27 @@ function advect(dst: Float32Array, src: Float32Array, k: number): void {
       dst[i] =
         (src[a] * (1 - fx) + src[a + 1] * fx) * (1 - fy) +
         (src[a + nx] * (1 - fx) + src[a + nx + 1] * fx) * fy;
+    }
+  }
+}
+
+/** Pushes the flow around each swirl's centre, so swirls stay tight and curly. */
+function confineVorticity(strength: number): void {
+  for (let y = 1; y < ny - 1; y++) {
+    for (let x = 1; x < nx - 1; x++) {
+      const i = x + y * nx;
+      curl[i] = 0.5 * (v[i + 1] - v[i - 1] - (u[i + nx] - u[i - nx]));
+    }
+  }
+  for (let y = 2; y < ny - 2; y++) {
+    for (let x = 2; x < nx - 2; x++) {
+      const i = x + y * nx;
+      // Toward stronger spin.
+      const gx = 0.5 * (Math.abs(curl[i + 1]) - Math.abs(curl[i - 1]));
+      const gy = 0.5 * (Math.abs(curl[i + nx]) - Math.abs(curl[i - nx]));
+      const length = Math.hypot(gx, gy) + 1e-5;
+      u[i] += strength * (gy / length) * curl[i];
+      v[i] -= strength * (gx / length) * curl[i];
     }
   }
 }
@@ -179,6 +203,7 @@ export const inkMode: Mode = {
         v[i] = (v[i] + (x - nx / 2) * stir) * 0.997;
       }
     }
+    confineVorticity(0.25 * k * (1 + audio.high));
 
     project();
     u0.set(u);

@@ -8,8 +8,12 @@
  * chicane) come one after another. The car brakes hard before each corner, rolls into
  * it with the head pushed to the outside, and accelerates sharply out of it. Louder
  * music raises the top speed, beats kick the throttle, and a drop opens the DRS.
+ *
+ * Rival cars appear ahead, slower on the straights: the car hunts them down and
+ * passes, and the race position on the wheel counts up. Their rain lights blink, and
+ * on bass hits their floors throw sparks.
  */
-import { clamp, hash01, rnd, TAU } from '../core/math';
+import { clamp, hash01, rnd, rndInt, TAU } from '../core/math';
 import { audio, clock, view } from '../core/state';
 import { ctx } from '../render/canvases';
 import { color } from '../render/color';
@@ -49,6 +53,31 @@ let heading = 0;
 let gear = 1;
 let shiftFlash = 0;
 let kick = 0;
+
+interface Rival {
+  /** Segments ahead of the eye. */
+  z: number;
+  /** Across the road, in world units from its middle. */
+  x: number;
+  /** Its own line: left or right of ours, so the halo pillar does not hide it. */
+  lane: number;
+  k: number;
+}
+
+interface Spark {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+}
+
+let rivals: Rival[] = [];
+let sparks: Spark[] = [];
+let nextRival = 0;
+/** Race position shown on the wheel; each pass gains one. */
+let position = 14;
+let lastPass = -1e9;
 
 const px = new Float32Array(DRAW + 1);
 const py = new Float32Array(DRAW + 1);
@@ -386,6 +415,144 @@ function drawTrackside(): void {
   }
 }
 
+/** Rivals: they come into view far ahead, are slower on the straights, and get passed. */
+function updateRivals(dt: number): void {
+  if (rivals.length < 2 && clock.time > nextRival) {
+    const lane = (Math.random() < 0.5 ? -1 : 1) * rnd(0.3, 0.5);
+    rivals.push({ z: DRAW * 0.6, x: lane, lane, k: rndInt(5) });
+    nextRival = clock.time + rnd(4, 9);
+  }
+  const straight = !sectionAt(distance).curve;
+  for (const rival of rivals) {
+    // Catch up fast from far away, slowly when close: the last part is a duel.
+    const pace = !straight ? 0.98 : rival.z > 20 ? 0.86 : rival.z > 7 ? 0.93 : 0.975;
+    rival.z += (speed * pace - speed) * dt;
+    // Close behind it: it is pushed aside as the car passes.
+    const target = rival.z < 4 ? camX + Math.sign(rival.lane) * 0.85 : camX * 0.5 + rival.lane;
+    rival.x += (clamp(target, -0.8, 0.8) - rival.x) * Math.min(1, dt * 3);
+  }
+  const before = rivals.length;
+  rivals = rivals.filter((rival) => rival.z > 0.6);
+  if (rivals.length < before) {
+    position = Math.max(1, position - (before - rivals.length));
+    lastPass = clock.time;
+  }
+  // A new race once the car has led for a while.
+  if (position === 1 && clock.time - lastPass > 20) position = 14;
+  sparks = sparks.filter((spark) => (spark.life -= dt * 1.6) > 0);
+}
+
+/** Where a point `z` segments ahead and `x` across lands on the screen, and its scale. */
+function place(z: number, x: number): [number, number, number] | null {
+  const n = z - 1 + (distance - Math.floor(distance));
+  if (n < 0 || n >= DRAW) return null;
+  const i = Math.floor(n);
+  const t = n - i;
+  const s = ps[i] + (ps[i + 1] - ps[i]) * t;
+  return [px[i] + (px[i + 1] - px[i]) * t + x * s, py[i] + (py[i + 1] - py[i]) * t, s];
+}
+
+/** A rival seen from behind: tyres, diffuser, rear wing in its team colour and the rain light. */
+function drawRival(rival: Rival): void {
+  const at = place(rival.z, rival.x);
+  if (!at) return;
+  // Drawn more than twice its true size: a stylized car that reads from far away.
+  const [x, y, scale] = at;
+  const s = scale * 2.4;
+  const fade = clamp(1.6 - (rival.z / DRAW) * 2, 0, 1);
+  ctx.globalAlpha = fade;
+  const body = '#08070d';
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 0.22 * s, 0.03 * s, 0, 0, TAU);
+  ctx.fill();
+  // Rear tyres.
+  ctx.fillStyle = '#040406';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.roundRect(x + side * 0.135 * s - 0.05 * s, y - 0.13 * s, 0.1 * s, 0.13 * s, 0.02 * s);
+    ctx.fill();
+  }
+  // Body, diffuser and engine cover.
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.moveTo(x - 0.09 * s, y - 0.01 * s);
+  ctx.lineTo(x + 0.09 * s, y - 0.01 * s);
+  ctx.lineTo(x + 0.05 * s, y - 0.12 * s);
+  ctx.lineTo(x + 0.01 * s, y - 0.2 * s);
+  ctx.lineTo(x - 0.01 * s, y - 0.2 * s);
+  ctx.lineTo(x - 0.05 * s, y - 0.12 * s);
+  ctx.closePath();
+  ctx.fill();
+  // Rear wing on two endplates; the top flap lifts when the DRS is open.
+  const team = rival.k;
+  const drs = audio.drop > 0.3 ? 0.025 * s : 0;
+  ctx.fillStyle = color(team, 1, 62);
+  ctx.fillRect(x - 0.14 * s, y - 0.2 * s, 0.28 * s, 0.03 * s);
+  ctx.fillRect(x - 0.14 * s, y - 0.235 * s - drs, 0.28 * s, 0.02 * s);
+  ctx.fillStyle = body;
+  for (const side of [-1, 1])
+    ctx.fillRect(x + side * 0.14 * s - 0.01 * s, y - 0.25 * s, 0.02 * s, 0.17 * s);
+  // A neon outline of the wing and the tyres, so the car reads at night.
+  ctx.beginPath();
+  ctx.rect(x - 0.15 * s, y - 0.25 * s - drs, 0.3 * s, 0.17 * s + drs);
+  for (const side of [-1, 1]) {
+    ctx.roundRect(x + side * 0.135 * s - 0.05 * s, y - 0.13 * s, 0.1 * s, 0.13 * s, 0.02 * s);
+  }
+  neonStroke(ctx, team, Math.max(0.8, 0.008 * s), fade);
+  // The rain light blinks.
+  if (Math.floor(clock.time * 6 + rival.k) % 2) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const glow = ctx.createRadialGradient(x, y - 0.06 * s, 0, x, y - 0.06 * s, 0.07 * s);
+    glow.addColorStop(0, `rgba(255,40,60,${fade})`);
+    glow.addColorStop(1, 'rgba(255,40,60,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - 0.07 * s, y - 0.13 * s, 0.14 * s, 0.14 * s);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** Sparks from a rival's floor on a bass hit, flying back at the eye. */
+function throwSparks(): void {
+  for (const rival of rivals) {
+    if (rival.z > 45) continue;
+    const at = place(rival.z, rival.x);
+    if (!at) continue;
+    const [x, y, s] = at;
+    const count = 12 + Math.round(audio.bass * 20);
+    for (let i = 0; i < count; i++) {
+      sparks.push({
+        x: x + rnd(-0.1, 0.1) * s,
+        y: y - 0.01 * s,
+        vx: rnd(-1, 1) * s * 2.5,
+        vy: rnd(0.2, 1.5) * s * 2.5,
+        life: rnd(0.5, 1),
+      });
+    }
+  }
+}
+
+function drawSparks(dt: number): void {
+  if (!sparks.length) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255,214,140,0.9)';
+  ctx.beginPath();
+  for (const spark of sparks) {
+    spark.vy += view.height * 2 * dt;
+    spark.x += spark.vx * dt;
+    spark.y += spark.vy * dt;
+    ctx.moveTo(spark.x, spark.y);
+    ctx.lineTo(spark.x - spark.vx * 0.025 * spark.life, spark.y - spark.vy * 0.025 * spark.life);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawSpeedLines(horizon: number): void {
   const amount = clamp((speed - 60) / 50, 0, 1) + audio.drop;
   if (amount <= 0.02) return;
@@ -606,8 +773,13 @@ function drawCockpit(horizon: number): void {
   ctx.fillStyle = '#e8e6f0';
   ctx.fillText(`${Math.round(speed * KMH)} KM/H`, 0, u * 0.017);
   const g = Math.hypot(latG, longG) * 5;
-  ctx.fillStyle = audio.drop > 0.3 ? '#2bff6a' : color(2, 1, 70);
-  ctx.fillText(audio.drop > 0.3 ? 'DRS OPEN' : `${g.toFixed(1)} G`, 0, u * 0.029);
+  const passed = clock.time - lastPass < 1.2;
+  ctx.fillStyle = audio.drop > 0.3 || passed ? '#2bff6a' : color(2, 1, 70);
+  ctx.fillText(
+    audio.drop > 0.3 ? 'DRS OPEN' : passed ? `P${position}  +1` : `P${position}  ${g.toFixed(1)}G`,
+    0,
+    u * 0.029,
+  );
   ctx.restore();
 }
 
@@ -621,6 +793,7 @@ export const f1: Mode = {
 
   beat() {
     kick = Math.min(1, kick + 0.5 + audio.bass * 0.5);
+    if (audio.bass > 0.4) throwSparks();
   },
 
   resize() {
@@ -631,6 +804,7 @@ export const f1: Mode = {
     const { width, height, cx } = view;
     const step = Math.min(dt, 1 / 20);
     drive(step);
+    updateRivals(step);
 
     // Braking pitches the view down (the horizon rises); accelerating, up.
     const horizon = height * 0.46 + longG * height * 0.045;
@@ -653,6 +827,8 @@ export const f1: Mode = {
     drawGround(horizon);
     drawRoad();
     drawTrackside();
+    for (const rival of [...rivals].sort((a, b) => b.z - a.z)) drawRival(rival);
+    drawSparks(step);
     drawSpeedLines(horizon);
     ctx.restore();
 
