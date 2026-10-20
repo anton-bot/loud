@@ -11,6 +11,7 @@ import type { Mode } from '../modes';
 import { ctx, display, displayCtx, onResize, sceneCanvas } from './canvases';
 import { backgroundGradient, colorRgb } from './color';
 import { quality } from './quality';
+import { lookSource } from './lookSource';
 import { speckle, vignette } from './shapes';
 
 /** The outgoing frame of a transition. */
@@ -74,6 +75,9 @@ export function startTransition(duration: number, clearScene: boolean): void {
   transition.t = 1;
 }
 
+/** What the compositor shows this frame: the scene, or what the look makes of it. */
+let source: HTMLCanvasElement = sceneCanvas;
+
 /** Bright-pass and blur into the bloom pyramid. */
 function renderBloom(): void {
   const levels = quality.level >= 1 ? 3 : 2;
@@ -87,7 +91,7 @@ function renderBloom(): void {
   first.ctx.globalCompositeOperation = 'copy';
   first.ctx.imageSmoothingEnabled = true;
   if (hasFilter) first.ctx.filter = 'brightness(0.62) contrast(2.6) saturate(1.35)';
-  first.ctx.drawImage(sceneCanvas, 0, 0, first.canvas.width, first.canvas.height);
+  first.ctx.drawImage(source, 0, 0, first.canvas.width, first.canvas.height);
   if (hasFilter) first.ctx.filter = 'none';
   for (let i = 1; i < levels; i++) {
     const layer = bloomLevels[i];
@@ -105,7 +109,7 @@ function tintedCopy(
   tint: string,
 ): void {
   layer.ctx.globalCompositeOperation = 'copy';
-  layer.ctx.drawImage(sceneCanvas, 0, 0);
+  layer.ctx.drawImage(source, 0, 0, layer.canvas.width, layer.canvas.height);
   layer.ctx.globalCompositeOperation = 'multiply';
   layer.ctx.fillStyle = tint;
   layer.ctx.fillRect(0, 0, layer.canvas.width, layer.canvas.height);
@@ -241,6 +245,7 @@ function drawDrop(d: CanvasRenderingContext2D, dw: number, dh: number, light: bo
 
 export function composite(mode: Mode, dt: number): void {
   frameNumber++;
+  source = lookSource(dt);
   const d = displayCtx;
   const beat = audio.beat;
   const light = !!scene.palette.light;
@@ -276,7 +281,7 @@ export function composite(mode: Mode, dt: number): void {
     d.globalCompositeOperation = 'lighter';
     d.drawImage(cyan.canvas, x + split, y + split * 0.3, dw * zoom, dh * zoom);
   } else {
-    d.drawImage(sceneCanvas, x, y, dw * zoom, dh * zoom);
+    d.drawImage(source, x, y, dw * zoom, dh * zoom);
   }
   d.restore();
 

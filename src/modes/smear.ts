@@ -11,6 +11,7 @@ import { audio, clock, view } from '../core/state';
 import { cameraVideo } from '../input/camera';
 import { ctx } from '../render/canvases';
 import { PixelLayer } from '../render/pixelLayer';
+import { drawDancers } from './dancers';
 import type { Mode } from './mode';
 
 type TimeMap = 'rows' | 'rings' | 'columns' | 'waves';
@@ -42,62 +43,6 @@ function drawCamera(video: HTMLVideoElement, w: number, h: number): void {
   sourceCtx.drawImage(video, (w - dw) / 2, (h - dh) / 2, dw, dh);
 }
 
-function limb(x1: number, y1: number, x2: number, y2: number): void {
-  sourceCtx.beginPath();
-  sourceCtx.moveTo(x1, y1);
-  sourceCtx.lineTo(x2, y2);
-  sourceCtx.stroke();
-}
-
-/** Three dancing figures under stage lights, for when there is no camera. */
-function drawDancers(w: number, h: number): void {
-  const g = sourceCtx;
-  const t = clock.time;
-  const beat = audio.beats + (1 - audio.beat) * 0.5;
-  g.fillStyle = '#0a0710';
-  g.fillRect(0, 0, w, h);
-  for (let k = 0; k < 3; k++) {
-    const x = w * (0.2 + k * 0.3) + Math.sin(t * 0.7 + k) * w * 0.15;
-    const light = g.createLinearGradient(x, 0, x, h);
-    light.addColorStop(0, `hsla(${k * 120 + t * 20},100%,60%,${0.35 + audio.beat * 0.3})`);
-    light.addColorStop(1, 'hsla(0,0%,0%,0)');
-    g.fillStyle = light;
-    g.beginPath();
-    g.moveTo(x - 3, 0);
-    g.lineTo(x + 3, 0);
-    g.lineTo(x + w * 0.18, h);
-    g.lineTo(x - w * 0.18, h);
-    g.closePath();
-    g.fill();
-  }
-  [
-    [0.24, 0.55, 0, 330],
-    [0.52, 0.6, 1.3, 190],
-    [0.79, 0.52, 2.6, 50],
-  ].forEach(([px, py, offset, hue], i) => {
-    const s = h * 0.2;
-    const swing = Math.sin(beat * Math.PI + offset);
-    g.save();
-    g.translate(w * px + Math.sin(t * (0.6 + i * 0.25) + i * 2) * w * 0.05, h * py);
-    g.translate(0, -Math.abs(Math.sin(beat * Math.PI)) * s * 0.18);
-    g.rotate(swing * 0.12);
-    g.strokeStyle = g.fillStyle = `hsl(${hue},95%,72%)`;
-    g.lineWidth = s * 0.24;
-    g.lineCap = 'round';
-    g.beginPath();
-    g.arc(0, -s * 1.1, s * 0.28, 0, TAU);
-    g.fill();
-    limb(0, -s * 0.8, 0, s * 0.2);
-    const left = -2.3 + swing * 0.9;
-    const right = -0.85 - swing * 0.9;
-    limb(0, -s * 0.62, Math.cos(left) * s * 0.8, -s * 0.62 + Math.sin(left) * s * 0.8);
-    limb(0, -s * 0.62, Math.cos(right) * s * 0.8, -s * 0.62 + Math.sin(right) * s * 0.8);
-    limb(0, s * 0.2, -s * 0.35 - swing * s * 0.15, s * 0.95);
-    limb(0, s * 0.2, s * 0.35 - swing * s * 0.15, s * 0.95);
-    g.restore();
-  });
-}
-
 export const smear: Mode = {
   name: 'time-smear',
   fade: 1,
@@ -121,7 +66,7 @@ export const smear: Mode = {
     if (!frames.length || source.width !== w || source.height !== h) setUp(w, h);
     const video = cameraVideo();
     if (video) drawCamera(video, w, h);
-    else drawDancers(w, h);
+    else drawDancers(sourceCtx, w, h);
     frames[head].set(sourceCtx.getImageData(0, 0, w, h).data);
 
     const kind = MAPS[map];

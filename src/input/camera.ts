@@ -9,7 +9,7 @@ import { setStatus } from '../ui/status';
 const LIMIT_MS = 60 * 60 * 1000;
 const IDLE_MS = 2500;
 
-type State = 'off' | 'asking' | 'on' | 'failed' | 'expired';
+export type State = 'off' | 'asking' | 'on' | 'failed' | 'expired';
 let state: State = 'off';
 let stream: MediaStream | null = null;
 let video: HTMLVideoElement | null = null;
@@ -63,6 +63,11 @@ async function start(): Promise<void> {
   camera.allowed = true;
   startedAt = performance.now();
   setStatus('Camera on. Point it at the dance floor.');
+}
+
+/** What the camera is doing: off, asking for permission, on, failed (no camera or refused), or expired (after 1 hour). */
+export function cameraState(): State {
+  return state;
 }
 
 /** The live camera picture, or null (not ready, not allowed, or no camera). */

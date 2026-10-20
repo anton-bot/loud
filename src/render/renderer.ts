@@ -9,8 +9,38 @@ import { ctx, sceneCanvas } from './canvases';
 import { backgroundGradient } from './color';
 import { composite } from './compositor';
 import { applyLookEffects } from './lookEffects';
+import { drawMashup } from './mashup';
 
-export function renderFrame(mode: Mode, dt: number): void {
+/** Camera shake on the beat, the hand-held jitter of some looks, and phone motion. */
+function moveCamera(moving: boolean): void {
+  const { width, height, cx, cy } = view;
+  let shakeX = 0;
+  let shakeY = 0;
+  if (audio.beat > 0.05) {
+    const k = audio.beat * audio.beat * 4;
+    shakeX += (Math.random() - 0.5) * k;
+    shakeY += (Math.random() - 0.5) * k;
+  }
+  const jitter = scene.look.jitter;
+  if (jitter) {
+    ctx.translate(cx, cy);
+    ctx.rotate((Math.random() - 0.5) * 0.02 * jitter);
+    ctx.translate(-cx, -cy);
+    shakeX += (Math.random() - 0.5) * 5 * jitter;
+    shakeY += (Math.random() - 0.5) * 5 * jitter;
+  }
+  ctx.translate(shakeX, shakeY);
+  if (moving) {
+    ctx.translate(cx, cy);
+    ctx.rotate(motion.tiltX * 0.12 + motion.spin * 0.3);
+    const z = 1 + motion.shake * 0.2;
+    ctx.scale(z, z);
+    ctx.translate(-cx + motion.tiltX * width * 0.1, -cy + motion.tiltY * height * 0.1);
+  }
+}
+
+/** Feedback, fade and one mode on the scene canvas; beat rings too when `rings`. */
+export function drawMode(mode: Mode, dt: number, rings: boolean): void {
   const { width, height, cx, cy } = view;
   const k60 = Math.min(3, dt * 60);
   const moving = motionIsActive();
@@ -58,33 +88,19 @@ export function renderFrame(mode: Mode, dt: number): void {
   ctx.globalAlpha = 1;
 
   ctx.save();
-  // Camera shake on the beat, plus the hand-held jitter of some looks.
-  let shakeX = 0;
-  let shakeY = 0;
-  if (audio.beat > 0.05) {
-    const k = audio.beat * audio.beat * 4;
-    shakeX += (Math.random() - 0.5) * k;
-    shakeY += (Math.random() - 0.5) * k;
-  }
-  const jitter = scene.look.jitter;
-  if (jitter) {
-    ctx.translate(cx, cy);
-    ctx.rotate((Math.random() - 0.5) * 0.02 * jitter);
-    ctx.translate(-cx, -cy);
-    shakeX += (Math.random() - 0.5) * 5 * jitter;
-    shakeY += (Math.random() - 0.5) * 5 * jitter;
-  }
-  ctx.translate(shakeX, shakeY);
-  if (moving) {
-    ctx.translate(cx, cy);
-    ctx.rotate(motion.tiltX * 0.12 + motion.spin * 0.3);
-    const z = 1 + motion.shake * 0.2;
-    ctx.scale(z, z);
-    ctx.translate(-cx + motion.tiltX * width * 0.1, -cy + motion.tiltY * height * 0.1);
-  }
+  moveCamera(moving);
   ctx.globalCompositeOperation = mode.blend || scene.palette.blend;
   mode.draw(dt);
-  if (mode.beatRings !== false) drawBeatRings(dt);
+  if (rings && mode.beatRings !== false) drawBeatRings(dt);
+  ctx.restore();
+}
+
+export function renderFrame(mode: Mode, dt: number): void {
+  if (scene.look.mashup) drawMashup(mode, dt, drawMode);
+  else drawMode(mode, dt, true);
+
+  ctx.save();
+  moveCamera(motionIsActive());
   drawDream();
   drawHeardWords(dt);
   ctx.restore();

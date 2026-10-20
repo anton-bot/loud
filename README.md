@@ -1,8 +1,8 @@
 # loud
 
-A music visualizer that runs in the browser. 55 visual modes react to the bass, the mids, the
-treble and the beats of the music. There are 29 palettes and 14 looks (film, CRT, stop-motion,
-mirror, glitch, LED wall and others).
+A music visualizer that runs in the browser. 58 visual modes react to the bass, the mids, the
+treble and the beats of the music. There are 29 palettes and 17 looks (film, CRT, stop-motion,
+mirror, glitch, LED wall, Rutt/Etra scanlines, Droste spiral, mashup and others).
 
 **Open <https://loud.ivanov.hk>, tap Mic and play some music.**
 
@@ -74,14 +74,31 @@ red, D yellow, ...). With this palette on, the status line shows the key when it
 
 ### Camera and dream frames
 
-The **time-smear** mode uses the back camera: each row of the picture comes from a different moment
-(slit-scan). It asks for the camera only when you go to it yourself; auto-switch picks it only after
-the camera was allowed. The camera turns off when you leave the mode, and after 1 hour. Without a
-camera it smears its own dancers.
+Two modes use the back camera. **time-smear**: each row of the picture comes from a different
+moment (slit-scan). **ghosts**: still things go dark and only what moves leaves glowing trails; when
+nothing moves for a moment, the picture itself (also in full screen) asks you to move the camera.
+They ask for the camera only when you go to them yourself; auto-switch picks them only after the
+camera was allowed. The camera turns off when you leave the mode, and after 1 hour. Without a
+camera they use their own dancers.
 
 Dream frames turn heard phrases into pictures (Pollinations) that melt away over the mode. They are
 off: Pollinations now needs a token (`TOKEN` in `src/render/dream.ts`). Try the melt with any
 picture: `loudDream('https://.../picture.jpg')`.
+
+### Looks that rebuild the picture
+
+- **rutt-etra**: the 1972 Rutt/Etra video synthesizer. Any mode's picture becomes rows of glowing
+  scanlines, each lifted by the brightness under it, in a tilted 3D relief.
+- **droste**: Escher's "Print Gallery" trick in a WebGL shader. The picture is wound into an endless
+  spiral of itself that zooms on the beat; each nested copy turns its colours, the seams glow, and
+  the number of spiral arms and a kaleidoscope fold change by section. A drop reverses the zoom.
+- **mashup**: a second mode, in its own palette, shows through a mask over the first: ragged
+  circles, sliding diagonals, checkerboards, blinds, shards, scan slices, blocks, rings and torn
+  strips, with glowing split-colour edges, odd blends and torn frames on strong beats. A new partner
+  comes in every 16 beats.
+
+Rutt/Etra and Droste work on the way to the screen (`src/render/lookSource.ts`), so they never feed
+back into the trails of a mode. WebGL passes share one helper (`src/render/gl.ts`).
 
 ### The mic on Android
 

@@ -25,6 +25,12 @@ export interface Look {
   readonly pixel?: number;
   /** The picture as an LED wall: round lamps with dark gaps. */
   readonly ledWall?: boolean;
+  /** The picture as Rutt/Etra scanlines (render/lookSource.ts). */
+  readonly rutt?: boolean;
+  /** The picture wound into a Droste spiral (render/lookSource.ts). */
+  readonly droste?: boolean;
+  /** A second mode shown through glitchy masks (render/mashup.ts). */
+  readonly mashup?: boolean;
 }
 
 export const LOOKS: readonly Look[] = [
@@ -42,4 +48,7 @@ export const LOOKS: readonly Look[] = [
   { name: 'pixel', pixel: 6 },
   { name: 'glitchpix', pixel: 5, glitch: 1, scanlines: true },
   { name: 'led wall', ledWall: true },
+  { name: 'rutt-etra', rutt: true },
+  { name: 'droste', droste: true },
+  { name: 'mashup', mashup: true },
 ];

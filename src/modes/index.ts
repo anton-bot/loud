@@ -4,6 +4,7 @@ import { attractor } from './attractor';
 import { bars } from './bars';
 import { blocks } from './blocks';
 import { bounce } from './bounce';
+import { caustics } from './caustics';
 import { coral } from './coral';
 import { corrupt } from './corrupt';
 import { cutout } from './cutout';
@@ -14,6 +15,7 @@ import { embers } from './embers';
 import { f1 } from './f1';
 import { film } from './film';
 import { fireworks } from './fireworks';
+import { ghosts } from './ghosts';
 import { flow } from './flow';
 import { grid } from './grid';
 import { halftone } from './halftone';
@@ -41,6 +43,7 @@ import { plasma } from './plasma';
 import { rays } from './rays';
 import { ridges } from './ridges';
 import { ripples } from './ripples';
+import { sand } from './sand';
 import { scope } from './scope';
 import { shroom } from './shroom';
 import { slime } from './slime';
@@ -114,4 +117,7 @@ export const MODES: readonly Mode[] = [
   parallax,
   smear,
   f1,
+  sand,
+  caustics,
+  ghosts,
 ];

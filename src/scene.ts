@@ -6,6 +6,7 @@ import { PALETTES } from './look/palettes';
 import { MODES, type Mode } from './modes';
 import { camera } from './input/camera';
 import { addBeatRing } from './render/beatRings';
+import { mashupBeat } from './render/mashup';
 import { startTransition } from './render/compositor';
 
 const listeners: (() => void)[] = [];
@@ -81,6 +82,7 @@ export function onBeat(): void {
   // Rings move only while they are drawn: rings of a mode without them would pile up and burst out later.
   if (mode.beatRings !== false) addBeatRing();
   mode.beat?.();
+  if (scene.look.mashup) mashupBeat();
   if (scene.autoSwitch) {
     if (audio.beats % 32 === 0) shuffle();
     else if (audio.beats % 16 === 8) randomPalette();

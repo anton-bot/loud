@@ -85,6 +85,18 @@ var LOOKS = [
 	{
 		name: "led wall",
 		ledWall: true
+	},
+	{
+		name: "rutt-etra",
+		rutt: true
+	},
+	{
+		name: "droste",
+		droste: true
+	},
+	{
+		name: "mashup",
+		mashup: true
 	}
 ];
 //#endregion
@@ -1503,7 +1515,7 @@ var SHAPES$1 = [
 		d: -.9
 	}
 ];
-var layer$7 = new PixelLayer();
+var layer$8 = new PixelLayer();
 var gridW$2 = 0;
 var gridH$2 = 0;
 var density = /* @__PURE__ */ new Float32Array(0);
@@ -1511,7 +1523,7 @@ var shape$1 = { ...SHAPES$1[0] };
 var target$3 = SHAPES$1[0];
 var x = .1;
 var y = .1;
-var beats$4 = 0;
+var beats$6 = 0;
 /** Rotation of the whole shape (radians). */
 var turn$1 = 0;
 /** Smoothed centre and half-size of the shape, after rotation, in attractor units. */
@@ -1524,10 +1536,10 @@ var fit$1 = {
 var collapsed = 0;
 /** Recent highest density, for the tone curve. */
 var peak$1 = 1;
-function setUp$7(w, h) {
+function setUp$9(w, h) {
 	gridW$2 = w;
 	gridH$2 = h;
-	layer$7.setSize(w, h);
+	layer$8.setSize(w, h);
 	density = new Float32Array(w * h);
 }
 var attractor = {
@@ -1546,7 +1558,7 @@ var attractor = {
 		"ice"
 	],
 	beat() {
-		if (++beats$4 % 4 !== 0) return;
+		if (++beats$6 % 4 !== 0) return;
 		target$3 = pick(SHAPES$1, target$3);
 		if (target$3.map !== shape$1.map) shape$1 = { ...target$3 };
 	},
@@ -1557,7 +1569,7 @@ var attractor = {
 		const { width, height } = view;
 		const w = Math.max(64, Math.min(480, Math.round(width / 2)));
 		const h = Math.max(48, Math.round(w * height / width));
-		if (w !== gridW$2 || h !== gridH$2) setUp$7(w, h);
+		if (w !== gridW$2 || h !== gridH$2) setUp$9(w, h);
 		const k = Math.min(1, dt * 1.5);
 		shape$1.a += (target$3.a - shape$1.a) * k;
 		shape$1.b += (target$3.b - shape$1.b) * k;
@@ -1617,9 +1629,9 @@ var attractor = {
 		const logPeak = Math.log1p(peak$1 * 1.5);
 		const shift = clock.time * .04;
 		const ramp = colorRamp(256, (t) => colorRgb(t * 2.2 + shift, 3 + t * 97));
-		paintField(layer$7, density, ramp, (v) => Math.log1p(v) / logPeak);
+		paintField(layer$8, density, ramp, (v) => Math.log1p(v) / logPeak);
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer$7.canvas, 0, 0, width, height);
+		ctx.drawImage(layer$8.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -1707,7 +1719,7 @@ function splitScreen() {
 		round: Math.random() < .5
 	}));
 }
-var blocks = {
+var blocks$1 = {
 	name: "blocks",
 	fade: 1,
 	bloom: .2,
@@ -1840,13 +1852,13 @@ function vignette(ctx, x, y, inner, outer, edge, width, height) {
 var RINGS$1 = 6;
 var MAX_BALLS = 14;
 var SUBSTEPS = 4;
-var rings$2 = [];
+var rings$3 = [];
 var balls = [];
 var pieces = [];
 var generation = 0;
 function newRings() {
 	generation++;
-	rings$2 = Array.from({ length: RINGS$1 }, (_, i) => ({
+	rings$3 = Array.from({ length: RINGS$1 }, (_, i) => ({
 		radius: .12 + i * .065,
 		angle: Math.random() * TAU,
 		gap: .55 - i * .04,
@@ -1926,7 +1938,7 @@ function step(dt, ballRadius) {
 		}
 		ball.x += ball.vx * dt;
 		ball.y += ball.vy * dt;
-		const wall = rings$2[0];
+		const wall = rings$3[0];
 		if (!wall) continue;
 		const dx = ball.x - cx;
 		const dy = ball.y - cy;
@@ -1936,7 +1948,7 @@ function step(dt, ballRadius) {
 		const angle = Math.atan2(dy, dx);
 		if (wall.grow >= 1 && inGap(wall, angle)) {
 			shatter(wall);
-			rings$2.shift();
+			rings$3.shift();
 			if (balls.length < MAX_BALLS) balls.push(newBall());
 			return;
 		}
@@ -1978,19 +1990,19 @@ var bounce$1 = {
 			ball.vx += Math.cos(a) * kick;
 			ball.vy += Math.sin(a) * kick - view.min * .2;
 		}
-		for (const ring of rings$2) ring.hits.push({
+		for (const ring of rings$3) ring.hits.push({
 			angle: ring.angle + Math.PI,
 			at: clock.time
 		});
 	},
 	resize() {
-		rings$2 = [];
+		rings$3 = [];
 		balls = [];
 		pieces = [];
 	},
 	draw(dt) {
 		const { cx, cy, min } = view;
-		if (!rings$2.length) {
+		if (!rings$3.length) {
 			newRings();
 			balls = balls.length ? balls.slice(0, 2) : [newBall()];
 			for (const ball of balls) Object.assign(ball, newBall(), { k: ball.k });
@@ -1999,7 +2011,7 @@ var bounce$1 = {
 		const sub = Math.min(dt, 1 / 30) / SUBSTEPS;
 		for (let s = 0; s < SUBSTEPS; s++) step(sub, ballRadius);
 		ctx.lineCap = "round";
-		rings$2.forEach((ring, i) => {
+		rings$3.forEach((ring, i) => {
 			ring.grow = Math.min(1, ring.grow + dt * 1.5);
 			ring.angle += ring.speed * dt * (.6 + audio.mid * 1.4);
 			if (ring.grow <= 0) return;
@@ -2044,6 +2056,267 @@ var bounce$1 = {
 	}
 };
 //#endregion
+//#region src/render/gl.ts
+var VERTEX = `attribute vec2 a_pos;
+void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }`;
+var canvas = null;
+var gl = null;
+var failed = false;
+var texture = null;
+function context() {
+	if (gl || failed) return gl;
+	canvas = document.createElement("canvas");
+	gl = canvas.getContext("webgl", {
+		preserveDrawingBuffer: true,
+		antialias: false,
+		alpha: false
+	});
+	if (!gl) {
+		failed = true;
+		return null;
+	}
+	const buffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+		-1,
+		-1,
+		3,
+		-1,
+		-1,
+		3
+	]), gl.STATIC_DRAW);
+	texture = gl.createTexture();
+	gl.bindTexture(gl.TEXTURE_2D, texture);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+	return gl;
+}
+function compile(g, type, source) {
+	const shader = g.createShader(type);
+	if (!shader) throw new Error("WebGL: no shader");
+	g.shaderSource(shader, source);
+	g.compileShader(shader);
+	if (!g.getShaderParameter(shader, g.COMPILE_STATUS)) throw new Error(`WebGL shader: ${g.getShaderInfoLog(shader)}`);
+	return shader;
+}
+/** A pass with this fragment shader, or null where WebGL does not work. */
+function glPass(fragment) {
+	const g = context();
+	if (!g || !canvas) return null;
+	let program;
+	try {
+		const p = g.createProgram();
+		if (!p) return null;
+		g.attachShader(p, compile(g, g.VERTEX_SHADER, VERTEX));
+		g.attachShader(p, compile(g, g.FRAGMENT_SHADER, `precision highp float;\n${fragment}`));
+		g.linkProgram(p);
+		if (!g.getProgramParameter(p, g.LINK_STATUS)) throw new Error(`WebGL link: ${g.getProgramInfoLog(p)}`);
+		program = p;
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
+	const locations = /* @__PURE__ */ new Map();
+	const where = (name) => {
+		if (!locations.has(name)) locations.set(name, g.getUniformLocation(program, name));
+		return locations.get(name) ?? null;
+	};
+	const position = g.getAttribLocation(program, "a_pos");
+	const target = canvas;
+	return { render(width, height, uniforms, source) {
+		const w = Math.max(1, Math.round(width));
+		const h = Math.max(1, Math.round(height));
+		if (target.width !== w || target.height !== h) {
+			target.width = w;
+			target.height = h;
+		}
+		g.viewport(0, 0, w, h);
+		g.useProgram(program);
+		g.enableVertexAttribArray(position);
+		g.vertexAttribPointer(position, 2, g.FLOAT, false, 0, 0);
+		if (source) {
+			g.activeTexture(g.TEXTURE0);
+			g.bindTexture(g.TEXTURE_2D, texture);
+			g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, g.RGBA, g.UNSIGNED_BYTE, source);
+			g.uniform1i(where("u_tex"), 0);
+		}
+		g.uniform2f(where("u_res"), w, h);
+		for (const [name, value] of Object.entries(uniforms)) {
+			const at = where(name);
+			if (!at) continue;
+			if (typeof value === "number") g.uniform1f(at, value);
+			else if (value.length === 2) g.uniform2f(at, value[0], value[1]);
+			else if (value.length === 3) g.uniform3f(at, value[0], value[1], value[2]);
+			else g.uniform4f(at, value[0], value[1], value[2], value[3]);
+		}
+		g.drawArrays(g.TRIANGLES, 0, 3);
+		return target;
+	} };
+}
+//#endregion
+//#region src/modes/caustics.ts
+/**
+* Psychedelic pool caustics: the net of light on the floor of a pool at night, computed
+* per pixel in a WebGL shader. Red, green and blue light are bent by slightly different
+* amounts, so every line of light has rainbow edges, and the colours of the light run
+* through the palette. Each kick drops a stone: a ring ripples through the light.
+* Strong beats glitch the water: bands slide sideways and some flip to negative.
+* Every 16 beats the pool folds into a mirror.
+*/
+var SHADER = `
+uniform vec2 u_res;
+uniform float u_time, u_bass, u_split, u_glitch, u_seed, u_mirror;
+uniform vec3 u_c0, u_c1, u_c2;
+uniform vec4 u_r0, u_r1, u_r2, u_r3;
+
+float hash(float n) { return fract(sin(n) * 43758.5453); }
+
+// The classic iterated caustic pattern: thin bright lines where light bunches up.
+float caustic(vec2 uv, float time) {
+  vec2 p = uv * 5.0 - 250.0;
+  vec2 i = p;
+  float c = 1.0;
+  float inten = 0.005;
+  for (int n = 0; n < 5; n++) {
+    float t = time * (1.0 - (3.5 / float(n + 1)));
+    i = p + vec2(cos(t - i.x) + sin(t + i.y), sin(t - i.y) + cos(t + i.x));
+    c += 1.0 / length(vec2(p.x / (sin(i.x + t) / inten), p.y / (cos(i.y + t) / inten)));
+  }
+  c /= 5.0;
+  c = 1.17 - pow(c, 1.4);
+  return pow(abs(c), 8.0);
+}
+
+// A ring rippling out from a stone: x, y, age in seconds, strength.
+vec2 ripple(vec2 uv, vec4 r) {
+  if (r.w <= 0.0) return uv;
+  vec2 d = uv - r.xy;
+  float dist = length(d);
+  float front = r.z * 0.5;
+  float wave = sin((dist - front) * 60.0) * exp(-abs(dist - front) * 14.0) * exp(-r.z * 1.2) * r.w;
+  return uv + normalize(d + 1e-5) * wave * 0.025;
+}
+
+void main() {
+  vec2 frag = gl_FragCoord.xy;
+  // Glitch: bands slide sideways.
+  float band = floor(frag.y / u_res.y * 24.0);
+  float h = hash(band * 7.3 + u_seed);
+  if (h < u_glitch * 0.3) frag.x += (hash(band + u_seed * 3.1) - 0.5) * u_res.x * 0.25 * u_glitch;
+  vec2 uv = frag / u_res.y;
+  float aspect = u_res.x / u_res.y;
+  if (u_mirror > 0.5) uv.x = abs(uv.x - aspect * 0.5) + aspect * 0.5;
+  uv = ripple(uv, u_r0);
+  uv = ripple(uv, u_r1);
+  uv = ripple(uv, u_r2);
+  uv = ripple(uv, u_r3);
+  float t = u_time;
+  vec3 light = vec3(
+    caustic(uv + vec2(u_split, 0.0), t),
+    caustic(uv, t + 0.02),
+    caustic(uv - vec2(u_split, 0.0), t + 0.04)
+  );
+  float m = 0.5 + 0.5 * sin(uv.x * 2.3 + uv.y * 3.1 + t * 0.6);
+  vec3 tint = mix(u_c1, u_c2, m);
+  vec3 bed = u_c0 * (0.16 + 0.1 * sin(uv.y * 4.0 + t * 0.8));
+  vec3 col = bed + light * tint * (1.3 + u_bass * 1.2);
+  // Glitch: a few bands flip to negative.
+  if (h > 1.0 - u_glitch * 0.12) col = 1.0 - clamp(col, 0.0, 1.0);
+  gl_FragColor = vec4(col, 1.0);
+}`;
+var pass;
+var time = 0;
+var rings$2 = [];
+var glitch$3 = 0;
+var seed$2 = 0;
+var nextSeed = 0;
+var beats$5 = 0;
+var unit = (k, lightness) => colorRgb(k, lightness).map((c) => c / 255);
+var caustics = {
+	name: "caustics",
+	fade: 1,
+	bloom: .6,
+	blend: "source-over",
+	beatRings: false,
+	palettes: [
+		"deep sea",
+		"vapor",
+		"acid",
+		"technicolor",
+		"ultraviolet",
+		"neon",
+		"toxic"
+	],
+	beat() {
+		beats$5++;
+		const aspect = view.width / view.height;
+		rings$2.push({
+			x: rnd(.1, aspect - .1),
+			y: rnd(.1, .9),
+			age: 0,
+			strength: .6 + audio.bass * .8
+		});
+		if (rings$2.length > 4) rings$2.shift();
+		if (audio.bass > .7 && Math.random() < .35) glitch$3 = 1;
+	},
+	draw(dt) {
+		const { width, height } = view;
+		if (pass === void 0) pass = glPass(SHADER);
+		time += dt * (.45 + audio.mid * .6);
+		for (const ring of rings$2) ring.age += dt;
+		rings$2 = rings$2.filter((ring) => ring.age < 3);
+		glitch$3 = Math.max(0, glitch$3 - dt * 4);
+		if (clock.time > nextSeed) {
+			seed$2 = Math.random() * 100;
+			nextSeed = clock.time + .08;
+		}
+		if (!pass) {
+			const g = ctx.createLinearGradient(0, 0, 0, height);
+			g.addColorStop(0, `rgb(${unit(0, 30).map((c) => c * 255 | 0).join(",")})`);
+			g.addColorStop(1, "#02060a");
+			ctx.fillStyle = g;
+			ctx.fillRect(0, 0, width, height);
+			return;
+		}
+		const ring = (i) => {
+			const r = rings$2[i];
+			return r ? [
+				r.x,
+				r.y,
+				r.age,
+				r.strength
+			] : [
+				0,
+				0,
+				0,
+				0
+			];
+		};
+		const scale = Math.min(view.dpr, 1.5) * .75;
+		const shift = clock.time * .15;
+		const canvas = pass.render(width * scale, height * scale, {
+			u_time: time,
+			u_bass: audio.bass,
+			u_split: .004 + audio.beat * .012 + audio.high * .004,
+			u_glitch: glitch$3,
+			u_seed: seed$2,
+			u_mirror: Math.floor(beats$5 / 16) % 2,
+			u_c0: unit(shift, 35),
+			u_c1: unit(shift + 1, 70),
+			u_c2: unit(shift + 2.5, 70),
+			u_r0: ring(0),
+			u_r1: ring(1),
+			u_r2: ring(2),
+			u_r3: ring(3)
+		});
+		ctx.imageSmoothingEnabled = true;
+		ctx.drawImage(canvas, 0, 0, width, height);
+	}
+};
+//#endregion
 //#region src/modes/coral.ts
 /**
 * Reaction-diffusion (the Gray-Scott model, with Karl Sims's constants): two chemicals
@@ -2082,7 +2355,7 @@ var PATTERNS$1 = [
 ];
 var DIFFUSION_A = 1;
 var DIFFUSION_B = .5;
-var layer$6 = new PixelLayer();
+var layer$7 = new PixelLayer();
 var gridW$1 = 0;
 var gridH$1 = 0;
 var a = /* @__PURE__ */ new Float32Array(0);
@@ -2105,10 +2378,10 @@ function drop$1(cx, cy, r) {
 		a[iy * gridW$1 + ix] = .5;
 	}
 }
-function setUp$6(w, h) {
+function setUp$8(w, h) {
 	gridW$1 = w;
 	gridH$1 = h;
-	layer$6.setSize(w, h);
+	layer$7.setSize(w, h);
 	a = new Float32Array(w * h).fill(1);
 	b = new Float32Array(w * h);
 	nextA = new Float32Array(w * h);
@@ -2203,7 +2476,7 @@ var coral = {
 		const cell = quality.level === 2 ? 5 : 6;
 		const w = Math.max(32, Math.min(170, Math.round(width / cell)));
 		const h = Math.max(24, Math.round(w * height / width));
-		if (w !== gridW$1 || h !== gridH$1) setUp$6(w, h);
+		if (w !== gridW$1 || h !== gridH$1) setUp$8(w, h);
 		const goal = PATTERNS$1[target$2];
 		feed += (goal.feed - feed) * Math.min(1, dt * .4);
 		kill += (goal.kill - kill) * Math.min(1, dt * .4);
@@ -2217,9 +2490,9 @@ var coral = {
 		if (total < b.length / 7 / 500) drop$1(rndInt(gridW$1), rndInt(gridH$1), 4);
 		const shift = clock.time * .04;
 		const ramp = colorRamp(256, (t) => colorRgb(t * 3 + shift, 6 + t * 88));
-		paintField(layer$6, b, ramp, (v) => v * 3.2);
+		paintField(layer$7, b, ramp, (v) => v * 3.2);
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(layer$6.canvas, 0, 0, width, height);
+		ctx.drawImage(layer$7.canvas, 0, 0, width, height);
 	}
 };
 //#endregion
@@ -2441,7 +2714,7 @@ var PATTERNS = [
 var GROUPS$2 = 3;
 var grainX = /* @__PURE__ */ new Float32Array(0);
 var grainY = /* @__PURE__ */ new Float32Array(0);
-var n = 1;
+var n$1 = 1;
 var m = 2;
 /** Smoothed pitch of the music, 0..1. */
 var pitch = .2;
@@ -2483,7 +2756,7 @@ var cymatics = {
 	beat() {
 		const index = Math.round(pitch * 2.5 * (PATTERNS.length - 1) + rnd(-1.5, 1.5));
 		const [a, b] = PATTERNS[Math.max(0, Math.min(PATTERNS.length - 1, index))];
-		[n, m] = Math.random() < .5 ? [a, b] : [b, a];
+		[n$1, m] = Math.random() < .5 ? [a, b] : [b, a];
 	},
 	draw(dt) {
 		const { cx, cy, min } = view;
@@ -2491,10 +2764,10 @@ var cymatics = {
 		if (grainX.length !== count) scatter(count);
 		pitch += (measurePitch() - pitch) * Math.min(1, dt * 2);
 		const steps = Math.min(3, dt * 60);
-		const kn = n * Math.PI;
+		const kn = n$1 * Math.PI;
 		const km = m * Math.PI;
 		const shake = (.004 + audio.bass * .03 + audio.beat * .05) * steps;
-		const slide = .012 / (n + m) * steps;
+		const slide = .012 / (n$1 + m) * steps;
 		for (let i = 0; i < grainX.length; i++) {
 			let x = grainX[i];
 			let y = grainY[i];
@@ -2567,14 +2840,14 @@ var MELT_COLUMNS = 96;
 var MELT_S$1 = 3.2;
 var panels = [];
 var layout = "rows";
-var beats$3 = 0;
+var beats$4 = 0;
 var lastInvert = -1;
 /** 1 after a beat, then falls: how wild the glitches are. */
-var glitch$1 = 0;
+var glitch$2 = 0;
 var cuts = [];
 /** Colour strip of the current glitch (y, height), or none. */
 var stripe = null;
-var nextCut = 0;
+var nextCut$1 = 0;
 /** The frozen picture that melts, and the drop and speed of each of its columns. */
 var frozen = document.createElement("canvas");
 var frozenCtx = context2d(frozen);
@@ -2800,10 +3073,10 @@ function cutGlitches(amount) {
 	stripe = Math.random() < amount * .6 ? [Math.random() * height, rnd(2, 26)] : null;
 }
 function drawGlitches() {
-	const amount = Math.min(1.5, glitch$1 + audio.high * .7);
-	if (clock.time >= nextCut || clock.time < nextCut - 1) {
+	const amount = Math.min(1.5, glitch$2 + audio.high * .7);
+	if (clock.time >= nextCut$1 || clock.time < nextCut$1 - 1) {
 		cutGlitches(amount);
-		nextCut = clock.time + rnd(.06, .16);
+		nextCut$1 = clock.time + rnd(.06, .16);
 	}
 	if (!cuts.length && !stripe) return;
 	const dpr = view.dpr;
@@ -2832,9 +3105,9 @@ var datamatics = {
 	],
 	beat() {
 		if (!panels.length) return;
-		glitch$1 = 1;
-		beats$3++;
-		if (beats$3 % 8 === 0 && Math.random() < .7) {
+		glitch$2 = 1;
+		beats$4++;
+		if (beats$4 % 8 === 0 && Math.random() < .7) {
 			layout = pick(LAYOUTS, layout);
 			panels = makePanels(layout);
 		} else for (const panel of panels) {
@@ -2855,7 +3128,7 @@ var datamatics = {
 	draw(dt) {
 		const { width, height } = view;
 		if (!panels.length) panels = makePanels(layout);
-		glitch$1 = Math.max(0, glitch$1 - dt * 2.5);
+		glitch$2 = Math.max(0, glitch$2 - dt * 2.5);
 		ctx.fillStyle = background(1);
 		ctx.fillRect(0, 0, width, height);
 		const ink = scene.palette.light ? "rgb(12,12,12)" : "rgb(245,245,245)";
@@ -2928,7 +3201,7 @@ var hero = {
 var coins = [];
 var blobs$1 = [];
 /** Glitch timers in seconds. */
-var glitch = {
+var glitch$1 = {
 	invert: 0,
 	roll: 0,
 	rollOffset: 0,
@@ -3078,7 +3351,7 @@ function moveHero(dt, h, heroX) {
 	if (hero.y > h + 20) {
 		hero.y = -20;
 		hero.vy = 0;
-		glitch.roll = .5;
+		glitch$1.roll = .5;
 	}
 	const c = Math.floor(worldX / TILE);
 	const blockBottom = h - 16 - 32;
@@ -3102,7 +3375,7 @@ function glitchScreen(g, w, h) {
 		const rows = 1 + rndInt(6);
 		g.drawImage(screen.canvas, 0, y, w, rows, rnd(-14, 14), y, w, rows);
 	}
-	if (glitch.corrupt > 0) for (let n = 0; n < 6; n++) {
+	if (glitch$1.corrupt > 0) for (let n = 0; n < 6; n++) {
 		const x = rndInt(w / TILE) * TILE;
 		const y = rndInt(h / TILE) * TILE;
 		for (let p = 0; p < 16; p++) {
@@ -3110,7 +3383,7 @@ function glitchScreen(g, w, h) {
 			g.fillRect(x + rndInt(TILE), y + rndInt(TILE), 2, 1);
 		}
 	}
-	if (glitch.invert > 0) {
+	if (glitch$1.invert > 0) {
 		g.globalCompositeOperation = "difference";
 		g.fillStyle = "#fff";
 		g.fillRect(0, 0, w, h);
@@ -3136,11 +3409,11 @@ var eightBit = {
 	beat() {
 		jump(135 + audio.bass * 60);
 		const r = Math.random();
-		if (r < .2) glitch.invert = .08;
-		else if (r < .35) glitch.corrupt = .4;
+		if (r < .2) glitch$1.invert = .08;
+		else if (r < .35) glitch$1.corrupt = .4;
 		else if (r < .45) {
-			glitch.roll = .3;
-			glitch.rollOffset = rnd(.2, .8);
+			glitch$1.roll = .3;
+			glitch$1.rollOffset = rnd(.2, .8);
 		} else if (r < .5) hero.giant = 1.2;
 		if (Math.random() < .4) blobs$1.push({
 			x: scroll + SCREEN_W + 10,
@@ -3166,7 +3439,7 @@ var eightBit = {
 			"invert",
 			"roll",
 			"corrupt"
-		]) glitch[key] = Math.max(0, glitch[key] - dt);
+		]) glitch$1[key] = Math.max(0, glitch$1[key] - dt);
 		hero.giant = Math.max(0, hero.giant - dt);
 		scroll += (40 + audio.mid * 70 + audio.beat * 30) * step;
 		const heroX = Math.round(w * .28);
@@ -3211,7 +3484,7 @@ var eightBit = {
 			if (Math.abs(x - heroX - 2) < 8 && hero.y + 14 >= ground - 9 && hero.vy > 0) {
 				b.squashed = .01;
 				hero.vy = -120;
-				glitch.corrupt = .25;
+				glitch$1.corrupt = .25;
 			}
 			paint(g, BLOB, x, ground - 8, {
 				...ink,
@@ -3224,12 +3497,12 @@ var eightBit = {
 		paint(g, [...HERO_TOP, ...legs], heroX - (scale - 1) * 6, heroY, ink, scale);
 		glitchScreen(g, w, h);
 		ctx.imageSmoothingEnabled = false;
-		if (glitch.roll > 0) {
-			const split = Math.round(h * glitch.rollOffset);
+		if (glitch$1.roll > 0) {
+			const split = Math.round(h * glitch$1.rollOffset);
 			const share = height / h;
 			ctx.drawImage(screen.canvas, 0, split, w, h - split, 0, 0, width, (h - split) * share);
 			ctx.drawImage(screen.canvas, 0, 0, w, split, 0, (h - split) * share, width, split * share);
-			glitch.rollOffset = (glitch.rollOffset + dt * .8) % 1;
+			glitch$1.rollOffset = (glitch$1.rollOffset + dt * .8) % 1;
 		} else ctx.drawImage(screen.canvas, 0, 0, width, height);
 		ctx.imageSmoothingEnabled = true;
 	}
@@ -4405,6 +4678,402 @@ var fireworks = {
 	}
 };
 //#endregion
+//#region src/input/camera.ts
+/**
+* The phone's back camera, for the camera modes. It starts when such a mode first asks
+* for a picture, turns off when no mode has asked for 2.5 s (so the camera light goes
+* out), and turns off after 1 hour in case it was forgotten; leaving the mode and
+* coming back turns it on again.
+*/
+var LIMIT_MS = 36e5;
+var IDLE_MS = 2500;
+var state$3 = "off";
+var stream = null;
+var video = null;
+var startedAt = 0;
+var lastUse = 0;
+var camera = { 
+/** The camera worked once in this page, so auto-switch may pick camera modes. */
+allowed: false };
+function stop(next) {
+	for (const track of stream?.getTracks() ?? []) track.stop();
+	stream = null;
+	video = null;
+	state$3 = next;
+}
+async function start() {
+	if (!navigator.mediaDevices?.getUserMedia) {
+		state$3 = "failed";
+		return;
+	}
+	state$3 = "asking";
+	setStatus("Allow the camera for this mode.");
+	try {
+		stream = await navigator.mediaDevices.getUserMedia({
+			video: {
+				facingMode: { ideal: "environment" },
+				width: { ideal: 640 },
+				height: { ideal: 480 }
+			},
+			audio: false
+		});
+	} catch {
+		state$3 = "failed";
+		setStatus("No camera: this mode shows its own dancers instead.");
+		return;
+	}
+	if (performance.now() - lastUse > IDLE_MS) {
+		stop("off");
+		return;
+	}
+	video = document.createElement("video");
+	video.muted = true;
+	video.playsInline = true;
+	video.srcObject = stream;
+	await video.play().catch(() => {});
+	state$3 = "on";
+	camera.allowed = true;
+	startedAt = performance.now();
+	setStatus("Camera on. Point it at the dance floor.");
+}
+/** What the camera is doing: off, asking for permission, on, failed (no camera or refused), or expired (after 1 hour). */
+function cameraState() {
+	return state$3;
+}
+/** The live camera picture, or null (not ready, not allowed, or no camera). */
+function cameraVideo() {
+	const now = performance.now();
+	if (state$3 === "expired" && now - lastUse > IDLE_MS) state$3 = "off";
+	lastUse = now;
+	if (state$3 === "off") start();
+	return state$3 === "on" && video && video.readyState >= 2 ? video : null;
+}
+setInterval(() => {
+	if (state$3 !== "on") return;
+	const now = performance.now();
+	if (now - lastUse > IDLE_MS) stop("off");
+	else if (now - startedAt > LIMIT_MS) {
+		stop("expired");
+		setStatus("Camera turned off after 1 hour. Leave the mode and come back to turn it on.");
+	}
+}, 1e3);
+//#endregion
+//#region src/render/words/show.ts
+/** Shared types and helpers for the heard-words styles. */
+var CJK$2 = "\"Noto Sans SC\", sans-serif";
+var FACES = [
+	{
+		name: "bold",
+		family: `Unbounded, ${CJK$2}`,
+		weight: 700,
+		chance: 3
+	},
+	{
+		name: "pixel",
+		family: `"Press Start 2P", ${CJK$2}`,
+		weight: 400,
+		chance: 1.6
+	},
+	{
+		name: "glitch",
+		family: `"Rubik Glitch", ${CJK$2}`,
+		weight: 400,
+		chance: 1
+	},
+	{
+		name: "horror",
+		family: `Creepster, "Rubik Wet Paint", ${CJK$2}`,
+		weight: 400,
+		chance: 1
+	},
+	{
+		name: "drip",
+		family: `"Rubik Wet Paint", ${CJK$2}`,
+		weight: 400,
+		chance: .8
+	},
+	{
+		name: "beast",
+		family: `"Rubik Beastly", ${CJK$2}`,
+		weight: 400,
+		chance: .8
+	},
+	{
+		name: "neon",
+		family: `Monoton, Unbounded, ${CJK$2}`,
+		weight: 400,
+		chance: .8
+	}
+];
+var MONOSPACE = "\"JetBrains Mono\", ui-monospace, Menlo, Consolas, monospace";
+var face$1 = FACES[0];
+/** Makes `next` the face of the styles drawn from now on. */
+function useFace(next) {
+	face$1 = next;
+}
+function currentFace() {
+	return face$1;
+}
+/** A random face, by chance, that is not `not`. */
+function pickFace(not) {
+	const options = FACES.filter((f) => f !== not);
+	let roll = Math.random() * options.reduce((sum, f) => sum + f.chance, 0);
+	for (const f of options) {
+		roll -= f.chance;
+		if (roll <= 0) return f;
+	}
+	return options[options.length - 1];
+}
+/** CSS font of `size` px: the current face, or `family` (bold) when given. */
+function font(size, family) {
+	return family ? `700 ${size}px ${family}` : `${face$1.weight} ${size}px ${face$1.family}`;
+}
+/** Font size at which `text` takes `share` of the screen width, but at most `max` px. */
+function fitFont(text, share, max, family) {
+	ctx.font = font(100, family);
+	const measured = Math.max(1, ctx.measureText(text).width);
+	return Math.min(max, 100 * view.width * share / measured);
+}
+/**
+* A soft dark copy of `text` under where it will be drawn, so that a glowing word
+* stays readable over a bright picture.
+*/
+function shadowText(text, x, y, size, alpha) {
+	const blend = ctx.globalCompositeOperation;
+	ctx.globalCompositeOperation = "source-over";
+	ctx.fillStyle = `rgba(0,0,0,${alpha * .55})`;
+	ctx.fillText(text, x + size * .035, y + size * .05);
+	ctx.globalCompositeOperation = blend;
+}
+/** Glowing blend on dark palettes; normal drawing on light ones. */
+function glowBlend() {
+	return scene.palette.light ? "source-over" : "lighter";
+}
+//#endregion
+//#region src/modes/dancers.ts
+/** Three dancing figures under stage lights: the stand-in for the camera in the camera modes. */
+function limb(g, x1, y1, x2, y2) {
+	g.beginPath();
+	g.moveTo(x1, y1);
+	g.lineTo(x2, y2);
+	g.stroke();
+}
+/** Three dancing figures under stage lights, for when there is no camera. */
+function drawDancers(g, w, h) {
+	const t = clock.time;
+	const beat = audio.beats + (1 - audio.beat) * .5;
+	g.fillStyle = "#0a0710";
+	g.fillRect(0, 0, w, h);
+	for (let k = 0; k < 3; k++) {
+		const x = w * (.2 + k * .3) + Math.sin(t * .7 + k) * w * .15;
+		const light = g.createLinearGradient(x, 0, x, h);
+		light.addColorStop(0, `hsla(${k * 120 + t * 20},100%,60%,${.35 + audio.beat * .3})`);
+		light.addColorStop(1, "hsla(0,0%,0%,0)");
+		g.fillStyle = light;
+		g.beginPath();
+		g.moveTo(x - 3, 0);
+		g.lineTo(x + 3, 0);
+		g.lineTo(x + w * .18, h);
+		g.lineTo(x - w * .18, h);
+		g.closePath();
+		g.fill();
+	}
+	[
+		[
+			.24,
+			.55,
+			0,
+			330
+		],
+		[
+			.52,
+			.6,
+			1.3,
+			190
+		],
+		[
+			.79,
+			.52,
+			2.6,
+			50
+		]
+	].forEach(([px, py, offset, hue], i) => {
+		const s = h * .2;
+		const swing = Math.sin(beat * Math.PI + offset);
+		g.save();
+		g.translate(w * px + Math.sin(t * (.6 + i * .25) + i * 2) * w * .05, h * py);
+		g.translate(0, -Math.abs(Math.sin(beat * Math.PI)) * s * .18);
+		g.rotate(swing * .12);
+		g.strokeStyle = g.fillStyle = `hsl(${hue},95%,72%)`;
+		g.lineWidth = s * .24;
+		g.lineCap = "round";
+		g.beginPath();
+		g.arc(0, -s * 1.1, s * .28, 0, TAU);
+		g.fill();
+		limb(g, 0, -s * .8, 0, s * .2);
+		const left = -2.3 + swing * .9;
+		const right = -.85 - swing * .9;
+		limb(g, 0, -s * .62, Math.cos(left) * s * .8, -s * .62 + Math.sin(left) * s * .8);
+		limb(g, 0, -s * .62, Math.cos(right) * s * .8, -s * .62 + Math.sin(right) * s * .8);
+		limb(g, 0, s * .2, -s * .35 - swing * s * .15, s * .95);
+		limb(g, 0, s * .2, s * .35 - swing * s * .15, s * .95);
+		g.restore();
+	});
+}
+//#endregion
+//#region src/modes/ghosts.ts
+/**
+* Motion ghosts: the camera looks at the room, still things go dark, and only what
+* moves leaves glowing trails in colours that turn with the beat. Trails last longer
+* when the music is loud. When nothing has moved for a moment, an indicator in the
+* picture itself (so it shows in full screen, with no buttons) asks to move the
+* camera. Without a camera it watches its own dancers and says so.
+*/
+var W$1 = 160;
+/** A pixel counts as moving above this change (sum of red, green and blue). */
+var THRESHOLD = 40;
+/** Seconds of stillness before the indicator shows. */
+var STILL_S = 1.2;
+var source$2 = document.createElement("canvas");
+var sourceCtx$1 = context2d(source$2, { willReadFrequently: true });
+var layer$6 = new PixelLayer();
+var trail$1 = /* @__PURE__ */ new Float32Array(0);
+var last$1 = null;
+var still = 0;
+var hint = 0;
+function setUp$7(w, h) {
+	source$2.width = w;
+	source$2.height = h;
+	layer$6.setSize(w, h);
+	trail$1 = new Float32Array(w * h * 3);
+	last$1 = null;
+}
+/** The camera picture, cut to fill the frame. */
+function drawCamera$1(video, w, h) {
+	const scale = Math.max(w / video.videoWidth, h / video.videoHeight);
+	const dw = video.videoWidth * scale;
+	const dh = video.videoHeight * scale;
+	sourceCtx$1.drawImage(video, (w - dw) / 2, (h - dh) / 2, dw, dh);
+}
+/** Text with a soft glow, in the display face. */
+function glowText(text, x, y, size, alpha) {
+	ctx.font = `700 ${size}px ${FACES[0].family}`;
+	ctx.textAlign = "center";
+	ctx.textBaseline = "middle";
+	ctx.shadowColor = color(0, alpha, 60);
+	ctx.shadowBlur = size * .6;
+	ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+	ctx.fillText(text, x, y);
+	ctx.shadowBlur = 0;
+}
+/** The indicator: a phone swinging left and right, with motion arcs and a line of text. */
+function drawHint(alpha, title, line) {
+	const { cx, cy, min } = view;
+	const t = clock.time;
+	const w = min * .12;
+	const h = w * 1.8;
+	const swing = Math.sin(t * 3.2) * .45;
+	ctx.save();
+	ctx.globalCompositeOperation = "source-over";
+	ctx.fillStyle = `rgba(0,0,0,${alpha * .45})`;
+	ctx.beginPath();
+	ctx.ellipse(cx, cy, min * .42, min * .3, 0, 0, TAU);
+	ctx.fill();
+	ctx.translate(cx + swing * min * .12, cy - min * .06);
+	ctx.rotate(swing * .5);
+	ctx.beginPath();
+	ctx.roundRect(-w / 2, -h / 2, w, h, w * .18);
+	neonStroke(ctx, 0, Math.max(1.5, min * .006), alpha);
+	ctx.beginPath();
+	ctx.arc(0, -h * .32, w * .12, 0, TAU);
+	neonStroke(ctx, 1, Math.max(1, min * .004), alpha);
+	ctx.restore();
+	ctx.save();
+	ctx.lineCap = "round";
+	for (const side of [-1, 1]) for (let k = 1; k <= 3; k++) {
+		const pulse = (t * 1.6 + k * .33) % 1;
+		ctx.beginPath();
+		ctx.arc(cx, cy - min * .06, min * (.12 + k * .05), side > 0 ? -.5 : Math.PI - .5, side > 0 ? .5 : Math.PI + .5);
+		neonStroke(ctx, 2, Math.max(1, min * .004), alpha * (1 - pulse) * .9);
+	}
+	ctx.restore();
+	glowText(title, cx, cy + min * .16, min * .055, alpha);
+	ctx.globalAlpha = .8;
+	glowText(line, cx, cy + min * .23, min * .026, alpha * .85);
+	ctx.globalAlpha = 1;
+}
+var ghosts = {
+	name: "ghosts",
+	fade: 1,
+	bloom: .8,
+	blend: "source-over",
+	beatRings: false,
+	camera: true,
+	palettes: [
+		"void",
+		"technicolor",
+		"neon",
+		"acid",
+		"vapor",
+		"ultraviolet"
+	],
+	resize() {
+		trail$1 = /* @__PURE__ */ new Float32Array(0);
+	},
+	draw(dt) {
+		const { width, height } = view;
+		const h = Math.max(60, Math.round(W$1 * height / width));
+		if (source$2.width !== W$1 || source$2.height !== h || !trail$1.length) setUp$7(W$1, h);
+		const video = cameraVideo();
+		if (video) drawCamera$1(video, W$1, h);
+		else drawDancers(sourceCtx$1, W$1, h);
+		const now = sourceCtx$1.getImageData(0, 0, W$1, h).data;
+		const [cr, cg, cb] = colorRgb(clock.time * .4 + audio.beats * .5, 70);
+		const keep = Math.pow(Math.min(.985, .92 + audio.bass * .06), dt * 60);
+		const out = layer$6.pixels;
+		let moving = 0;
+		for (let p = 0, o = 0; p < W$1 * h; p++, o += 4) {
+			const k = p * 3;
+			trail$1[k] *= keep;
+			trail$1[k + 1] *= keep;
+			trail$1[k + 2] *= keep;
+			if (last$1) {
+				const change = Math.abs(now[o] - last$1[o]) + Math.abs(now[o + 1] - last$1[o + 1]) + Math.abs(now[o + 2] - last$1[o + 2]);
+				if (change > THRESHOLD) {
+					moving++;
+					const f = Math.min(1, change / 160);
+					trail$1[k] = Math.max(trail$1[k], cr * f);
+					trail$1[k + 1] = Math.max(trail$1[k + 1], cg * f);
+					trail$1[k + 2] = Math.max(trail$1[k + 2], cb * f);
+				}
+			}
+			out[o] = now[o] * .1 + trail$1[k];
+			out[o + 1] = now[o + 1] * .1 + trail$1[k + 1];
+			out[o + 2] = now[o + 2] * .1 + trail$1[k + 2];
+			out[o + 3] = 255;
+		}
+		last$1 = now;
+		layer$6.flush();
+		ctx.imageSmoothingEnabled = true;
+		ctx.drawImage(layer$6.canvas, 0, 0, width, height);
+		still = moving / (W$1 * h) < .003 ? still + dt : 0;
+		const state = cameraState();
+		const asking = state === "asking" || state === "off";
+		hint += ((asking || still > STILL_S ? 1 : 0) - hint) * Math.min(1, dt * 4);
+		if (hint > .02) {
+			if (asking) drawHint(hint, "ALLOW THE CAMERA", "only what moves will glow");
+			else drawHint(hint, "MOVE THE CAMERA", "or dance in front of it");
+		}
+		if (!video && !asking) {
+			ctx.font = `700 ${Math.max(10, view.min * .022)}px ${FACES[0].family}`;
+			ctx.textAlign = "center";
+			ctx.textBaseline = "bottom";
+			ctx.fillStyle = "rgba(255,255,255,0.55)";
+			ctx.fillText("NO CAMERA · DEMO DANCERS", view.cx, height - view.min * .04);
+		}
+	}
+};
+//#endregion
 //#region src/modes/flow.ts
 /** Particles follow a moving flow field and leave long trails. */
 var particles$2 = [];
@@ -4574,9 +5243,9 @@ var ink = [];
 var scratch = /* @__PURE__ */ new Float32Array(0);
 var curl = /* @__PURE__ */ new Float32Array(0);
 var jets = [];
-var beats$2 = 0;
+var beats$3 = 0;
 var lastJet = -1e9;
-function setUp$5(width, height) {
+function setUp$6(width, height) {
 	nx = width;
 	ny = height;
 	const n = nx * ny;
@@ -4645,7 +5314,7 @@ function project$1() {
 function fireJet() {
 	if (!nx) return;
 	lastJet = clock.time;
-	const side = beats$2++ % 4;
+	const side = beats$3++ % 4;
 	const along = rnd(.25, .75);
 	const tilt = rnd(-.35, .35);
 	const jet = side === 0 ? {
@@ -4677,7 +5346,7 @@ function fireJet() {
 		rgb: [],
 		life: 0
 	};
-	jet.rgb = colorRgb(beats$2 * .9, 60).map((c) => c / 255);
+	jet.rgb = colorRgb(beats$3 * .9, 60).map((c) => c / 255);
 	jet.life = .25 + audio.bass * .15;
 	jets.push(jet);
 }
@@ -4707,7 +5376,7 @@ var inkMode = {
 		const { width, height } = view;
 		const w = quality.level === 2 ? 128 : 96;
 		const h = Math.max(24, Math.round(w * height / width));
-		if (w !== nx || h !== ny) setUp$5(w, h);
+		if (w !== nx || h !== ny) setUp$6(w, h);
 		if (clock.time - lastJet > 1.6) fireJet();
 		const k = Math.min(dt, 1 / 30) * 60;
 		const force = 1.6 * (.7 + audio.bass * .7);
@@ -4886,7 +5555,7 @@ var layerWidth = 0;
 var layerHeight = 0;
 var puffs = [];
 var emitters = [];
-function setUp$4(w, h) {
+function setUp$5(w, h) {
 	for (const layer of [fog, beams]) {
 		layer.canvas.width = w;
 		layer.canvas.height = h;
@@ -5031,7 +5700,7 @@ var lasers = {
 		const light = scene.palette.light;
 		const w = Math.max(64, Math.round(width / 2));
 		const h = Math.max(64, Math.round(height / 2));
-		if (layerWidth !== w || layerHeight !== h) setUp$4(w, h);
+		if (layerWidth !== w || layerHeight !== h) setUp$5(w, h);
 		const fanWidth = .06 + audio.high * .12;
 		drawFog(dt);
 		drawBeams(fanWidth);
@@ -5121,7 +5790,7 @@ var cell = 14;
 var glyphs = "0123456789";
 /** Whether the font has the half-width katakana; checked once. */
 var hasKatakana = null;
-function setUp$3() {
+function setUp$4() {
 	cell = Math.max(14, Math.round(view.min / 26));
 	ctx.font = `${cell}px ${MONOSPACE$1}`;
 	if (hasKatakana === null) hasKatakana = Math.abs(ctx.measureText("ｱｲｳｴｵ").width - ctx.measureText("").width) > 1;
@@ -5183,7 +5852,7 @@ var matrix = {
 		columns = [];
 	},
 	draw(dt) {
-		if (!columns.length) setUp$3();
+		if (!columns.length) setUp$4();
 		const rows = Math.ceil(view.height / cell) + 1;
 		const speed = .45 + audio.mid * 1.4 + audio.beat * .5;
 		ctx.font = `${cell}px ${MONOSPACE$1}`;
@@ -5395,7 +6064,7 @@ var falcon = {
 	vy: 0,
 	life: 0
 };
-function setUp$2(count) {
+function setUp$3(count) {
 	const { width, height, cx, cy, min } = view;
 	birdX = new Float32Array(count);
 	birdY = new Float32Array(count);
@@ -5546,7 +6215,7 @@ var murmur = {
 	},
 	draw(dt) {
 		const count = quality.level === 2 ? 600 : 350;
-		if (birdX.length !== count) setUp$2(count);
+		if (birdX.length !== count) setUp$3(count);
 		const step = Math.min(dt, 1 / 30);
 		hashBirds();
 		fly(step);
@@ -6872,6 +7541,250 @@ var ripples = {
 	}
 };
 //#endregion
+//#region src/modes/sand.ts
+/**
+* Psychedelic sand in 3D: grains pour from three moving spouts onto a square plate and
+* pile up into dunes, drawn as isometric columns. Each grain takes the colour of the
+* moment it fell, so the dunes grow in stripes of colour; a pile steeper than the
+* angle of repose slides, and the slide carries its colour down the slope. Every kick
+* blasts a crater and throws the grains into the air; strong beats glitch the picture
+* (columns jump, slices tear, a colour-split copy shakes). When the plate gets full,
+* the floor sinks.
+*/
+/** Steepest slope (grains per cell) before the pile slides. */
+var REPOSE = 2.2;
+var GRAVITY = 140;
+var DROP_HEIGHT = 70;
+var MAX_GRAINS = 1600;
+var n = 0;
+var height = /* @__PURE__ */ new Float32Array(0);
+var tone = /* @__PURE__ */ new Float32Array(0);
+var grains = [];
+/** 1 after a strong beat, falling: how hard the picture glitches. */
+var glitch = 0;
+function setUp$2(size) {
+	n = size;
+	height = new Float32Array(n * n);
+	tone = new Float32Array(n * n);
+	grains = [];
+}
+/** The colour number of grains falling now: it runs through the palette. */
+function colourNow() {
+	return clock.time * .9 + audio.beats * .35;
+}
+function pour(dt) {
+	const rate = (40 + audio.bass * 120) * dt;
+	for (let s = 0; s < 3; s++) {
+		const t = clock.time * (.21 + s * .07) + s * 2.1;
+		const x = n * (.5 + .32 * Math.sin(t * 1.3));
+		const z = n * (.5 + .32 * Math.cos(t * .9 + s));
+		for (let i = 0; i < rate + Math.random(); i++) {
+			if (grains.length >= MAX_GRAINS) return;
+			grains.push({
+				x: x + rnd(-.6, .6),
+				z: z + rnd(-.6, .6),
+				y: DROP_HEIGHT,
+				vx: 0,
+				vy: 0,
+				vz: 0,
+				k: colourNow() + s * .6
+			});
+		}
+	}
+}
+function fall(dt) {
+	grains = grains.filter((g) => {
+		g.vy -= GRAVITY * dt;
+		g.x += g.vx * dt;
+		g.z += g.vz * dt;
+		g.y += g.vy * dt;
+		if (g.x < 0 || g.z < 0 || g.x >= n || g.z >= n) return g.y > -20;
+		const i = Math.floor(g.z) * n + Math.floor(g.x);
+		if (g.y <= height[i]) {
+			height[i] += 1;
+			tone[i] = g.k;
+			return false;
+		}
+		return true;
+	});
+}
+/** Slopes steeper than the angle of repose slide; the top colour slides with them. */
+function slide$1() {
+	for (let pass = 0; pass < 2; pass++) for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) {
+		const i = z * n + x;
+		for (const j of [x + 1 < n ? i + 1 : -1, z + 1 < n ? i + n : -1]) {
+			if (j < 0) continue;
+			const d = height[i] - height[j];
+			if (d > REPOSE) {
+				const move = (d - REPOSE) * .25;
+				height[i] -= move;
+				height[j] += move;
+				tone[j] = tone[i];
+			} else if (-d > REPOSE) {
+				const move = (-d - REPOSE) * .25;
+				height[j] -= move;
+				height[i] += move;
+				tone[i] = tone[j];
+			}
+		}
+	}
+}
+/** A crater, and its grains thrown into the air. */
+function blast() {
+	const cx = rnd(.2, .8) * n;
+	const cz = rnd(.2, .8) * n;
+	const radius = 4 + audio.bass * 4;
+	for (let z = Math.max(0, Math.floor(cz - radius)); z < Math.min(n, cz + radius); z++) for (let x = Math.max(0, Math.floor(cx - radius)); x < Math.min(n, cx + radius); x++) {
+		const d = Math.hypot(x - cx, z - cz);
+		if (d >= radius) continue;
+		const i = z * n + x;
+		const take = Math.min(height[i], (radius - d) * 1.6);
+		height[i] -= take;
+		for (let k = 0; k < take && grains.length < MAX_GRAINS; k += 1.5) {
+			const a = Math.atan2(z - cz, x - cx) + rnd(-.4, .4);
+			const out = rnd(4, 16);
+			grains.push({
+				x: x + .5,
+				z: z + .5,
+				y: height[i] + 1,
+				vx: Math.cos(a) * out,
+				vy: rnd(40, 95),
+				vz: Math.sin(a) * out,
+				k: tone[i]
+			});
+		}
+	}
+}
+function rgb(k, lightness, shade) {
+	const [r, g, b] = colorRgb(k, lightness);
+	return `rgb(${r * shade | 0},${g * shade | 0},${b * shade | 0})`;
+}
+var sand = {
+	name: "sand",
+	fade: 1,
+	bloom: .6,
+	blend: "source-over",
+	beatRings: false,
+	palettes: [
+		"void",
+		"technicolor",
+		"acid",
+		"neon",
+		"vapor",
+		"lava",
+		"ultraviolet"
+	],
+	beat() {
+		blast();
+		if (audio.bass > .55) glitch = 1;
+	},
+	resize() {},
+	draw(dt) {
+		const size = quality.level === 2 ? 48 : 38;
+		if (n !== size) setUp$2(size);
+		const step = Math.min(dt, 1 / 30);
+		pour(step);
+		fall(step);
+		slide$1();
+		let total = 0;
+		for (let i = 0; i < height.length; i++) total += height[i];
+		if (total / height.length > 14) for (let i = 0; i < height.length; i++) height[i] = Math.max(0, height[i] - step * 6);
+		glitch = Math.max(0, glitch - step * 3);
+		const { width, height: screenH, cx, cy } = view;
+		const t = clock.time;
+		const sky = ctx.createLinearGradient(0, 0, 0, screenH);
+		sky.addColorStop(0, rgb(t * .2 + 2, 12, 1));
+		sky.addColorStop(1, "#030206");
+		ctx.fillStyle = sky;
+		ctx.fillRect(0, 0, width, screenH);
+		const tw = Math.min(width * .92, screenH * 1.5) / (2 * n);
+		const th = tw * .5;
+		const hu = tw * .22;
+		const y0 = cy - n * th + screenH * .06;
+		const h = height;
+		ctx.save();
+		ctx.globalCompositeOperation = "lighter";
+		ctx.strokeStyle = rgb(t * .3, 45, .35);
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		for (let g = 0; g <= n; g += 4) {
+			ctx.moveTo(cx + g * tw, y0 + g * th - th);
+			ctx.lineTo(cx + (g - n) * tw, y0 + (g + n) * th - th);
+			ctx.moveTo(cx - g * tw, y0 + g * th - th);
+			ctx.lineTo(cx + (n - g) * tw, y0 + (g + n) * th - th);
+		}
+		ctx.stroke();
+		ctx.restore();
+		for (let s = 0; s < 2 * n - 1; s++) for (let i = Math.max(0, s - n + 1); i <= Math.min(n - 1, s); i++) {
+			const j = s - i;
+			const c = j * n + i;
+			const v = h[c];
+			const jump = glitch > .2 ? (hash01(c * 1.7 + Math.floor(t * 20)) - .5) * glitch * th * 6 : 0;
+			const X = cx + (i - j) * tw;
+			const Y = y0 + (i + j) * th - v * hu + jump;
+			const band = .82 + .18 * Math.sin(v * .9 + tone[c]);
+			const k = tone[c];
+			const right = i + 1 < n ? h[c + 1] : 0;
+			const left = j + 1 < n ? h[c + n] : 0;
+			if (v > left) {
+				const d = (v - left) * hu;
+				ctx.fillStyle = rgb(k, 48, .62 * band);
+				ctx.beginPath();
+				ctx.moveTo(X - tw, Y);
+				ctx.lineTo(X, Y + th);
+				ctx.lineTo(X, Y + th + d);
+				ctx.lineTo(X - tw, Y + d);
+				ctx.fill();
+			}
+			if (v > right) {
+				const d = (v - right) * hu;
+				ctx.fillStyle = rgb(k, 56, .82 * band);
+				ctx.beginPath();
+				ctx.moveTo(X + tw, Y);
+				ctx.lineTo(X, Y + th);
+				ctx.lineTo(X, Y + th + d);
+				ctx.lineTo(X + tw, Y + d);
+				ctx.fill();
+			}
+			ctx.fillStyle = v < .3 ? "#100e1a" : rgb(k, 66 + clamp(v, 0, 20), band);
+			ctx.beginPath();
+			ctx.moveTo(X, Y - th);
+			ctx.lineTo(X + tw + .5, Y);
+			ctx.lineTo(X, Y + th + .5);
+			ctx.lineTo(X - tw - .5, Y);
+			ctx.fill();
+		}
+		ctx.save();
+		ctx.globalCompositeOperation = "lighter";
+		ctx.lineCap = "round";
+		ctx.lineWidth = Math.max(1.5, tw * .25);
+		for (const g of grains) {
+			const X = cx + (g.x - g.z) * tw;
+			const Y = y0 + (g.x + g.z) * th - g.y * hu;
+			ctx.strokeStyle = rgb(g.k, 75, 1);
+			ctx.beginPath();
+			ctx.moveTo(X, Y);
+			ctx.lineTo(X - g.vx * tw * .02, Y + g.vy * hu * .03);
+			ctx.stroke();
+		}
+		ctx.restore();
+		if (glitch > .3) {
+			takeSnapshot();
+			for (let i = 0; i < 5; i++) {
+				const y = Math.random() * screenH;
+				drawStrip(snapshot, y, rnd(4, 40), (Math.random() - .5) * width * .15 * glitch, y);
+			}
+			ctx.save();
+			ctx.globalCompositeOperation = "lighter";
+			ctx.globalAlpha = .25 * glitch;
+			const off = tw * 1.5 * glitch;
+			ctx.drawImage(snapshot, 0, 0, snapshot.width, snapshot.height, off, 0, width, screenH);
+			ctx.drawImage(snapshot, 0, 0, snapshot.width, snapshot.height, -off, off * .4, width, screenH);
+			ctx.restore();
+		}
+	}
+};
+//#endregion
 //#region src/modes/scope.ts
 /** Oscilloscope: a Lissajous figure modulated by the waveform, plus an X/Y trace. */
 /** Lissajous frequency ratio a:b and phase. */
@@ -7414,82 +8327,6 @@ var slime = {
 	}
 };
 //#endregion
-//#region src/input/camera.ts
-/**
-* The phone's back camera, for the camera modes. It starts when such a mode first asks
-* for a picture, turns off when no mode has asked for 2.5 s (so the camera light goes
-* out), and turns off after 1 hour in case it was forgotten; leaving the mode and
-* coming back turns it on again.
-*/
-var LIMIT_MS = 36e5;
-var IDLE_MS = 2500;
-var state$3 = "off";
-var stream = null;
-var video = null;
-var startedAt = 0;
-var lastUse = 0;
-var camera = { 
-/** The camera worked once in this page, so auto-switch may pick camera modes. */
-allowed: false };
-function stop(next) {
-	for (const track of stream?.getTracks() ?? []) track.stop();
-	stream = null;
-	video = null;
-	state$3 = next;
-}
-async function start() {
-	if (!navigator.mediaDevices?.getUserMedia) {
-		state$3 = "failed";
-		return;
-	}
-	state$3 = "asking";
-	setStatus("Allow the camera for this mode.");
-	try {
-		stream = await navigator.mediaDevices.getUserMedia({
-			video: {
-				facingMode: { ideal: "environment" },
-				width: { ideal: 640 },
-				height: { ideal: 480 }
-			},
-			audio: false
-		});
-	} catch {
-		state$3 = "failed";
-		setStatus("No camera: this mode shows its own dancers instead.");
-		return;
-	}
-	if (performance.now() - lastUse > IDLE_MS) {
-		stop("off");
-		return;
-	}
-	video = document.createElement("video");
-	video.muted = true;
-	video.playsInline = true;
-	video.srcObject = stream;
-	await video.play().catch(() => {});
-	state$3 = "on";
-	camera.allowed = true;
-	startedAt = performance.now();
-	setStatus("Camera on. Point it at the dance floor.");
-}
-/** The live camera picture, or null (not ready, not allowed, or no camera). */
-function cameraVideo() {
-	const now = performance.now();
-	if (state$3 === "expired" && now - lastUse > IDLE_MS) state$3 = "off";
-	lastUse = now;
-	if (state$3 === "off") start();
-	return state$3 === "on" && video && video.readyState >= 2 ? video : null;
-}
-setInterval(() => {
-	if (state$3 !== "on") return;
-	const now = performance.now();
-	if (now - lastUse > IDLE_MS) stop("off");
-	else if (now - startedAt > LIMIT_MS) {
-		stop("expired");
-		setStatus("Camera turned off after 1 hour. Leave the mode and come back to turn it on.");
-	}
-}, 1e3);
-//#endregion
 //#region src/modes/smear.ts
 /**
 * Camera time smear (slit-scan, the trick behind the stargate in "2001"): point the
@@ -7506,16 +8343,16 @@ var MAPS = [
 ];
 /** Frames kept: about one second at 60 frames per second. */
 var DEPTH = 64;
-var source = document.createElement("canvas");
-var sourceCtx = context2d(source, { willReadFrequently: true });
+var source$1 = document.createElement("canvas");
+var sourceCtx = context2d(source$1, { willReadFrequently: true });
 var layer$1 = new PixelLayer();
 var frames$1 = [];
 var head = 0;
 var map = 0;
-var beats$1 = 0;
+var beats$2 = 0;
 function setUp(w, h) {
-	source.width = w;
-	source.height = h;
+	source$1.width = w;
+	source$1.height = h;
 	layer$1.setSize(w, h);
 	frames$1 = Array.from({ length: DEPTH }, () => new Uint8ClampedArray(w * h * 4));
 	head = 0;
@@ -7527,75 +8364,6 @@ function drawCamera(video, w, h) {
 	const dh = video.videoHeight * scale;
 	sourceCtx.drawImage(video, (w - dw) / 2, (h - dh) / 2, dw, dh);
 }
-function limb(x1, y1, x2, y2) {
-	sourceCtx.beginPath();
-	sourceCtx.moveTo(x1, y1);
-	sourceCtx.lineTo(x2, y2);
-	sourceCtx.stroke();
-}
-/** Three dancing figures under stage lights, for when there is no camera. */
-function drawDancers(w, h) {
-	const g = sourceCtx;
-	const t = clock.time;
-	const beat = audio.beats + (1 - audio.beat) * .5;
-	g.fillStyle = "#0a0710";
-	g.fillRect(0, 0, w, h);
-	for (let k = 0; k < 3; k++) {
-		const x = w * (.2 + k * .3) + Math.sin(t * .7 + k) * w * .15;
-		const light = g.createLinearGradient(x, 0, x, h);
-		light.addColorStop(0, `hsla(${k * 120 + t * 20},100%,60%,${.35 + audio.beat * .3})`);
-		light.addColorStop(1, "hsla(0,0%,0%,0)");
-		g.fillStyle = light;
-		g.beginPath();
-		g.moveTo(x - 3, 0);
-		g.lineTo(x + 3, 0);
-		g.lineTo(x + w * .18, h);
-		g.lineTo(x - w * .18, h);
-		g.closePath();
-		g.fill();
-	}
-	[
-		[
-			.24,
-			.55,
-			0,
-			330
-		],
-		[
-			.52,
-			.6,
-			1.3,
-			190
-		],
-		[
-			.79,
-			.52,
-			2.6,
-			50
-		]
-	].forEach(([px, py, offset, hue], i) => {
-		const s = h * .2;
-		const swing = Math.sin(beat * Math.PI + offset);
-		g.save();
-		g.translate(w * px + Math.sin(t * (.6 + i * .25) + i * 2) * w * .05, h * py);
-		g.translate(0, -Math.abs(Math.sin(beat * Math.PI)) * s * .18);
-		g.rotate(swing * .12);
-		g.strokeStyle = g.fillStyle = `hsl(${hue},95%,72%)`;
-		g.lineWidth = s * .24;
-		g.lineCap = "round";
-		g.beginPath();
-		g.arc(0, -s * 1.1, s * .28, 0, TAU);
-		g.fill();
-		limb(0, -s * .8, 0, s * .2);
-		const left = -2.3 + swing * .9;
-		const right = -.85 - swing * .9;
-		limb(0, -s * .62, Math.cos(left) * s * .8, -s * .62 + Math.sin(left) * s * .8);
-		limb(0, -s * .62, Math.cos(right) * s * .8, -s * .62 + Math.sin(right) * s * .8);
-		limb(0, s * .2, -s * .35 - swing * s * .15, s * .95);
-		limb(0, s * .2, s * .35 - swing * s * .15, s * .95);
-		g.restore();
-	});
-}
 var smear = {
 	name: "time-smear",
 	fade: 1,
@@ -7604,7 +8372,7 @@ var smear = {
 	beatRings: false,
 	camera: true,
 	beat() {
-		if (++beats$1 % 8 === 0) map = (map + 1) % MAPS.length;
+		if (++beats$2 % 8 === 0) map = (map + 1) % MAPS.length;
 	},
 	resize() {
 		frames$1 = [];
@@ -7613,10 +8381,10 @@ var smear = {
 		const { width, height } = view;
 		const w = 160;
 		const h = Math.max(60, Math.round(w * height / width));
-		if (!frames$1.length || source.width !== w || source.height !== h) setUp(w, h);
+		if (!frames$1.length || source$1.width !== w || source$1.height !== h) setUp(w, h);
 		const video = cameraVideo();
 		if (video) drawCamera(video, w, h);
-		else drawDancers(w, h);
+		else drawDancers(sourceCtx, w, h);
 		frames$1[head].set(sourceCtx.getImageData(0, 0, w, h).data);
 		const kind = MAPS[map];
 		const reach = 63 * (.55 + audio.bass * .45);
@@ -7829,7 +8597,7 @@ var TESSERACT = Array.from({ length: 16 }, (_, i) => [
 var TESSERACT_EDGES = [];
 for (let i = 0; i < 16; i++) for (let bit = 0; bit < 4; bit++) if (!(i & 1 << bit)) TESSERACT_EDGES.push([i, i | 1 << bit]);
 var shape = 0;
-var beats = 0;
+var beats$1 = 0;
 var angles = {
 	x: .4,
 	y: .2,
@@ -7988,7 +8756,7 @@ var solids = {
 	],
 	beat() {
 		explode = Math.max(explode, .35 + audio.bass * .5);
-		if (++beats % 8 === 0) {
+		if (++beats$1 % 8 === 0) {
 			explode = 1.1;
 			shape = (shape + 1 + rndInt(2)) % SHAPES.length;
 		}
@@ -8479,98 +9247,6 @@ var tunnel$1 = {
 	}
 };
 //#endregion
-//#region src/render/words/show.ts
-/** Shared types and helpers for the heard-words styles. */
-var CJK$2 = "\"Noto Sans SC\", sans-serif";
-var FACES = [
-	{
-		name: "bold",
-		family: `Unbounded, ${CJK$2}`,
-		weight: 700,
-		chance: 3
-	},
-	{
-		name: "pixel",
-		family: `"Press Start 2P", ${CJK$2}`,
-		weight: 400,
-		chance: 1.6
-	},
-	{
-		name: "glitch",
-		family: `"Rubik Glitch", ${CJK$2}`,
-		weight: 400,
-		chance: 1
-	},
-	{
-		name: "horror",
-		family: `Creepster, "Rubik Wet Paint", ${CJK$2}`,
-		weight: 400,
-		chance: 1
-	},
-	{
-		name: "drip",
-		family: `"Rubik Wet Paint", ${CJK$2}`,
-		weight: 400,
-		chance: .8
-	},
-	{
-		name: "beast",
-		family: `"Rubik Beastly", ${CJK$2}`,
-		weight: 400,
-		chance: .8
-	},
-	{
-		name: "neon",
-		family: `Monoton, Unbounded, ${CJK$2}`,
-		weight: 400,
-		chance: .8
-	}
-];
-var MONOSPACE = "\"JetBrains Mono\", ui-monospace, Menlo, Consolas, monospace";
-var face$1 = FACES[0];
-/** Makes `next` the face of the styles drawn from now on. */
-function useFace(next) {
-	face$1 = next;
-}
-function currentFace() {
-	return face$1;
-}
-/** A random face, by chance, that is not `not`. */
-function pickFace(not) {
-	const options = FACES.filter((f) => f !== not);
-	let roll = Math.random() * options.reduce((sum, f) => sum + f.chance, 0);
-	for (const f of options) {
-		roll -= f.chance;
-		if (roll <= 0) return f;
-	}
-	return options[options.length - 1];
-}
-/** CSS font of `size` px: the current face, or `family` (bold) when given. */
-function font(size, family) {
-	return family ? `700 ${size}px ${family}` : `${face$1.weight} ${size}px ${face$1.family}`;
-}
-/** Font size at which `text` takes `share` of the screen width, but at most `max` px. */
-function fitFont(text, share, max, family) {
-	ctx.font = font(100, family);
-	const measured = Math.max(1, ctx.measureText(text).width);
-	return Math.min(max, 100 * view.width * share / measured);
-}
-/**
-* A soft dark copy of `text` under where it will be drawn, so that a glowing word
-* stays readable over a bright picture.
-*/
-function shadowText(text, x, y, size, alpha) {
-	const blend = ctx.globalCompositeOperation;
-	ctx.globalCompositeOperation = "source-over";
-	ctx.fillStyle = `rgba(0,0,0,${alpha * .55})`;
-	ctx.fillText(text, x + size * .035, y + size * .05);
-	ctx.globalCompositeOperation = blend;
-}
-/** Glowing blend on dark palettes; normal drawing on light ones. */
-function glowBlend() {
-	return scene.palette.light ? "source-over" : "lighter";
-}
-//#endregion
 //#region src/modes/words.ts
 /**
 * A big word with a stacked 3D shadow. A new word on each beat, and now and then a new
@@ -8651,7 +9327,7 @@ var MODES = [
 			ctx.restore();
 		}
 	},
-	blocks,
+	blocks$1,
 	rays,
 	spiral$1,
 	strings,
@@ -8694,7 +9370,10 @@ var MODES = [
 	inkMode,
 	parallax,
 	smear,
-	f1
+	f1,
+	sand,
+	caustics,
+	ghosts
 ];
 //#endregion
 //#region src/render/beatRings.ts
@@ -8722,6 +9401,423 @@ function drawBeatRings(dt) {
 		ctx.lineWidth = ring.width * (1 + a);
 		strokeCircle(ctx, cx, cy, ring.r);
 	}
+}
+//#endregion
+//#region src/render/mashup.ts
+/**
+* The mashup look: a second mode, in its own palette, shows through a mask over the
+* first one. Each mode keeps its own picture between frames (so trails and feedback
+* work for both), and the mask goes wild: circles with ragged edges, sliding
+* diagonals, checkerboards, blinds, shards, scan slices, blocks, rings and torn strips.
+* It changes every few beats, the two pictures sometimes swap or meet in a strange
+* blend, the mask edge glows with split colours, and strong beats tear the frame.
+* Every 16 beats a new partner mode comes in.
+*/
+var MASKS = [
+	"circle",
+	"diagonal",
+	"checker",
+	"blinds",
+	"shards",
+	"scan",
+	"blocks",
+	"rings",
+	"tear"
+];
+var BLENDS = [
+	"source-over",
+	"source-over",
+	"source-over",
+	"difference",
+	"screen",
+	"exclusion"
+];
+var COLS = 12;
+var ROWS = 8;
+var pictures = {
+	main: createLayer(),
+	partner: createLayer()
+};
+var partner = null;
+var partnerPalette = PALETTES[0];
+var forMode = null;
+var beats = 0;
+var mask = "circle";
+var swap = false;
+var blend = "source-over";
+/** Triangles for the shards mask, as x, y triples in 0..1. */
+var shards = [];
+var blocks = /* @__PURE__ */ new Uint8Array(96);
+/** Slices of the scan mask (y, height in 0..1), re-cut many times a second. */
+var slices = [];
+var nextCut = 0;
+/** A short swap of the two pictures, until this clock.time. */
+var flashUntil = 0;
+function newMask() {
+	mask = pick(MASKS, mask);
+	swap = Math.random() < .3;
+	blend = pick(BLENDS);
+	shards = [];
+	for (let i = 0; i < 7; i++) {
+		const x = Math.random();
+		const y = Math.random();
+		for (let k = 0; k < 3; k++) shards.push(x + rnd(-.22, .22), y + rnd(-.22, .22));
+	}
+	for (let i = 0; i < blocks.length; i++) blocks[i] = Math.random() < .5 ? 1 : 0;
+}
+function newPartner(main) {
+	partner = pick(MODES.filter((m) => m !== main && !m.camera));
+	const dark = Math.random() < .85;
+	partnerPalette = pick(PALETTES.filter((p) => p !== scene.palette && (!dark || !p.light)));
+	const g = pictures.partner.ctx;
+	g.setTransform(1, 0, 0, 1, 0, 0);
+	g.fillStyle = "#000";
+	g.fillRect(0, 0, pictures.partner.canvas.width, pictures.partner.canvas.height);
+}
+/** Called on each beat while the mashup look is on. */
+function mashupBeat() {
+	partner?.beat?.();
+	beats++;
+	if (beats % 16 === 0) partner = null;
+	if (beats % 2 === 0 && Math.random() < .7) newMask();
+	else if (mask === "blocks" || mask === "shards") newMask();
+	if (beats % 8 === 4 && audio.bass > .5) flashUntil = clock.time + .12;
+}
+function copyIn(layer) {
+	ctx.save();
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	ctx.globalCompositeOperation = "copy";
+	ctx.globalAlpha = 1;
+	ctx.drawImage(layer.canvas, 0, 0);
+	ctx.restore();
+}
+function copyOut(layer) {
+	layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+	layer.ctx.globalCompositeOperation = "copy";
+	layer.ctx.drawImage(sceneCanvas, 0, 0);
+}
+/** The mask as a path on `ctx` (in CSS pixels). */
+function maskPath() {
+	const { width, height, cx, cy, min } = view;
+	const t = clock.time;
+	ctx.beginPath();
+	if (mask === "circle") {
+		const r = min * (.24 + audio.bass * .16);
+		const step = Math.floor(t * 14);
+		for (let i = 0; i <= 48; i++) {
+			const a = i / 48 * TAU;
+			const rr = r * (1 + (hash01(i * 3.1 + step) - .5) * (.08 + audio.high * .2));
+			if (i) ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+			else ctx.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+		}
+		ctx.closePath();
+	} else if (mask === "diagonal") {
+		const x = width * (.5 + .35 * Math.sin(t * 1.3)) + (Math.random() - .5) * audio.beat * 40;
+		ctx.moveTo(x - height * .4, 0);
+		ctx.lineTo(width, 0);
+		ctx.lineTo(width, height);
+		ctx.lineTo(x + height * .4, height);
+		ctx.closePath();
+	} else if (mask === "checker") {
+		const cols = 8;
+		const rows = 5;
+		for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+			const flip = hash01(i * 7 + j * 13 + Math.floor(t * 10)) < audio.high * .3;
+			if ((i + j + beats) % 2 === 0 !== flip) ctx.rect(i * width / cols, j * height / rows, width / cols + 1, height / rows + 1);
+		}
+	} else if (mask === "blinds") {
+		const bands = 9;
+		for (let j = 0; j < bands; j++) {
+			const open = .5 + .5 * Math.sin(t * 3 + j * .9 + audio.bass * 2);
+			ctx.rect(0, j * height / bands, width, height / bands * open);
+		}
+	} else if (mask === "shards") {
+		const grow = 1 + audio.beat * .3;
+		for (let i = 0; i < shards.length; i += 6) {
+			const mx = (shards[i] + shards[i + 2] + shards[i + 4]) / 3;
+			const my = (shards[i + 1] + shards[i + 3] + shards[i + 5]) / 3;
+			for (let k = 0; k < 3; k++) {
+				const x = (mx + (shards[i + k * 2] - mx) * grow) * width;
+				const y = (my + (shards[i + k * 2 + 1] - my) * grow) * height;
+				if (k) ctx.lineTo(x, y);
+				else ctx.moveTo(x, y);
+			}
+			ctx.closePath();
+		}
+	} else if (mask === "scan") {
+		if (clock.time >= nextCut || clock.time < nextCut - 1) {
+			slices = [];
+			for (let i = 0; i < 9; i++) slices.push(Math.random(), rnd(.01, .09));
+			nextCut = clock.time + rnd(.05, .14);
+		}
+		for (let i = 0; i < slices.length; i += 2) ctx.rect(0, slices[i] * height, width, slices[i + 1] * height);
+	} else if (mask === "blocks") {
+		for (let i = 0; i < COLS; i++) for (let j = 0; j < ROWS; j++) if (blocks[j * COLS + i] === 1 !== hash01(i * 5 + j * 11 + Math.floor(t * 12)) < audio.high * .15) ctx.rect(i * width / COLS, j * height / ROWS, width / COLS + 1, height / ROWS + 1);
+	} else if (mask === "rings") {
+		const band = min * .07;
+		const shift = t * band * (1.5 + audio.bass * 3) % (band * 2);
+		for (let r = shift; r < Math.hypot(cx, cy) + band * 2; r += band * 2) {
+			ctx.moveTo(cx + r + band, cy);
+			ctx.arc(cx, cy, r + band, 0, TAU);
+			ctx.moveTo(cx + r, cy);
+			ctx.arc(cx, cy, r, TAU, 0, true);
+		}
+	} else ctx.rect(0, 0, 0, 0);
+}
+/** Vertical strips of the top picture, each pushed up or down. */
+function drawTear(top) {
+	const { width, height, dpr } = view;
+	const strips = 14;
+	const step = Math.floor(clock.time * 8);
+	for (let i = 0; i < strips; i++) {
+		if (hash01(i * 2.7 + step) < .45) continue;
+		const x = i / strips * width;
+		const w = width / strips + 1;
+		const dy = (hash01(i * 9.1 + step) - .5) * height * (.2 + audio.beat * .6);
+		ctx.drawImage(top, x * dpr, 0, w * dpr, top.height, x, dy, w, height);
+	}
+}
+/** Draws the main mode and its partner through the mask onto the scene canvas. */
+function drawMashup(main, dt, drawMode) {
+	const { width, height } = view;
+	for (const layer of [pictures.main, pictures.partner]) if (layer.canvas.width !== sceneCanvas.width || layer.canvas.height !== sceneCanvas.height) {
+		setCanvasSize(layer.canvas, sceneCanvas.width, sceneCanvas.height);
+		copyOut(layer);
+	}
+	if (forMode !== main || !partner) {
+		newPartner(main);
+		forMode = main;
+	}
+	const other = partner;
+	copyIn(pictures.partner);
+	const palette = scene.palette;
+	scene.palette = partnerPalette;
+	drawMode(other, dt, false);
+	scene.palette = palette;
+	copyOut(pictures.partner);
+	copyIn(pictures.main);
+	drawMode(main, dt, true);
+	copyOut(pictures.main);
+	const swapped = swap !== clock.time < flashUntil;
+	const top = swapped ? pictures.main : pictures.partner;
+	if (swapped) copyIn(pictures.partner);
+	ctx.save();
+	ctx.globalCompositeOperation = blend;
+	if (mask === "tear") drawTear(top.canvas);
+	else {
+		maskPath();
+		ctx.clip();
+		ctx.drawImage(top.canvas, 0, 0, width, height);
+	}
+	ctx.restore();
+	if (mask !== "tear" && mask !== "scan") {
+		const split = 2 + audio.beat * 8;
+		ctx.save();
+		ctx.globalCompositeOperation = "lighter";
+		ctx.lineWidth = 1.5 + audio.beat * 2;
+		for (const [dx, stroke] of [
+			[-split, "rgba(255,0,60,0.55)"],
+			[split, "rgba(0,220,255,0.55)"],
+			[0, color(0, .8, 85)]
+		]) {
+			ctx.save();
+			ctx.translate(dx, 0);
+			maskPath();
+			ctx.strokeStyle = stroke;
+			ctx.stroke();
+			ctx.restore();
+		}
+		ctx.restore();
+	}
+	if (audio.beat > .6 && Math.random() < .5) {
+		takeSnapshot();
+		for (let i = 0; i < 2 + rndInt(5); i++) {
+			const y = Math.random() * height;
+			drawStrip(snapshot, y, rnd(4, 50), (Math.random() - .5) * width * .25 * audio.beat, y);
+		}
+	}
+}
+//#endregion
+//#region src/render/lookSource.ts
+/**
+* Looks that rebuild the whole picture on its way to the screen. The compositor shows
+* their canvas in place of the scene, so they never feed back into the trails.
+*
+*   rutt-etra  the 1972 Rutt/Etra video synthesizer: the picture as rows of glowing
+*              scanlines, each lifted by the brightness under it, in a tilted 3D relief
+*   droste     Escher's "Print Gallery" trick: the picture inside itself, wound into an
+*              endless spiral that zooms on the beat, each nested copy in turned colours
+*/
+var SAMPLE_W$1 = 160;
+var sample = document.createElement("canvas");
+var sampleCtx = context2d(sample, { willReadFrequently: true });
+var rutt = createLayer();
+function ruttEtra() {
+	const { width, height, dpr, cx } = view;
+	const W = SAMPLE_W$1;
+	const H = Math.max(40, Math.round(W * height / width));
+	setCanvasSize(sample, W, H);
+	sampleCtx.drawImage(sceneCanvas, 0, 0, W, H);
+	const data = sampleCtx.getImageData(0, 0, W, H).data;
+	setCanvasSize(rutt.canvas, sceneCanvas.width, sceneCanvas.height);
+	const g = rutt.ctx;
+	g.setTransform(dpr, 0, 0, dpr, 0, 0);
+	g.globalCompositeOperation = "source-over";
+	g.fillStyle = background();
+	g.fillRect(0, 0, width, height);
+	g.globalCompositeOperation = scene.palette.light ? "source-over" : "lighter";
+	g.lineJoin = "round";
+	const rows = Math.min(H, 72);
+	const tilt = .28 + Math.sin(clock.time * .4) * .08 + audio.mid * .1;
+	const lift = height * (.07 + audio.bass * .09);
+	const xs = new Float32Array(W / 2);
+	const ys = new Float32Array(W / 2);
+	const piece = 10;
+	for (let r = 0; r < rows; r++) {
+		const sy = Math.floor(r / rows * H);
+		const depth = r / (rows - 1);
+		const spread = 1 - tilt * (1 - depth);
+		const baseY = height * (.1 + depth * .84);
+		for (let x = 0, n = 0; x < W; x += 2, n++) {
+			const i = (sy * W + x) * 4;
+			const lum = (data[i] * .3 + data[i + 1] * .59 + data[i + 2] * .11) / 255;
+			xs[n] = cx + (x / 159 - .5) * width * 1.06 * spread;
+			ys[n] = baseY - lum * lift;
+		}
+		const tint = colorRgb(r * .08 + clock.time * .1, 65);
+		const width1 = .8 + depth * 1.4 + audio.beat * 1.4;
+		for (let start = 0; start < xs.length - 1; start += piece) {
+			const stop = Math.min(xs.length - 1, start + piece);
+			let red = 0;
+			let green = 0;
+			let blue = 0;
+			for (let n = start; n <= stop; n++) {
+				const i = (sy * W + n * 2) * 4;
+				red += data[i];
+				green += data[i + 1];
+				blue += data[i + 2];
+			}
+			const count = stop - start + 1;
+			const mix = (c, t) => Math.min(255, c / count * 1.8 * .6 + t * .55);
+			g.strokeStyle = `rgb(${mix(red, tint[0])},${mix(green, tint[1])},${mix(blue, tint[2])})`;
+			g.beginPath();
+			g.moveTo(xs[start], ys[start]);
+			for (let n = start + 1; n <= stop; n++) g.lineTo(xs[n], ys[n]);
+			g.globalAlpha = .12 + depth * .1;
+			g.lineWidth = width1 * 4;
+			g.stroke();
+			g.globalAlpha = .55 + depth * .45;
+			g.lineWidth = width1;
+			g.stroke();
+		}
+	}
+	g.globalAlpha = 1;
+	return rutt.canvas;
+}
+var DROSTE = `
+uniform sampler2D u_tex;
+uniform vec2 u_res;
+uniform float u_zoom, u_arms, u_scale, u_hue, u_split, u_fold, u_glow;
+const float PI = 3.14159265;
+
+vec2 cmul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+
+// Turns the colour around the grey axis.
+vec3 turn(vec3 c, float a) {
+  const vec3 k = vec3(0.57735);
+  float ca = cos(a);
+  return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
+}
+
+// The scene at z, in units of the short side from the middle.
+vec3 scene(vec2 z) {
+  vec2 uv = z * min(u_res.x, u_res.y) / u_res + 0.5;
+  return texture2D(u_tex, clamp(uv, 0.001, 0.999)).rgb;
+}
+
+void main() {
+  vec2 z = (gl_FragCoord.xy - 0.5 * u_res) / min(u_res.x, u_res.y);
+  // Sometimes a kaleidoscope fold first.
+  if (u_fold > 0.5) {
+    float seg = 2.0 * PI / u_fold;
+    float a = abs(mod(atan(z.y, z.x), seg) - seg * 0.5);
+    z = length(z) * vec2(cos(a), sin(a));
+  }
+  float r2 = 0.5;
+  float L = log(u_scale);
+  vec2 w = vec2(log(max(length(z), 1e-6) / r2), atan(z.y, z.x));
+  // One turn around the middle = u_arms copies inward: the spiral.
+  w = cmul(w, vec2(1.0, -u_arms * L / (2.0 * PI)));
+  float x = w.x + u_zoom;
+  float level = floor(x / L);
+  float inRing = x / L - level;
+  w.x = (inRing - 1.0) * L;
+  vec2 p = exp(w.x) * r2 * vec2(cos(w.y), sin(w.y));
+  // Red and blue from slightly other zooms: colour fringes on the beat.
+  vec3 col = vec3(scene(p * (1.0 + u_split)).r, scene(p).g, scene(p * (1.0 - u_split)).b);
+  // Each nested copy turns the colours further.
+  col = turn(col, level * u_hue);
+  // The seam between two copies: a thin frame of light.
+  float seam = smoothstep(0.035, 0.0, inRing) + smoothstep(0.965, 1.0, inRing);
+  col += seam * u_glow * vec3(1.0, 0.82, 0.95);
+  gl_FragColor = vec4(col, 1.0);
+}`;
+var drostePass;
+var droste = {
+	zoom: 0,
+	direction: 1,
+	lastDrop: 0
+};
+/** Arms of the spiral per section (negative: the other way round), and the fold. */
+var DROSTE_SECTIONS = [
+	{
+		arms: 1,
+		fold: 0
+	},
+	{
+		arms: 2,
+		fold: 0
+	},
+	{
+		arms: -1,
+		fold: 6
+	},
+	{
+		arms: 1,
+		fold: 0
+	},
+	{
+		arms: 3,
+		fold: 0
+	},
+	{
+		arms: -2,
+		fold: 8
+	}
+];
+function drosteSpiral(dt) {
+	if (drostePass === void 0) drostePass = glPass(DROSTE);
+	if (!drostePass) return sceneCanvas;
+	if (audio.drop > .9 && droste.lastDrop <= .9) droste.direction *= -1;
+	droste.lastDrop = audio.drop;
+	droste.zoom += dt * droste.direction * (.3 + audio.bass * .5 + audio.beat * 1.4);
+	const section = DROSTE_SECTIONS[Math.floor(audio.beats / 32) % DROSTE_SECTIONS.length];
+	const scale = Math.min(view.dpr, 1.25);
+	return drostePass.render(view.width * scale, view.height * scale, {
+		u_zoom: droste.zoom,
+		u_arms: section.arms,
+		u_scale: 3,
+		u_hue: .45,
+		u_split: .004 + audio.beat * .025,
+		u_fold: section.fold,
+		u_glow: .12 + audio.beat * .5
+	}, sceneCanvas);
+}
+/** The canvas the compositor shows: the scene, or what the look makes of it. */
+function lookSource(dt) {
+	if (scene.look.rutt) return ruttEtra();
+	if (scene.look.droste) return drosteSpiral(dt);
+	return sceneCanvas;
 }
 //#endregion
 //#region src/render/compositor.ts
@@ -8794,6 +9890,8 @@ function startTransition(duration, clearScene) {
 	}
 	transition.t = 1;
 }
+/** What the compositor shows this frame: the scene, or what the look makes of it. */
+var source = sceneCanvas;
 /** Bright-pass and blur into the bloom pyramid. */
 function renderBloom() {
 	const levels = quality.level >= 1 ? 3 : 2;
@@ -8804,7 +9902,7 @@ function renderBloom() {
 	first.ctx.globalCompositeOperation = "copy";
 	first.ctx.imageSmoothingEnabled = true;
 	if (hasFilter) first.ctx.filter = "brightness(0.62) contrast(2.6) saturate(1.35)";
-	first.ctx.drawImage(sceneCanvas, 0, 0, first.canvas.width, first.canvas.height);
+	first.ctx.drawImage(source, 0, 0, first.canvas.width, first.canvas.height);
 	if (hasFilter) first.ctx.filter = "none";
 	for (let i = 1; i < levels; i++) {
 		const layer = bloomLevels[i];
@@ -8818,7 +9916,7 @@ function renderBloom() {
 /** Fills `layer` with the scene multiplied by `tint` (one colour channel of it). */
 function tintedCopy(layer, tint) {
 	layer.ctx.globalCompositeOperation = "copy";
-	layer.ctx.drawImage(sceneCanvas, 0, 0);
+	layer.ctx.drawImage(source, 0, 0, layer.canvas.width, layer.canvas.height);
 	layer.ctx.globalCompositeOperation = "multiply";
 	layer.ctx.fillStyle = tint;
 	layer.ctx.fillRect(0, 0, layer.canvas.width, layer.canvas.height);
@@ -8945,6 +10043,7 @@ function drawDrop(d, dw, dh, light) {
 }
 function composite(mode, dt) {
 	frameNumber++;
+	source = lookSource(dt);
 	const d = displayCtx;
 	const beat = audio.beat;
 	const light = !!scene.palette.light;
@@ -8973,7 +10072,7 @@ function composite(mode, dt) {
 		d.drawImage(red.canvas, x - split, y, dw * zoom, dh * zoom);
 		d.globalCompositeOperation = "lighter";
 		d.drawImage(cyan.canvas, x + split, y + split * .3, dw * zoom, dh * zoom);
-	} else d.drawImage(sceneCanvas, x, y, dw * zoom, dh * zoom);
+	} else d.drawImage(source, x, y, dw * zoom, dh * zoom);
 	d.restore();
 	const bloom = (mode.bloom ?? 1) * (light ? 0 : 1) * (hasFilter ? 1 : .35);
 	if (bloom > 0) {
@@ -9064,6 +10163,7 @@ function onBeat() {
 	const mode = currentMode();
 	if (mode.beatRings !== false) addBeatRing();
 	mode.beat?.();
+	if (scene.look.mashup) mashupBeat();
 	if (scene.autoSwitch) {
 		if (audio.beats % 32 === 0) shuffle();
 		else if (audio.beats % 16 === 8) randomPalette();
@@ -10984,7 +12084,35 @@ function applyLookEffects() {
 //#endregion
 //#region src/render/renderer.ts
 /** Draws one frame: feedback, fade, camera shake, the mode, the look effects, then the compositor. */
-function renderFrame(mode, dt) {
+/** Camera shake on the beat, the hand-held jitter of some looks, and phone motion. */
+function moveCamera(moving) {
+	const { width, height, cx, cy } = view;
+	let shakeX = 0;
+	let shakeY = 0;
+	if (audio.beat > .05) {
+		const k = audio.beat * audio.beat * 4;
+		shakeX += (Math.random() - .5) * k;
+		shakeY += (Math.random() - .5) * k;
+	}
+	const jitter = scene.look.jitter;
+	if (jitter) {
+		ctx.translate(cx, cy);
+		ctx.rotate((Math.random() - .5) * .02 * jitter);
+		ctx.translate(-cx, -cy);
+		shakeX += (Math.random() - .5) * 5 * jitter;
+		shakeY += (Math.random() - .5) * 5 * jitter;
+	}
+	ctx.translate(shakeX, shakeY);
+	if (moving) {
+		ctx.translate(cx, cy);
+		ctx.rotate(motion.tiltX * .12 + motion.spin * .3);
+		const z = 1 + motion.shake * .2;
+		ctx.scale(z, z);
+		ctx.translate(-cx + motion.tiltX * width * .1, -cy + motion.tiltY * height * .1);
+	}
+}
+/** Feedback, fade and one mode on the scene canvas; beat rings too when `rings`. */
+function drawMode(mode, dt, rings) {
 	const { width, height, cx, cy } = view;
 	const k60 = Math.min(3, dt * 60);
 	const moving = motionIsActive();
@@ -11017,32 +12145,17 @@ function renderFrame(mode, dt) {
 	ctx.fillRect(0, 0, width, height);
 	ctx.globalAlpha = 1;
 	ctx.save();
-	let shakeX = 0;
-	let shakeY = 0;
-	if (audio.beat > .05) {
-		const k = audio.beat * audio.beat * 4;
-		shakeX += (Math.random() - .5) * k;
-		shakeY += (Math.random() - .5) * k;
-	}
-	const jitter = scene.look.jitter;
-	if (jitter) {
-		ctx.translate(cx, cy);
-		ctx.rotate((Math.random() - .5) * .02 * jitter);
-		ctx.translate(-cx, -cy);
-		shakeX += (Math.random() - .5) * 5 * jitter;
-		shakeY += (Math.random() - .5) * 5 * jitter;
-	}
-	ctx.translate(shakeX, shakeY);
-	if (moving) {
-		ctx.translate(cx, cy);
-		ctx.rotate(motion.tiltX * .12 + motion.spin * .3);
-		const z = 1 + motion.shake * .2;
-		ctx.scale(z, z);
-		ctx.translate(-cx + motion.tiltX * width * .1, -cy + motion.tiltY * height * .1);
-	}
+	moveCamera(moving);
 	ctx.globalCompositeOperation = mode.blend || scene.palette.blend;
 	mode.draw(dt);
-	if (mode.beatRings !== false) drawBeatRings(dt);
+	if (rings && mode.beatRings !== false) drawBeatRings(dt);
+	ctx.restore();
+}
+function renderFrame(mode, dt) {
+	if (scene.look.mashup) drawMashup(mode, dt, drawMode);
+	else drawMode(mode, dt, true);
+	ctx.save();
+	moveCamera(motionIsActive());
 	drawDream();
 	drawHeardWords(dt);
 	ctx.restore();
