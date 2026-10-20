@@ -6,7 +6,7 @@
 import { clock, scene } from './core/state';
 import { PALETTES, type PaletteName } from './look/palettes';
 import { MODES } from './modes';
-import { setMode, setPalette } from './scene';
+import { autoSwitchAllowed, setMode, setPalette } from './scene';
 import { setStatus } from './ui/status';
 
 interface Topic {
@@ -85,7 +85,7 @@ export function topicOf(text: string): Topic | null {
 /** Switches to the scene of what was heard, if it names one. */
 export function steerByWords(text: string): void {
   const topic = topicOf(text);
-  if (!topic) return;
+  if (!topic || !autoSwitchAllowed()) return;
   const modeIndex = MODES.findIndex((m) => m.name === topic.mode);
   if (modeIndex < 0) return;
   if (modeIndex !== scene.modeIndex) setMode(modeIndex);

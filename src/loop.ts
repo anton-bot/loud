@@ -7,7 +7,7 @@ import { updateMotion } from './input/motion';
 import { resize } from './render/canvases';
 import { trackFrameTime } from './render/quality';
 import { renderFrame } from './render/renderer';
-import { currentMode, shuffle } from './scene';
+import { autoSwitchAllowed, currentMode, shuffle } from './scene';
 import { updateMeter } from './ui/controls';
 
 /** Without music events, the scene changes on its own after this many seconds. */
@@ -28,7 +28,9 @@ function frame(now: number): void {
   tickSpeech();
   updateMeter();
   scene.hue = (scene.hue + dt * 10) % 360;
-  if (scene.autoSwitch && clock.time - scene.lastSwitch > AUTO_SWITCH_S) shuffle();
+  if (scene.autoSwitch && clock.time - scene.lastSwitch > AUTO_SWITCH_S && autoSwitchAllowed()) {
+    shuffle();
+  }
 
   const mode = currentMode();
   const fps = mode.fps || scene.look.fps || 0;

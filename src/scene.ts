@@ -63,6 +63,18 @@ export function randomLook(): void {
   setLook(Math.random() < 0.35 ? 0 : LOOKS.indexOf(pick(LOOKS.slice(1))));
 }
 
+/** A camera mode stays at least this long before anything but the user changes it. */
+const CAMERA_HOLD_S = 30;
+
+/**
+ * False while a camera mode has not had its minimum time yet: automatic changes
+ * (auto-switch, sections, heard words, a hard shake) wait. The user's own taps and keys
+ * still change the mode at once.
+ */
+export function autoSwitchAllowed(): boolean {
+  return !currentMode().camera || clock.time - scene.lastSwitch >= CAMERA_HOLD_S;
+}
+
 /** A new random mode with a fitting palette and a random look. */
 export function shuffle(): void {
   // Never ask for the camera on its own: camera modes only once it was allowed.
@@ -84,7 +96,7 @@ export function onBeat(): void {
   mode.beat?.();
   if (scene.look.mashup) mashupBeat();
   if (scene.autoSwitch) {
-    if (audio.beats % 32 === 0) shuffle();
+    if (audio.beats % 32 === 0 && autoSwitchAllowed()) shuffle();
     else if (audio.beats % 16 === 8) randomPalette();
     else if (audio.beats % 12 === 6) randomLook();
   }

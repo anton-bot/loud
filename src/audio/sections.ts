@@ -8,7 +8,7 @@
  * the loudness, treble and brightness rise. The drop itself sets `audio.drop`.
  */
 import { audio, clock, scene } from '../core/state';
-import { shuffle } from '../scene';
+import { autoSwitchAllowed, shuffle } from '../scene';
 import { setStatus } from '../ui/status';
 import { isListening } from './mic';
 
@@ -60,6 +60,8 @@ function fire(why: 'drop' | 'rise' | 'breakdown'): void {
   }
   lastFire = clock.time;
   window.loudEvents.push({ t: +clock.time.toFixed(1), why });
+  // A camera mode that has not had its minimum time keeps the scene (the drop still shows).
+  if (!autoSwitchAllowed()) return;
   audio.beats = 0;
   shuffle();
   setStatus(`Section change (${why}): new scene`);

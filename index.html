@@ -10147,6 +10147,16 @@ function randomPalette() {
 function randomLook() {
 	setLook(Math.random() < .35 ? 0 : LOOKS.indexOf(pick(LOOKS.slice(1))));
 }
+/** A camera mode stays at least this long before anything but the user changes it. */
+var CAMERA_HOLD_S = 30;
+/**
+* False while a camera mode has not had its minimum time yet: automatic changes
+* (auto-switch, sections, heard words, a hard shake) wait. The user's own taps and keys
+* still change the mode at once.
+*/
+function autoSwitchAllowed() {
+	return !currentMode().camera || clock.time - scene.lastSwitch >= CAMERA_HOLD_S;
+}
 /** A new random mode with a fitting palette and a random look. */
 function shuffle() {
 	const modes = MODES.filter((m) => !m.camera || camera.allowed);
@@ -10165,7 +10175,7 @@ function onBeat() {
 	mode.beat?.();
 	if (scene.look.mashup) mashupBeat();
 	if (scene.autoSwitch) {
-		if (audio.beats % 32 === 0) shuffle();
+		if (audio.beats % 32 === 0 && autoSwitchAllowed()) shuffle();
 		else if (audio.beats % 16 === 8) randomPalette();
 		else if (audio.beats % 12 === 6) randomLook();
 	}
@@ -10228,6 +10238,7 @@ function fire(why) {
 		t: +clock.time.toFixed(1),
 		why
 	});
+	if (!autoSwitchAllowed()) return;
 	audio.beats = 0;
 	shuffle();
 	setStatus(`Section change (${why}): new scene`);
@@ -10617,7 +10628,7 @@ function updateMotion(dt) {
 		audio.beat = Math.max(audio.beat, motion.shake);
 		scene.hue = (scene.hue + motion.shake * dt * 300) % 360;
 	}
-	if (motion.shake > .85 && clock.time - sensor.lastShuffle > 1.5) {
+	if (motion.shake > .85 && clock.time - sensor.lastShuffle > 1.5 && autoSwitchAllowed()) {
 		sensor.lastShuffle = clock.time;
 		shuffle();
 	}
@@ -12444,7 +12455,7 @@ function frame(now) {
 	tickSpeech();
 	updateMeter();
 	scene.hue = (scene.hue + dt * 10) % 360;
-	if (scene.autoSwitch && clock.time - scene.lastSwitch > AUTO_SWITCH_S) shuffle();
+	if (scene.autoSwitch && clock.time - scene.lastSwitch > AUTO_SWITCH_S && autoSwitchAllowed()) shuffle();
 	const mode = currentMode();
 	const fps = mode.fps || scene.look.fps || 0;
 	sinceDrawn += dt;
@@ -12611,7 +12622,7 @@ function topicOf(text) {
 /** Switches to the scene of what was heard, if it names one. */
 function steerByWords(text) {
 	const topic = topicOf(text);
-	if (!topic) return;
+	if (!topic || !autoSwitchAllowed()) return;
 	const modeIndex = MODES.findIndex((m) => m.name === topic.mode);
 	if (modeIndex < 0) return;
 	if (modeIndex !== scene.modeIndex) setMode(modeIndex);

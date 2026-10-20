@@ -4,7 +4,7 @@
  */
 import { clamp } from '../core/math';
 import { audio, clock, motion, scene } from '../core/state';
-import { shuffle } from '../scene';
+import { autoSwitchAllowed, shuffle } from '../scene';
 import { setStatus } from '../ui/status';
 
 type MotionPermission = { requestPermission?: () => Promise<string> };
@@ -163,7 +163,8 @@ export function updateMotion(dt: number): void {
     audio.beat = Math.max(audio.beat, motion.shake);
     scene.hue = (scene.hue + motion.shake * dt * 300) % 360;
   }
-  if (motion.shake > 0.85 && clock.time - sensor.lastShuffle > 1.5) {
+  // A camera mode asks to move the phone: a shake must not end it before its time.
+  if (motion.shake > 0.85 && clock.time - sensor.lastShuffle > 1.5 && autoSwitchAllowed()) {
     sensor.lastShuffle = clock.time;
     shuffle();
   }
